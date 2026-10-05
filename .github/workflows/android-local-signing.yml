@@ -1,0 +1,219 @@
+name: Android local signing and verification
+
+on:
+  push:
+    branches:
+      - 'android-signing-inputs/**'
+      - 'android-apk-verification/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-local-signing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-inputs:
+    name: Build inputs for signing with the original local key
+    if: startsWith(github.ref, 'refs/heads/android-signing-inputs/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Firebase and private sync payloads
+        run: |
+          python3 scripts/validate-firebase-config.py
+          node firebase-tests/privacy_payload_test.js
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile unsigned release for local signing
+        run: |
+          test -z "${USSPACE_KEYSTORE_PATH:-}"
+          gradle --no-daemon :app:assembleRelease
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+      - name: Package APK and the SDK signing tools
+        run: |
+          set -euo pipefail
+          inputs=artifact-stage/signing-inputs
+          source_tools="$ANDROID_HOME/build-tools/35.0.0"
+          target_tools="$inputs/android-sdk/build-tools/35.0.0"
+          mkdir -p "$target_tools/lib" "$target_tools/lib64"
+          cp app/build/outputs/apk/release/app-release-unsigned.apk "$inputs/app-release-unsigned.apk"
+          cp "$source_tools/apksigner" "$source_tools/zipalign" "$source_tools/aapt" "$target_tools/"
+          cp "$source_tools/lib/apksigner.jar" "$target_tools/lib/"
+          cp "$source_tools/lib64/libc++.so" "$target_tools/lib64/"
+          printf '%s\n' "$GITHUB_SHA" > "$inputs/SOURCE_COMMIT.txt"
+          python3 - "$inputs" <<'PY'
+          import json, os, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          metadata = {
+              "purpose": "Unsigned release and SDK tools for signing with the original key outside CI",
+              "source_commit": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_run_id": os.environ["GITHUB_RUN_ID"],
+              "package": "app.usspace.couple.v012",
+              "version_code": 12,
+              "version_name": "0.12.0",
+              "android_sdk": 35,
+              "build_tools": "35.0.0",
+              "gradle": "8.11.1",
+              "android_gradle_plugin": "8.7.3",
+              "java": 17,
+          }
+          (root / "signing-inputs-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+          total = sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
+          if total >= 32 * 1024 * 1024 - 4096:
+              raise SystemExit(f"Signing inputs exceed the 32 MiB transfer limit: {total} bytes")
+          print(f"Signing inputs size: {total} bytes")
+          PY
+          (
+            cd "$inputs"
+            sha256sum app-release-unsigned.apk SOURCE_COMMIT.txt signing-inputs-metadata.json \
+              android-sdk/build-tools/35.0.0/apksigner \
+              android-sdk/build-tools/35.0.0/lib/apksigner.jar \
+              android-sdk/build-tools/35.0.0/zipalign \
+              android-sdk/build-tools/35.0.0/aapt \
+              android-sdk/build-tools/35.0.0/lib64/libc++.so > SHA256SUMS
+          )
+      - name: Upload inputs for original-key local signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.12-signing-inputs
+          path: artifact-stage/
+          if-no-files-found: error
+          retention-days: 7
+
+  verify-apk:
+    name: Install and launch the APK signed with the original key
+    if: startsWith(github.ref, 'refs/heads/android-apk-verification/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ANDROID_API: '35'
+      ANDROID_BUILD_TOOLS: '35.0.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Firebase and private sync payloads
+        run: |
+          test -s .ci-artifacts/apk-source.json
+          python3 scripts/validate-firebase-config.py
+          node firebase-tests/privacy_payload_test.js
+      - name: Download the locally signed APK and verify its source and checksum
+        timeout-minutes: 3
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess, time, urllib.parse, urllib.request
+          pointer = json.loads(pathlib.Path(".ci-artifacts/apk-source.json").read_text())
+          url = pointer["url"]
+          expected_sha = pointer["sha256"]
+          source_commit = pointer["source_commit"]
+          if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+              raise SystemExit("Invalid APK SHA-256 in apk-source.json")
+          if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
+              raise SystemExit("Invalid source commit in apk-source.json")
+          def require_https(value):
+              parsed = urllib.parse.urlsplit(value)
+              if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
+                  raise SystemExit("APK download and redirects must use HTTPS without URL credentials")
+          require_https(url)
+          class HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  require_https(newurl)
+                  return super().redirect_request(req, fp, code, msg, headers, newurl)
+          subprocess.run(["git", "cat-file", "-e", source_commit + "^{commit}"], check=True)
+          subprocess.run([
+              "git", "diff", "--exit-code", source_commit, "HEAD", "--",
+              "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
+              "scripts/verify-release-apk.py", "scripts/android-smoke-test.sh",
+              "scripts/validate-firebase-config.py", "firebase-tests/", "firestore.rules",
+          ], check=True)
+          output = pathlib.Path("artifacts")
+          output.mkdir(exist_ok=True)
+          apk = output / "UsSpace-v0.12.apk"
+          digest = hashlib.sha256()
+          size = 0
+          deadline = time.monotonic() + 120
+          opener = urllib.request.build_opener(HTTPSRedirectHandler())
+          with opener.open(url, timeout=30) as response, apk.open("wb") as dest:
+              require_https(response.geturl())
+              while True:
+                  if time.monotonic() >= deadline:
+                      raise SystemExit("APK download exceeded 120 seconds")
+                  chunk = response.read(1024 * 1024)
+                  if not chunk:
+                      break
+                  size += len(chunk)
+                  if size > 64 * 1024 * 1024:
+                      raise SystemExit("APK download exceeded 64 MiB")
+                  digest.update(chunk)
+                  dest.write(chunk)
+          if size == 0 or digest.hexdigest() != expected_sha:
+              apk.unlink(missing_ok=True)
+              raise SystemExit("Downloaded APK checksum does not match apk-source.json")
+          (output / "apk-source.json").write_text(json.dumps(pointer, indent=2) + "\n")
+          (output / "SOURCE_COMMIT.txt").write_text(source_commit + "\n")
+          (output / "VERIFICATION_COMMIT.txt").write_text(os.environ["GITHUB_SHA"] + "\n")
+          print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
+          PY
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK and Google APIs emulator
+        run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
+      - name: Verify the original-key APK and Firebase OAuth identity
+        run: |
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.12.apk --report artifacts/apk-verification.json
+          (cd artifacts && sha256sum UsSpace-v0.12.apk > UsSpace-v0.12.apk.sha256)
+          python3 - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path("artifacts/apk-verification.json")
+          report = json.loads(path.read_text())
+          report["source_commit"] = pathlib.Path("artifacts/SOURCE_COMMIT.txt").read_text().strip()
+          report["verification_commit"] = os.environ["GITHUB_SHA"]
+          path.write_text(json.dumps(report, indent=2) + "\n")
+          PY
+      - name: Enable KVM for the Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Boot Android 35, install and launch the signed APK
+        timeout-minutes: 12
+        env:
+          ANDROID_EMULATOR_ACCEL: 'on'
+          BOOT_TIMEOUT_SECONDS: '300'
+          CRASH_OBSERVE_SECONDS: '20'
+        run: bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.12.apk artifacts
+      - name: Upload verified APK and emulator evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.12-verified-apk
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
