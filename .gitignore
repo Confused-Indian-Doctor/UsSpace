@@ -1,0 +1,21 @@
+# Generated files and local configuration
+.gradle/
+build/
+**/build/
+local.properties
+__pycache__/
+*.pyc
+
+# Private signing material and server credentials
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.env
+.env
+.env.*
+!*.env.example
+*service-account*.json
+
+# Firebase Android client configuration is intentionally included.
+# It is distributed in the APK; access is governed by Firebase rules.
