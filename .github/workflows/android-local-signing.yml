@@ -201,8 +201,15 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
+          sudo modprobe kvm
+          sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
           sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
       - name: Boot Android 35, install and launch the signed APK
         timeout-minutes: 12
         env:
