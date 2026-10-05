@@ -124,7 +124,12 @@ jobs:
           ANDROID_EMULATOR_ACCEL: 'on'
           BOOT_TIMEOUT_SECONDS: '300'
           CRASH_OBSERVE_SECONDS: '20'
-        run: bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.12.apk artifacts
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/usspace-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd -n usspace-ci -k "system-images;android-$ANDROID_API;google_apis;x86_64" --force --path "$ANDROID_AVD_HOME/usspace-ci.avd" <<< no
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fxq usspace-ci
+          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.12.apk artifacts
 
       - name: Upload verified APK and emulator evidence
         uses: actions/upload-artifact@v4
