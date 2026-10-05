@@ -10,6 +10,7 @@ import android.health.connect.datatypes.DataOrigin;
 import android.health.connect.datatypes.ExerciseSessionRecord;
 import android.health.connect.datatypes.RestingHeartRateRecord;
 import android.health.connect.datatypes.OxygenSaturationRecord;
+import android.health.connect.datatypes.Record;
 import android.health.connect.datatypes.SleepSessionRecord;
 import android.health.connect.datatypes.StepsRecord;
 import android.health.connect.datatypes.ActiveCaloriesBurnedRecord;
@@ -112,23 +113,22 @@ public class HealthBridge {
         read(7, ExerciseSessionRecord.class, dayStart, now);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private void read(int kind, Class recordClass, Instant start, Instant end) {
+    private <T extends Record> void read(int kind, Class<T> recordClass, Instant start, Instant end) {
         HealthConnectManager manager = activity.getSystemService(HealthConnectManager.class);
         if (manager == null) { finishOne(true); return; }
         try {
             TimeInstantRangeFilter range = new TimeInstantRangeFilter.Builder()
                     .setStartTime(start).setEndTime(end).build();
             DataOrigin samsung = new DataOrigin.Builder().setPackageName("com.sec.android.app.shealth").build();
-            ReadRecordsRequestUsingFilters request = new ReadRecordsRequestUsingFilters.Builder(recordClass)
+            ReadRecordsRequestUsingFilters<T> request = new ReadRecordsRequestUsingFilters.Builder<>(recordClass)
                     .setTimeRangeFilter(range)
                     .addDataOrigins(samsung)
                     .setAscending(false)
                     .setPageSize(5000)
                     .build();
             manager.readRecords(request, activity::runOnUiThread,
-                    new OutcomeReceiver<ReadRecordsResponse, HealthConnectException>() {
-                        @Override public void onResult(ReadRecordsResponse result) {
+                    new OutcomeReceiver<ReadRecordsResponse<T>, HealthConnectException>() {
+                        @Override public void onResult(ReadRecordsResponse<T> result) {
                             handle(kind, result.getRecords());
                             finishOne(false);
                         }
