@@ -1,0 +1,132 @@
+name: Android v0.12
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-validation:
+    name: Compile source and check private sync payloads
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Firebase client config
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+          fi
+          python3 scripts/validate-firebase-config.py
+      - name: Check private sync payloads
+        run: node firebase-tests/privacy_payload_test.js
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile release source without publishing an unsigned APK
+        run: gradle --no-daemon :app:assembleRelease
+
+  signed-apk:
+    name: Build and launch verified signed APK
+    needs: source-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_API: '35'
+      ANDROID_BUILD_TOOLS: '35.0.0'
+      USSPACE_KEYSTORE_PATH: ${{ runner.temp }}/usspace-v012.p12
+      USSPACE_KEY_ALIAS: ${{ secrets.USSPACE_KEY_ALIAS || 'usspace' }}
+      USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
+      USSPACE_KEY_PASSWORD: ${{ secrets.USSPACE_KEY_PASSWORD || secrets.USSPACE_KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate config and restore stable signing key
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+          USSPACE_KEYSTORE_B64: ${{ secrets.USSPACE_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          for required in USSPACE_KEYSTORE_B64 USSPACE_KEYSTORE_PASSWORD USSPACE_KEY_PASSWORD; do
+            if [ -z "${!required}" ]; then
+              echo "::error::Missing $required. Configure the existing stable signing key; CI will not create a replacement key."
+              exit 1
+            fi
+          done
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+          fi
+          python3 scripts/validate-firebase-config.py
+          umask 077
+          printf '%s' "$USSPACE_KEYSTORE_B64" | base64 --decode > "$USSPACE_KEYSTORE_PATH"
+          test -s "$USSPACE_KEYSTORE_PATH"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build signed release APK
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify signing certificate, Firebase OAuth and APK identity
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/release/app-release.apk artifacts/UsSpace-v0.12.apk
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.12.apk --report artifacts/apk-verification.json
+          (cd artifacts && sha256sum UsSpace-v0.12.apk > UsSpace-v0.12.apk.sha256)
+
+      - name: Enable KVM for the Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+
+      - name: Boot Android 35, install and launch the signed APK
+        timeout-minutes: 12
+        env:
+          ANDROID_EMULATOR_ACCEL: 'on'
+          BOOT_TIMEOUT_SECONDS: '300'
+          CRASH_OBSERVE_SECONDS: '20'
+        run: bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.12.apk artifacts
+
+      - name: Upload verified APK and emulator evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.12-verified-apk
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove restored signing key
+        if: always()
+        run: rm -f "$USSPACE_KEYSTORE_PATH"

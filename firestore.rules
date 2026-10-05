@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember(coupleId) {
+      return signedIn() && exists(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.auth.uid));
+    }
+    function safePayload() {
+      return !request.resource.data.payload.keys().hasAny(['health', 'healthHistory', 'cycle']);
+    }
+
+    match /users/{uid} {
+      allow read, create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /pairInvites/{code} {
+      allow create: if signedIn()
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.used == false
+        && request.resource.data.expiresAt > request.time
+        && getAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)).data.ownerUid == request.auth.uid;
+      // Code allocation probes random document IDs before creating an invite.
+      // A signed-in client may observe absence, but existing invites still expire.
+      allow get: if signedIn()
+        && (!exists(/databases/$(database)/documents/pairInvites/$(code))
+          || resource.data.expiresAt > request.time);
+      allow list: if false;
+      allow update: if signedIn()
+        && resource.data.used == false
+        && request.resource.data.used == true
+        && request.resource.data.usedByUid == request.auth.uid
+        && request.resource.data.coupleId == resource.data.coupleId
+        && request.resource.data.creatorUid == resource.data.creatorUid
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used','usedByUid','usedAt'])
+        && getAfter(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.lastJoinUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.memberCount == 2;
+      allow delete: if false;
+    }
+
+    match /couples/{coupleId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberCount == 1;
+      // A joining user learns a random coupleId only from a valid invite. Lists are never allowed.
+      allow get: if isMember(coupleId) || (signedIn() && resource.data.memberCount == 1);
+      allow list: if false;
+      allow update: if (isMember(coupleId)
+          && request.resource.data.memberCount == resource.data.memberCount - 1
+          && request.resource.data.lastLeaveUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount','lastLeaveUid','lastLeaveAt']))
+        || (signedIn()
+          && resource.data.memberCount == 1
+          && request.resource.data.memberCount == 2
+          && request.resource.data.lastJoinUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount','lastJoinCode','lastJoinUid'])
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.used == true
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.usedByUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.coupleId == coupleId
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.expiresAt > request.time);
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(coupleId);
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && (
+            (getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.ownerUid == uid
+             && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 1)
+            ||
+            (request.resource.data.inviteCode is string
+             && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 2
+             && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.lastJoinUid == uid
+             && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.inviteCode)).data.usedByUid == uid)
+          );
+        allow update: if isMember(coupleId) && request.auth.uid == uid && request.resource.data.uid == uid;
+        allow delete: if signedIn() && request.auth.uid == uid && isMember(coupleId);
+      }
+
+      match /shared/{docId} {
+        allow read: if isMember(coupleId);
+        allow write: if isMember(coupleId) && safePayload();
+      }
+
+      match /profiles/{uid} {
+        allow read: if isMember(coupleId);
+        allow write: if isMember(coupleId) && request.auth.uid == uid && safePayload();
+      }
+    }
+  }
+}
