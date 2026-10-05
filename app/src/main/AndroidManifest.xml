@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
     <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
         <package android:name="com.google.android.apps.healthdata" />
         <package android:name="com.sec.android.app.shealth" />
     </queries>

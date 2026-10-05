@@ -12,6 +12,8 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.MetadataChanges;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.firestore.WriteBatch;
@@ -39,6 +41,12 @@ public class CoupleSyncBridge {
     private ListenerRegistration commonListener;
     private ListenerRegistration profilesListener;
     private String currentCoupleId = "";
+    private boolean commonReady = false, commonFromCache = true, profilesFromCache = true, pendingWrites = false, profilePendingWrites = false;
+    private String createdCoupleId = "";
+    private boolean newSpace = false, commonExists = false, transactionPending = false;
+    private String syncError = "";
+    private Map<String, Object> cachedClients = new HashMap<>();
+    private final java.util.Set<String> inFlightPatches = new java.util.HashSet<>();
     private Map<String, Object> cachedCommon = new HashMap<>();
     private final Map<String, Map<String, Object>> cachedProfiles = new LinkedHashMap<>();
 
@@ -63,7 +71,7 @@ public class CoupleSyncBridge {
 
     public void onSignedOut() {
         detachAll();
-        currentCoupleId = "";
+        currentCoupleId = ""; createdCoupleId = ""; newSpace = false; commonReady = false;
         cachedCommon.clear();
         cachedProfiles.clear();
         postSyncState(false, false, "", "", false);
@@ -102,7 +110,11 @@ public class CoupleSyncBridge {
             String coupleId = snap.getString("coupleId");
             if (coupleId == null) coupleId = "";
             if (!coupleId.equals(currentCoupleId)) attachCouple(coupleId, false);
-            else postSyncState(true, !coupleId.isEmpty(), coupleId, "", false);
+            else {
+                if (!coupleId.isEmpty() && (commonListener == null || !syncError.isEmpty())) attachCouple(coupleId, false);
+                postSyncState(true, !coupleId.isEmpty(), coupleId, syncError, false);
+                if (commonReady) postSnapshot();
+            }
         });
     }
 
@@ -127,11 +139,7 @@ public class CoupleSyncBridge {
         }
         String code = String.format("%06d", 100000 + random.nextInt(900000));
         DocumentReference inviteRef = db.collection("pairInvites").document(code);
-        inviteRef.get().addOnSuccessListener(existing -> {
-            if (existing.exists()) {
-                createCodeAttempt(user, attempt + 1);
-                return;
-            }
+        {
             String coupleId = db.collection("couples").document().getId();
             DocumentReference coupleRef = db.collection("couples").document(coupleId);
             DocumentReference memberRef = coupleRef.collection("members").document(user.getUid());
@@ -154,6 +162,7 @@ public class CoupleSyncBridge {
             invite.put("expiresAt", expires);
             invite.put("used", false);
 
+            createdCoupleId = coupleId;
             WriteBatch batch = db.batch();
             batch.set(coupleRef, couple);
             batch.set(memberRef, member);
@@ -163,12 +172,17 @@ public class CoupleSyncBridge {
             userPairing.put("pairedAt", FieldValue.serverTimestamp());
             batch.set(userRef, userPairing, SetOptions.merge());
             batch.commit().addOnSuccessListener(v -> {
+                newSpace = true;
                 attachCouple(coupleId, true);
                 JSONObject extra = new JSONObject();
                 try { extra.put("pairCode", code); } catch (Exception ignored) { }
                 postSyncState(true, true, coupleId, "", true, extra);
-            }).addOnFailureListener(e -> postSyncState(true, false, "", "Could not create private space", false));
-        }).addOnFailureListener(e -> postSyncState(true, false, "", "Could not check pairing code", false));
+            }).addOnFailureListener(e -> {
+                // An occupied random code is an update, which the invite rules reject.
+                if (e instanceof FirebaseFirestoreException && ((FirebaseFirestoreException)e).getCode() == FirebaseFirestoreException.Code.PERMISSION_DENIED && attempt < 2) createCodeAttempt(user, attempt + 1);
+                else postSyncState(true, false, "", "Could not create private space. Check the Firebase pairing rules and connection.", false);
+            });
+        }
     }
 
     @JavascriptInterface
@@ -263,36 +277,78 @@ public class CoupleSyncBridge {
     }
 
     @JavascriptInterface
-    public void push(String commonJson, String profileJson) {
+    public void pushProfile(String profileJson) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || currentCoupleId.isEmpty()) return;
         try {
-            Map<String, Object> common = jsonObjectToMap(new JSONObject(commonJson == null ? "{}" : commonJson));
-            // Hard privacy boundary: these keys can never be uploaded by this bridge.
-            common.remove("health");
-            common.remove("healthHistory");
-            common.remove("cycle");
-            Map<String, Object> profile = jsonObjectToMap(new JSONObject(profileJson == null ? "{}" : profileJson));
-            profile.remove("health");
-            profile.remove("healthHistory");
-            profile.remove("cycle");
+            Map<String, Object> profile = SyncPatchReducer.projectProfile(jsonObjectToMap(new JSONObject(profileJson)));
+            Map<String, Object> document = new HashMap<>();
+            document.put("payload", profile);
+            document.put("updatedBy", user.getUid());
+            document.put("updatedAt", FieldValue.serverTimestamp());
+            db.collection("couples").document(currentCoupleId).collection("profiles").document(user.getUid())
+                .set(document).addOnFailureListener(e -> postSyncState(true, true, currentCoupleId, "Profile sync failed — local copy kept", false));
+        } catch (Exception e) { postSyncState(true, true, currentCoupleId, "Could not prepare shared profile", false); }
+    }
 
-            DocumentReference coupleRef = db.collection("couples").document(currentCoupleId);
-            WriteBatch batch = db.batch();
-            Map<String, Object> commonDocument = new HashMap<>();
-            commonDocument.put("payload", common);
-            commonDocument.put("updatedBy", user.getUid());
-            commonDocument.put("updatedAt", FieldValue.serverTimestamp());
-            Map<String, Object> profileDocument = new HashMap<>();
-            profileDocument.put("payload", profile);
-            profileDocument.put("updatedBy", user.getUid());
-            profileDocument.put("updatedAt", FieldValue.serverTimestamp());
-            batch.set(coupleRef.collection("shared").document("common"), commonDocument, SetOptions.merge());
-            batch.set(coupleRef.collection("profiles").document(user.getUid()), profileDocument, SetOptions.merge());
-            batch.commit().addOnFailureListener(e -> postSyncState(true, true, currentCoupleId, "Sync failed — local copy kept", false));
-        } catch (Exception e) {
-            postSyncState(true, true, currentCoupleId, "Could not prepare sync payload", false);
-        }
+    @JavascriptInterface
+    public void pushPatch(String patchJson) {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null || currentCoupleId.isEmpty()) return;
+        final String coupleId = currentCoupleId;
+        try {
+            Map<String, Object> patch = jsonObjectToMap(new JSONObject(patchJson));
+            String clientId = String.valueOf(patch.get("clientId"));
+            Object rawSequence = patch.get("sequence");
+            if (!clientId.matches("[A-Za-z0-9_-]{8,100}") || !(rawSequence instanceof Number)
+                || !(patch.get("changes") instanceof List) || ((List<?>)patch.get("changes")).size() > 300)
+                throw new IllegalArgumentException("Invalid sync patch");
+            long sequence = ((Number)rawSequence).longValue();
+            if (sequence < 1) throw new IllegalArgumentException("Invalid sync sequence");
+            String token = clientId + ":" + sequence;
+            synchronized (inFlightPatches) { if (!inFlightPatches.add(token)) return; }
+            transactionPending = true;
+            postSyncState(true, true, coupleId, "", false);
+            DocumentReference commonRef = db.collection("couples").document(coupleId).collection("shared").document("common");
+            db.runTransaction(transaction -> {
+                DocumentSnapshot snapshot = transaction.get(commonRef);
+                Map<String, Object> previous = snapshot.exists() && snapshot.get("payload") instanceof Map
+                    ? new HashMap<>((Map<String, Object>)snapshot.get("payload")) : new HashMap<>();
+                Map<String, Object> clients = snapshot.exists() && snapshot.get("syncClients") instanceof Map
+                    ? new HashMap<>((Map<String, Object>)snapshot.get("syncClients")) : new HashMap<>();
+                Object cursor = clients.get(clientId);
+                long acknowledged = cursor instanceof Number ? ((Number)cursor).longValue() : 0L;
+                if (sequence <= acknowledged) return null;
+                if (sequence != acknowledged + 1L) throw new IllegalStateException("Sync sequence gap");
+                Map<String, Object> merged = SyncPatchReducer.applyPatch(previous, patch);
+                clients.put(clientId, sequence);
+                Map<String, Object> document = new HashMap<>();
+                document.put("payload", merged);
+                document.put("syncClients", clients);
+                document.put("updatedBy", user.getUid());
+                document.put("updatedAt", FieldValue.serverTimestamp());
+                transaction.set(commonRef, document);
+                return null;
+            }).addOnSuccessListener(v -> {
+                synchronized (inFlightPatches) { inFlightPatches.remove(token); transactionPending = !inFlightPatches.isEmpty(); }
+                if (!coupleId.equals(currentCoupleId)) return;
+                syncError = "";
+                postPatchAck(clientId, sequence, true, "");
+                postSyncState(true, true, coupleId, "", false);
+            }).addOnFailureListener(e -> {
+                synchronized (inFlightPatches) { inFlightPatches.remove(token); transactionPending = !inFlightPatches.isEmpty(); }
+                if (!coupleId.equals(currentCoupleId)) return;
+                syncError = "Waiting to sync — edits are saved on this phone";
+                postPatchAck(clientId, sequence, false, syncError);
+                postSyncState(true, true, coupleId, syncError, false);
+            });
+        } catch (Exception e) { postSyncState(true, true, coupleId, "Could not prepare realtime update", false); }
+    }
+
+    private void postPatchAck(String clientId, long sequence, boolean success, String error) {
+        JSONObject response = new JSONObject();
+        try { response.put("clientId", clientId); response.put("sequence", sequence); response.put("success", success); response.put("error", error); response.put("coupleId", currentCoupleId); } catch (Exception ignored) { }
+        eval("window.onUsSyncAck&&window.onUsSyncAck(" + response + ");");
     }
 
     private void attachCouple(String coupleId, boolean justPaired) {
@@ -300,47 +356,72 @@ public class CoupleSyncBridge {
         if (profilesListener != null) profilesListener.remove();
         commonListener = null;
         profilesListener = null;
-        cachedCommon = new HashMap<>();
+        cachedCommon = new HashMap<>(); cachedClients = new HashMap<>();
         cachedProfiles.clear();
+        commonReady = false; commonExists = false; commonFromCache = true; profilesFromCache = true; pendingWrites = false; profilePendingWrites = false; syncError = "";
+        newSpace = coupleId != null && !coupleId.isEmpty() && coupleId.equals(createdCoupleId);
         currentCoupleId = coupleId == null ? "" : coupleId;
         if (currentCoupleId.isEmpty()) {
             postSyncState(auth.getCurrentUser() != null, false, "", "", false);
             return;
         }
         postSyncState(true, true, currentCoupleId, "", justPaired);
-        DocumentReference coupleRef = db.collection("couples").document(currentCoupleId);
-        commonListener = coupleRef.collection("shared").document("common").addSnapshotListener((snap, error) -> {
+        final String attachedId = currentCoupleId;
+        DocumentReference coupleRef = db.collection("couples").document(attachedId);
+        commonListener = coupleRef.collection("shared").document("common").addSnapshotListener(MetadataChanges.INCLUDE, (snap, error) -> {
+            if (!attachedId.equals(currentCoupleId)) return;
             if (error != null) {
-                postSyncState(true, true, currentCoupleId, "Realtime sync interrupted", false);
+                syncError = "Realtime sync interrupted — local edits are kept";
+                postSyncState(true, true, attachedId, syncError, false);
                 return;
             }
-            if (snap != null && snap.exists()) {
-                Object payload = snap.get("payload");
-                if (payload instanceof Map) cachedCommon = new HashMap<>((Map<String, Object>) payload);
+            if (snap == null) return;
+            commonFromCache = snap.getMetadata().isFromCache();
+            pendingWrites = snap.getMetadata().hasPendingWrites();
+            // Do not replay a pending transaction back over its own local outbox.
+            if (!pendingWrites) {
+                commonExists = snap.exists();
+                cachedCommon = snap.exists() && snap.get("payload") instanceof Map
+                    ? new HashMap<>((Map<String, Object>)snap.get("payload")) : new HashMap<>();
+                cachedClients = snap.exists() && snap.get("syncClients") instanceof Map
+                    ? new HashMap<>((Map<String, Object>)snap.get("syncClients")) : new HashMap<>();
+                if (!commonFromCache) { commonReady = true; syncError = ""; }
+                postSnapshot();
             }
-            postSnapshot();
+            postSyncState(true, true, attachedId, syncError, false);
         });
-        profilesListener = coupleRef.collection("profiles").addSnapshotListener((snap, error) -> {
-            if (error != null) return;
+        profilesListener = coupleRef.collection("profiles").addSnapshotListener(MetadataChanges.INCLUDE, (snap, error) -> {
+            if (!attachedId.equals(currentCoupleId)) return;
+            if (error != null) {
+                syncError = "Could not read shared profiles — local edits are kept";
+                postSyncState(true, true, attachedId, syncError, false); return;
+            }
             cachedProfiles.clear();
             if (snap != null) {
+                profilesFromCache = snap.getMetadata().isFromCache();
+                profilePendingWrites = snap.getMetadata().hasPendingWrites();
                 for (QueryDocumentSnapshot doc : snap) {
                     Object payload = doc.get("payload");
-                    if (payload instanceof Map) cachedProfiles.put(doc.getId(), new HashMap<>((Map<String, Object>) payload));
+                    if (payload instanceof Map) cachedProfiles.put(doc.getId(), SyncPatchReducer.projectProfile((Map<String, Object>)payload));
                 }
             }
             postSnapshot();
+            postSyncState(true, true, attachedId, syncError, false);
         });
     }
 
     private void postSnapshot() {
         try {
             JSONObject root = new JSONObject();
-            root.put("common", new JSONObject(cachedCommon));
+            root.put("coupleId", currentCoupleId);
+            root.put("ready", commonReady);
+            root.put("exists", commonExists);
+            root.put("newSpace", newSpace);
+            root.put("fromCache", commonFromCache);
+            root.put("common", new JSONObject(SyncPatchReducer.projectCommon(cachedCommon)));
+            root.put("clients", new JSONObject(cachedClients));
             JSONObject profiles = new JSONObject();
-            for (Map.Entry<String, Map<String, Object>> e : cachedProfiles.entrySet()) {
-                profiles.put(e.getKey(), new JSONObject(e.getValue()));
-            }
+            for (Map.Entry<String, Map<String, Object>> e : cachedProfiles.entrySet()) profiles.put(e.getKey(), new JSONObject(e.getValue()));
             root.put("profiles", profiles);
             eval("window.onUsSharedSnapshot&&window.onUsSharedSnapshot(" + root + ");");
         } catch (Exception ignored) { }
@@ -388,7 +469,13 @@ public class CoupleSyncBridge {
             j.put("paired", paired);
             j.put("coupleId", coupleId == null ? "" : coupleId);
             j.put("justPaired", justPaired);
-            j.put("state", paired ? "live" : (signedIn ? "unpaired" : "local"));
+            j.put("ready", commonReady);
+            j.put("newSpace", newSpace);
+            j.put("pendingWrites", pendingWrites || profilePendingWrites || transactionPending);
+            String phase = !paired ? (signedIn ? "unpaired" : "local") : !commonReady ? "connecting"
+                : !syncError.isEmpty() || commonFromCache || profilesFromCache ? "offline"
+                : pendingWrites || profilePendingWrites || transactionPending ? "syncing" : "live";
+            j.put("state", phase);
             j.put("error", error == null ? "" : error);
         } catch (Exception ignored) { }
         eval("window.onUsSyncState&&window.onUsSyncState(" + j + ");");

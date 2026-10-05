@@ -1,6 +1,6 @@
 # Signed Android build and emulator verification
 
-The `Android v0.12` GitHub Actions workflow builds this Firebase-connected source on pushes to `main` and manual dispatches. It uses JDK 17, Gradle 8.11.1, Android Gradle Plugin 8.7.3 and Android SDK 35. An independent source-validation job runs the privacy payload test and compiles the release source even if signing secrets are unavailable. Its unsigned output is never published.
+The `Android v0.12` GitHub Actions workflow builds this Firebase-connected source on pushes to `main` and manual dispatches. It uses JDK 17, Gradle 8.11.1, Android Gradle Plugin 8.7.3 and Android SDK 35. An independent source-validation job runs the learning and sync protocol tests, two-client Firestore emulator/security tests, privacy checks and release compilation even if signing secrets are unavailable. Its unsigned output is never published.
 
 Configure these repository Actions secrets before starting a signed build:
 
@@ -29,7 +29,9 @@ bash scripts/android-smoke-test.sh /path/to/UsSpace-v0.12.apk artifacts --existi
 
 Omit `--existing-device` to let the script create and boot its own emulator after installing `system-images;android-35;google_apis;x86_64` and `emulator`. `ANDROID_EMULATOR_ACCEL` defaults to `on`; a local machine without KVM can explicitly set it to `off`. The CI build requires KVM.
 
-The emulator launch validates packaging and startup. Live Google authentication, two-account Firestore pairing/sync, Samsung Health data availability and Health Connect consent require suitable accounts and devices; the smoke test does not claim those account-dependent flows are verified.
+The release is version 0.12.1 / versionCode 13 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
+
+The Android emulator validates packaging, startup and the embedded learning screens. Live Google authentication, two-account Firestore pairing/sync, Samsung Health data availability and Health Connect consent require suitable accounts and devices; the smoke test does not claim those account-dependent flows are verified.
 
 ## Signing locally when repository secrets cannot be configured
 

@@ -36,6 +36,17 @@ jobs:
           python3 scripts/validate-firebase-config.py
       - name: Check private sync payloads
         run: node firebase-tests/privacy_payload_test.js
+      - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
+        timeout-minutes: 8
+        run: bash scripts/test-firebase-realtime.sh
+      - name: Save Firebase verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.12-firebase-verification
+          path: artifacts/firebase-realtime-tests.log
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools

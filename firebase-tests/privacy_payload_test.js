@@ -11,6 +11,8 @@ new vm.Script(script); // Check all embedded JavaScript syntax without a browser
 const initializationEnd = script.indexOf('const NAV_GROUP=');
 assert.ok(initializationEnd > 0, 'app initialization boundary missing');
 const context = vm.createContext({localStorage: {getItem: () => null}});
+context.window=context;
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../app/src/main/assets/realtime-sync.js'),'utf8'),context);
 vm.runInContext(script.slice(0, initializationEnd), context);
 assert.equal(vm.runInContext('state.health.share', context), false);
 assert.equal(vm.runInContext('state.cycle.showHome', context), false);
@@ -19,8 +21,8 @@ context.fixture = {
   settings: {you: 'Me', status: 'Available', visit: '2026-10-20'},
   life: {watchTitle: 'Shared show'}, duties: [{id: 1}],
   goals: [{id: 1, level: 'Private'}, {id: 2, level: 'Visible'}],
-  notes: [{id: 3}], memories: [{id: 4}], checkins: [{id: 5}],
-  learn: {progress: {al: {xp: 2}}},
+  notes: [{id: 3}], memories: [{id: 4}], checkins: [{date:'2026-10-21',mood:'Good'}],
+  learn: {progress: {al: {xp: 2,cards:{kn01:{reps:2,lastReviewed:1,health:'LEARNING_HEALTH_SECRET'}},units:{basics:{completedAt:2,score:100}},sessions:{event1:{day:'2026-10-21',at:2,xp:2,attempts:1,correct:1}},health:'LEARNING_HEALTH_SECRET'}}},
   health: {lastSync: 'HEALTH_SECRET'},
   healthHistory: [{steps: 123, note: 'HEALTH_HISTORY_SECRET'}],
   cycle: {lastPeriod: 'CYCLE_SECRET'}
@@ -33,13 +35,16 @@ for (const payload of [common, profile]) {
   for (const forbidden of ['health', 'healthHistory', 'cycle']) {
     assert.equal(Object.hasOwn(payload, forbidden), false, `privacy leak: ${forbidden}`);
   }
-  assert.doesNotMatch(JSON.stringify(payload), /HEALTH_SECRET|HEALTH_HISTORY_SECRET|CYCLE_SECRET/);
+  assert.doesNotMatch(JSON.stringify(payload), /HEALTH_SECRET|HEALTH_HISTORY_SECRET|CYCLE_SECRET|LEARNING_HEALTH_SECRET/);
 }
 assert.deepEqual(common.goals, [{id: 2, level: 'Visible'}]);
-assert.deepEqual(common.learn.progress, {al: {xp: 2}});
+assert.equal(common.learn.progress.al.xp,2);
+assert.deepEqual(common.learn.progress.al.cards.kn01,{reps:2,lastReviewed:1});
+assert.deepEqual(common.learn.progress.al.units.basics,{completedAt:2,score:100});
+assert.equal(common.learn.progress.al.sessions.event1.at,2);
 assert.equal(common.visit, '2026-10-20');
 assert.equal(profile.life.watchTitle, 'Shared show');
-assert.deepEqual(profile.checkins, [{id: 5}]);
+assert.deepEqual(profile.checkins, [{date:'2026-10-21',mood:'Good'}]);
 context.fixture.checkins = Array.from({length: 35}, (_, id) => ({id}));
 assert.equal(project('myProfileProjection()').checkins.length, 30);
 console.log('PRIVACY_PAYLOAD_TEST_OK (shipped app projections and private defaults)');

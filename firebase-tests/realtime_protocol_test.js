@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict');
+const Sync=require('../app/src/main/assets/realtime-sync.js');
+function storage(){const values=new Map();return {getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)}}
+function base(){return Sync.projectCommon({visit:'2026-10-21',goals:[{id:'goal',level:'Visible',value:2,target:20,title:'Study'}],notes:[{id:'cloud',text:'Cloud note'}],learn:{progress:{al:{xp:10,known:['kn01'],attempts:2,correct:1}}}})}
+const first=base(), second=base();first.goals[0].value++;first.notes.unshift({id:'a',text:'Al note'});first.learn.progress.al.xp+=2;second.goals[0].value++;second.notes.unshift({id:'b',text:'Partner note'});second.learn.progress.al.xp+=3;second.learn.progress.yashika={xp:5,known:['ml01']};
+const a={changes:Sync.diffCommon(base(),first)},b={changes:Sync.diffCommon(base(),second)};
+const ab=Sync.applyPatch(Sync.applyPatch(base(),a),b),ba=Sync.applyPatch(Sync.applyPatch(base(),b),a);
+assert.equal(ab.goals[0].value,4);assert.equal(ba.goals[0].value,4);assert.equal(ab.learn.progress.al.xp,15);assert.equal(ab.learn.progress.yashika.xp,5);assert.deepEqual(new Set(ab.notes.map(x=>x.id)),new Set(['a','b','cloud']));
+const sameTime=(reps)=>({changes:[{kind:'latestMap',path:['learn','progress','al','cards'],key:'kn01',value:{lastReviewed:100,reps}}]});
+assert.deepEqual(Sync.applyPatch(Sync.applyPatch({},sameTime(1)),sameTime(2)),Sync.applyPatch(Sync.applyPatch({},sameTime(2)),sameTime(1)));
+const bonusBase=Sync.projectCommon({learn:{progress:{al:{xp:0,units:{}}}}}),bonusAfter=Sync.projectCommon({learn:{progress:{al:{xp:30,units:{basics:{completedAt:100,score:100}}}}}}),bonus={changes:Sync.diffCommon(bonusBase,bonusAfter)};
+assert.equal(Sync.applyPatch(Sync.applyPatch(bonusBase,bonus),bonus).learn.progress.al.xp,30,'same unit completion must award one bonus even from two devices');
+const local=base();local.notes=[{id:'demo',text:'Demo must not overwrite cloud'}];local.learn.progress.al.xp=15;const store=storage(),controller=new Sync.Controller(store,'uid:couple',local);
+assert.equal(controller.next(),null,'wait for server hydration');const hydrated=controller.hydrate(base(),{exists:true});assert.equal(hydrated.notes[0].id,'cloud');assert.equal(hydrated.learn.progress.al.xp,15,'offline learning retained when first paired');
+let remote=base();while(controller.next()){const op=controller.next();remote=Sync.applyPatch(remote,op);controller.ack(op.clientId,op.sequence)}
+controller.hydrate(remote,{exists:true});const changed=structuredClone(remote);changed.learn.progress.al.xp+=2;controller.capture(changed);const queued=controller.next();assert.ok(queued);const reload=new Sync.Controller(store,'uid:couple',changed);assert.equal(reload.next(),null);const applied=Sync.applyPatch(remote,queued);const cursor={[queued.clientId]:queued.sequence};const settled=reload.hydrate(applied,{exists:true,clients:cursor});assert.equal(settled.learn.progress.al.xp,17,'server cursor prevents own snapshot/outbox double count');assert.equal(reload.pendingCount(),0);
+const offlineStore=storage(),offline=new Sync.Controller(offlineStore,'uid:offline',base());offline.hydrate(base(),{exists:true});const edited=base();edited.notes.unshift({id:'offline',text:'Saved without network'});offline.capture(edited);const offlineReload=new Sync.Controller(offlineStore,'uid:offline',edited);const rebased=offlineReload.hydrate(base(),{exists:true});assert.ok(rebased.notes.some(n=>n.id==='offline'));assert.ok(offlineReload.next(),'pending edits survive process restart');
+const active={learn:{progress:{al:{streak:5,lastActive:'2026-10-01'}}}};const afterGap={learn:{progress:{al:{streak:1,lastActive:'2026-10-10'}}}};assert.equal(Sync.applyPatch(active,{changes:Sync.diffCommon(active,afterGap)}).learn.progress.al.streak,1,'streak resets after a gap');
+const malicious=JSON.parse('{"changes":[{"kind":"set","path":["health"],"value":{"note":"SECRET"}},{"kind":"latestMap","path":["learn","progress","al","cards"],"key":"__proto__","value":{"reps":1,"lastReviewed":2}},{"kind":"entity","path":["goals"],"id":"p","fields":{"level":"Private","title":"SECRET"}},{"kind":"set","path":["learn","progress","al","xp"],"value":{"health":"SECRET"}}]}');
+assert.doesNotMatch(JSON.stringify(Sync.applyPatch({},malicious)),/SECRET|__proto__/);assert.equal({}.reps,undefined);
+console.log('REALTIME_PROTOCOL_TEST_OK (concurrent edits, offline recovery, hydration, progress, privacy)');

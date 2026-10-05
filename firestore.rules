@@ -6,7 +6,31 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.auth.uid));
     }
     function safePayload() {
-      return !request.resource.data.payload.keys().hasAny(['health', 'healthHistory', 'cycle']);
+      return request.resource.data.payload is map
+        && !request.resource.data.payload.keys().hasAny(['health', 'healthHistory', 'cycle']);
+    }
+
+    function safeProgress(p) {
+      return p is map
+        && p.keys().hasOnly(['v','known','xp','attempts','correct','streak','lastActive','cards','units','sessions','dailyGoal']);
+    }
+    function safeLearning(p) {
+      return !('learn' in p) || (p.learn is map && p.learn.keys().hasOnly(['progress'])
+        && (!('progress' in p.learn) || (p.learn.progress is map
+          && p.learn.progress.keys().hasOnly(['al','yashika'])
+          && (!('al' in p.learn.progress) || safeProgress(p.learn.progress.al))
+          && (!('yashika' in p.learn.progress) || safeProgress(p.learn.progress.yashika)))));
+    }
+    function safeCommon() {
+      return safePayload()
+        && request.resource.data.payload.keys().hasOnly(['visit','duties','goals','notes','memories','learn'])
+        && safeLearning(request.resource.data.payload);
+    }
+    function safeProfile() {
+      return safePayload()
+        && request.resource.data.payload.keys().hasOnly(['name','status','life','checkins','updated'])
+        && (!('life' in request.resource.data.payload) || (request.resource.data.payload.life is map
+          && request.resource.data.payload.life.keys().hasOnly(['watchTitle','watchType','watchDetail','exercise','exerciseDone','weekend','current','updated'])));
     }
 
     match /users/{uid} {
@@ -28,6 +52,7 @@ service cloud.firestore {
       allow list: if false;
       allow update: if signedIn()
         && resource.data.used == false
+        && resource.data.creatorUid != request.auth.uid
         && request.resource.data.used == true
         && request.resource.data.usedByUid == request.auth.uid
         && request.resource.data.coupleId == resource.data.coupleId
@@ -48,6 +73,8 @@ service cloud.firestore {
       allow list: if false;
       allow update: if (isMember(coupleId)
           && request.resource.data.memberCount == resource.data.memberCount - 1
+          && request.resource.data.memberCount >= 0
+          && !existsAfter(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.auth.uid))
           && request.resource.data.lastLeaveUid == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount','lastLeaveUid','lastLeaveAt']))
         || (signedIn()
@@ -81,12 +108,12 @@ service cloud.firestore {
 
       match /shared/{docId} {
         allow read: if isMember(coupleId);
-        allow write: if isMember(coupleId) && safePayload();
+        allow write: if docId == 'common' && isMember(coupleId) && safeCommon();
       }
 
       match /profiles/{uid} {
         allow read: if isMember(coupleId);
-        allow write: if isMember(coupleId) && request.auth.uid == uid && safePayload();
+        allow write: if isMember(coupleId) && request.auth.uid == uid && safeProfile();
       }
     }
   }

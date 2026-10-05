@@ -32,6 +32,9 @@ jobs:
         run: |
           python3 scripts/validate-firebase-config.py
           node firebase-tests/privacy_payload_test.js
+      - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
+        timeout-minutes: 8
+        run: bash scripts/test-firebase-realtime.sh
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -67,8 +70,8 @@ jobs:
               "repository": os.environ["GITHUB_REPOSITORY"],
               "workflow_run_id": os.environ["GITHUB_RUN_ID"],
               "package": "app.usspace.couple.v012",
-              "version_code": 12,
-              "version_name": "0.12.0",
+              "version_code": 13,
+              "version_name": "0.12.1",
               "android_sdk": 35,
               "build_tools": "35.0.0",
               "gradle": "8.11.1",
@@ -122,6 +125,9 @@ jobs:
           test -s .ci-artifacts/apk-source.json
           python3 scripts/validate-firebase-config.py
           node firebase-tests/privacy_payload_test.js
+      - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
+        timeout-minutes: 8
+        run: bash scripts/test-firebase-realtime.sh
       - name: Download the locally signed APK and verify its source and checksum
         timeout-minutes: 3
         run: |
@@ -148,8 +154,7 @@ jobs:
           subprocess.run([
               "git", "diff", "--exit-code", source_commit, "HEAD", "--",
               "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
-              "scripts/verify-release-apk.py", "scripts/android-smoke-test.sh",
-              "scripts/validate-firebase-config.py", "firebase-tests/", "firestore.rules",
+              "scripts/", "firebase-tests/", "firestore.rules", "firebase.json",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)
