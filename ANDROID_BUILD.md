@@ -12,7 +12,7 @@ Configure these repository Actions secrets before starting a signed build:
 | `USSPACE_KEY_ALIAS` | Existing alias, if different from `usspace`. |
 | `GOOGLE_SERVICES_JSON_B64` | Optional Base64 Firebase Android client configuration override. Otherwise the checked-in `app/google-services.json` is used. |
 
-Never commit a signing key, signing passwords or service-account credentials. The signed build fails if signing inputs are missing and does not generate a replacement key. After building, `scripts/verify-release-apk.py` verifies the APK signature, package/version and that the actual signing certificate SHA-1 matches an Android OAuth client in the Firebase configuration. This protects the Google Sign-In identity across updates.
+Never commit a signing key, signing passwords or service-account credentials. The automatic signed job runs when the repository contains the keystore and password secrets. Without those secrets, source and realtime checks still run and the signed job is skipped; use the local original-key workflow described below. CI never generates a replacement key. After building, `scripts/verify-release-apk.py` verifies the APK signature, package/version and that the actual signing certificate SHA-1 matches an Android OAuth client in the Firebase configuration. This protects the Google Sign-In identity across updates.
 
 CI enables KVM, boots a disposable Android 35 Google APIs emulator, installs the verified release APK, explicitly launches MainActivity and observes the process for 20 seconds. The smoke test fails if boot, installation or launch times out, if the app exits, if an app crash/ANR appears in logcat, or if MainActivity is not resumed. It records a screenshot and emulator/install/launch/activity/logcat evidence.
 

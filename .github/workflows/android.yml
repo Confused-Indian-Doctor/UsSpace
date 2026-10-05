@@ -17,6 +17,8 @@ jobs:
     name: Compile source and check private sync payloads
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      signing_ready: ${{ steps.signing-state.outputs.ready }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -58,10 +60,23 @@ jobs:
           gradle-version: '8.11.1'
       - name: Compile release source without publishing an unsigned APK
         run: gradle --no-daemon :app:assembleRelease
+      - name: Check whether repository signing credentials are configured
+        id: signing-state
+        env:
+          USSPACE_KEYSTORE_B64: ${{ secrets.USSPACE_KEYSTORE_B64 }}
+          USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$USSPACE_KEYSTORE_B64" ] && [ -n "$USSPACE_KEYSTORE_PASSWORD" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Source checks passed. Use the local original-key signing workflow, or configure repository signing secrets for automatic signed releases.'
+          fi
 
   signed-apk:
     name: Build and launch verified signed APK
     needs: source-validation
+    if: needs.source-validation.outputs.signing_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:

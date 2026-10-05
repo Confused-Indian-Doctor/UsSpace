@@ -1,22 +1,15 @@
-# Firebase status — UsSpace v0.12
+# Firebase status — UsSpace v0.12.1
 
-Connected project: `usspace-c859e`
-Android package: `app.usspace.couple.v012`
+Connected project: `usspace-c859e`  
+Android package: `app.usspace.couple.v012`  
+Version: `0.12.1` / code 13
 
-The current `app/google-services.json` is installed and validated.
+The supplied Android client configuration has the Android and Web OAuth clients used by Google Sign-In. The release uses the original signing certificate, SHA-1 `67:EA:FA:2C:1F:58:FE:0C:4B:F3:EA:24:70:F6:62:80:72:15:73:10`. Client configuration and signed APK identity were verified.
 
-Validated Google identity configuration:
-- Android OAuth client present for `app.usspace.couple.v012`.
-- Android OAuth certificate hash matches the v0.12 signing SHA-1.
-- Web OAuth client present, so Firebase/Credential Manager can request Google ID tokens.
-- Firebase config validation passes.
-- Local privacy payload test passes: Health and Cycle fields are excluded from shared sync payloads.
+[Source/build verification](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/37372641976) passed all 15 authenticated Firestore emulator tests, the production native transaction reducer tests, bundled learning/UI tests and privacy checks. Tests include delivery to a second client, concurrent lesson progress, persisted offline edits, atomic two-person pairing, profile ownership and denial of Health/Cycle payloads. They use a demo emulator and do not modify the live project.
 
-Firestore database is now created as the Firebase `(default)` database.
-Observed console location: `asia-south2`.
+Both Kannada and Malayalam beginner tracks contain 14 units and 140 phrases, with script guides, grammar, dialogues, recall and typed practice, checkpoints and spaced review. All 64 original phrases and their IDs were preserved.
 
-Remaining Firebase console action:
-1. Firestore Database → Rules.
-2. Replace the default rules with the included `firestore.rules` and publish before using live pairing/sync.
+The included `firestore.rules` must be published to the existing `(default)` database for live account pairing. This session did not deploy rules or verify live Google-account login/paired devices. The APK sync protocol uses the existing document paths and remains compatible with the prepared source’s deployed rules; the updated rules add stricter payload validation and atomic membership removal.
 
-Health and cycle data remain local/private by default and are excluded from shared Firestore payloads.
+Health Connect remains read-only. Health history, Cycle data and private goals stay on this phone and are excluded from shared projections and the native transaction reducer.
