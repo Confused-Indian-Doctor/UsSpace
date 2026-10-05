@@ -37,6 +37,9 @@ jobs:
       - name: Check private sync payloads
         run: node firebase-tests/privacy_payload_test.js
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Install Android SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
@@ -87,6 +90,9 @@ jobs:
           java-version: '17'
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
 
       - name: Install Android SDK
         run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
