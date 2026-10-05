@@ -53,7 +53,6 @@ jobs:
     env:
       ANDROID_API: '35'
       ANDROID_BUILD_TOOLS: '35.0.0'
-      USSPACE_KEYSTORE_PATH: ${{ runner.temp }}/usspace-v012.p12
       USSPACE_KEY_ALIAS: ${{ secrets.USSPACE_KEY_ALIAS || 'usspace' }}
       USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
       USSPACE_KEY_PASSWORD: ${{ secrets.USSPACE_KEY_PASSWORD || secrets.USSPACE_KEYSTORE_PASSWORD }}
@@ -66,6 +65,8 @@ jobs:
           USSPACE_KEYSTORE_B64: ${{ secrets.USSPACE_KEYSTORE_B64 }}
         run: |
           set -euo pipefail
+          USSPACE_KEYSTORE_PATH="$RUNNER_TEMP/usspace-v012.p12"
+          printf 'USSPACE_KEYSTORE_PATH=%s\n' "$USSPACE_KEYSTORE_PATH" >> "$GITHUB_ENV"
           for required in USSPACE_KEYSTORE_B64 USSPACE_KEYSTORE_PASSWORD USSPACE_KEY_PASSWORD; do
             if [ -z "${!required}" ]; then
               echo "::error::Missing $required. Configure the existing stable signing key; CI will not create a replacement key."
@@ -129,4 +130,4 @@ jobs:
 
       - name: Remove restored signing key
         if: always()
-        run: rm -f "$USSPACE_KEYSTORE_PATH"
+        run: rm -f "$RUNNER_TEMP/usspace-v012.p12"
