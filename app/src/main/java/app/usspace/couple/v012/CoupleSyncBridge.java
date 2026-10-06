@@ -5,6 +5,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
 import com.google.firebase.Timestamp;
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -40,11 +41,14 @@ public class CoupleSyncBridge {
     private ListenerRegistration userListener;
     private ListenerRegistration commonListener;
     private ListenerRegistration profilesListener;
-    private String currentCoupleId = "";
+    private ListenerRegistration coupleListener;
+    private volatile String currentCoupleId = "";
+    private volatile String sessionUid = "", ownerUid = "", savedInviteUid = "", savedInviteCoupleId = "", savedInviteCode = "";
+    private volatile long memberCount = -1L, savedInviteExpiresAt = 0L;
     private boolean commonReady = false, commonFromCache = true, profilesFromCache = true, pendingWrites = false, profilePendingWrites = false;
     private String createdCoupleId = "";
     private boolean newSpace = false, commonExists = false, transactionPending = false;
-    private String syncError = "";
+    private String syncError = "", pairingReadError = "";
     private Map<String, Object> cachedClients = new HashMap<>();
     private final java.util.Set<String> inFlightPatches = new java.util.HashSet<>();
     private Map<String, Object> cachedCommon = new HashMap<>();
@@ -58,7 +62,12 @@ public class CoupleSyncBridge {
     }
 
     public void onSignedIn(FirebaseUser user) {
-        if (user == null) return;
+        if (user == null || auth.getCurrentUser() == null || !auth.getCurrentUser().getUid().equals(user.getUid())) return;
+        if (!user.getUid().equals(sessionUid)) {
+            detachAll(); currentCoupleId = ""; createdCoupleId = ""; commonReady = false;
+            ownerUid = ""; memberCount = -1L; clearSavedInvite(); cachedCommon.clear(); cachedProfiles.clear();
+        }
+        sessionUid = user.getUid();
         Map<String, Object> profile = new HashMap<>();
         profile.put("uid", user.getUid());
         profile.put("name", user.getDisplayName() == null ? "" : user.getDisplayName());
@@ -72,6 +81,7 @@ public class CoupleSyncBridge {
     public void onSignedOut() {
         detachAll();
         currentCoupleId = ""; createdCoupleId = ""; newSpace = false; commonReady = false;
+        sessionUid = ""; ownerUid = ""; memberCount = -1L; pairingReadError = ""; clearSavedInvite();
         cachedCommon.clear();
         cachedProfiles.clear();
         postSyncState(false, false, "", "", false);
@@ -85,6 +95,7 @@ public class CoupleSyncBridge {
             j.put("signedIn", user != null);
             j.put("paired", user != null && !currentCoupleId.isEmpty());
             j.put("coupleId", currentCoupleId);
+            putPairingDetails(j, user, currentCoupleId, user != null && !currentCoupleId.isEmpty());
         } catch (Exception ignored) { }
         return j.toString();
     }
@@ -102,16 +113,18 @@ public class CoupleSyncBridge {
     private void listenToUser(String uid) {
         if (userListener != null) userListener.remove();
         userListener = db.collection("users").document(uid).addSnapshotListener((snap, error) -> {
+            if (!isCurrentUid(uid)) return;
             if (error != null) {
-                postSyncState(true, false, "", "Could not read pairing state", false);
+                postSyncState(true, !currentCoupleId.isEmpty(), currentCoupleId, safeMessage(error, "Could not read pairing state"), false);
                 return;
             }
             if (snap == null || !snap.exists()) return;
             String coupleId = snap.getString("coupleId");
             if (coupleId == null) coupleId = "";
+            readSavedInvite(snap, uid, coupleId);
             if (!coupleId.equals(currentCoupleId)) attachCouple(coupleId, false);
             else {
-                if (!coupleId.isEmpty() && (commonListener == null || !syncError.isEmpty())) attachCouple(coupleId, false);
+                if (!coupleId.isEmpty() && (commonListener == null || coupleListener == null || !syncError.isEmpty() || !pairingReadError.isEmpty())) attachCouple(coupleId, false);
                 postSyncState(true, !coupleId.isEmpty(), coupleId, syncError, false);
                 if (commonReady) postSnapshot();
             }
@@ -126,18 +139,19 @@ public class CoupleSyncBridge {
             return;
         }
         if (!currentCoupleId.isEmpty()) {
-            postSyncState(true, true, currentCoupleId, "Already paired", false);
+            refreshInviteAttempt(user, currentCoupleId, 0);
             return;
         }
         createCodeAttempt(user, 0);
     }
 
     private void createCodeAttempt(FirebaseUser user, int attempt) {
+        if (!isCurrentUid(user.getUid())) return;
         if (attempt >= 8) {
             postSyncState(true, false, "", "Could not allocate a pairing code. Try again.", false);
             return;
         }
-        String code = String.format("%06d", 100000 + random.nextInt(900000));
+        String code = String.format(java.util.Locale.US, "%06d", 100000 + random.nextInt(900000));
         DocumentReference inviteRef = db.collection("pairInvites").document(code);
         {
             String coupleId = db.collection("couples").document().getId();
@@ -170,19 +184,63 @@ public class CoupleSyncBridge {
             Map<String, Object> userPairing = new HashMap<>();
             userPairing.put("coupleId", coupleId);
             userPairing.put("pairedAt", FieldValue.serverTimestamp());
+            putInviteMetadata(userPairing, code, coupleId, expires);
             batch.set(userRef, userPairing, SetOptions.merge());
             batch.commit().addOnSuccessListener(v -> {
+                if (!isCurrentUid(user.getUid())) return;
+                cacheInvite(user.getUid(), coupleId, code, expires);
                 newSpace = true;
                 attachCouple(coupleId, true);
+                ownerUid = user.getUid(); if (memberCount < 0L) memberCount = 1L;
                 JSONObject extra = new JSONObject();
                 try { extra.put("pairCode", code); } catch (Exception ignored) { }
                 postSyncState(true, true, coupleId, "", true, extra);
             }).addOnFailureListener(e -> {
+                if (!isCurrentUid(user.getUid())) return;
                 // An occupied random code is an update, which the invite rules reject.
                 if (e instanceof FirebaseFirestoreException && ((FirebaseFirestoreException)e).getCode() == FirebaseFirestoreException.Code.PERMISSION_DENIED && attempt < 2) createCodeAttempt(user, attempt + 1);
-                else postSyncState(true, false, "", "Could not create private space. Check the Firebase pairing rules and connection.", false);
+                else postSyncState(true, false, "", safeMessage(e, "Could not create private space"), false);
             });
         }
+    }
+
+    private void refreshInviteAttempt(FirebaseUser user, String coupleId, int attempt) {
+        if (!isCurrentUid(user.getUid()) || !coupleId.equals(currentCoupleId)) return;
+        String code = String.format(java.util.Locale.US, "%06d", 100000 + random.nextInt(900000));
+        Timestamp now = Timestamp.now();
+        Timestamp expires = new Timestamp(now.getSeconds() + 15 * 60, now.getNanoseconds());
+        DocumentReference coupleRef = db.collection("couples").document(coupleId);
+        DocumentReference inviteRef = db.collection("pairInvites").document(code);
+        DocumentReference userRef = db.collection("users").document(user.getUid());
+        db.runTransaction(transaction -> {
+            if (!isCurrentUid(user.getUid())) throw new IllegalStateException("Sign-in changed");
+            DocumentSnapshot couple = transaction.get(coupleRef);
+            DocumentSnapshot member = transaction.get(coupleRef.collection("members").document(user.getUid()));
+            if (!couple.exists() || !member.exists()) throw new IllegalStateException("No longer a member");
+            if (!user.getUid().equals(couple.getString("ownerUid"))) throw new IllegalStateException("Only the creator can make a new code");
+            Long count = couple.getLong("memberCount");
+            if (count == null || count != 1L) throw new IllegalStateException("This UsSpace already has two people");
+            Map<String, Object> invite = new HashMap<>();
+            invite.put("coupleId", coupleId); invite.put("creatorUid", user.getUid());
+            invite.put("createdAt", FieldValue.serverTimestamp()); invite.put("expiresAt", expires); invite.put("used", false);
+            Map<String, Object> metadata = new HashMap<>(); putInviteMetadata(metadata, code, coupleId, expires);
+            // Create-only invite rules reject a rare occupied code; no absent-code read is required.
+            transaction.set(inviteRef, invite);
+            transaction.set(userRef, metadata, SetOptions.merge());
+            return null;
+        }).addOnSuccessListener(v -> {
+            if (!isCurrentUid(user.getUid()) || !coupleId.equals(currentCoupleId)) return;
+            cacheInvite(user.getUid(), coupleId, code, expires);
+            ownerUid = user.getUid(); if (memberCount < 0L) memberCount = 1L;
+            JSONObject extra = new JSONObject();
+            try { extra.put("pairCode", code); extra.put("pairCodeExpiresAt", savedInviteExpiresAt); } catch (Exception ignored) { }
+            postSyncState(true, true, coupleId, "", false, extra);
+        }).addOnFailureListener(e -> {
+            if (!isCurrentUid(user.getUid()) || !coupleId.equals(currentCoupleId)) return;
+            if (e instanceof FirebaseFirestoreException && ((FirebaseFirestoreException)e).getCode() == FirebaseFirestoreException.Code.PERMISSION_DENIED && attempt < 2)
+                refreshInviteAttempt(user, coupleId, attempt + 1);
+            else postSyncState(true, true, coupleId, safeMessage(e, "Could not create a fresh pairing code"), false);
+        });
     }
 
     @JavascriptInterface
@@ -203,6 +261,7 @@ public class CoupleSyncBridge {
         }
         DocumentReference inviteRef = db.collection("pairInvites").document(code);
         db.runTransaction(transaction -> {
+            if (!isCurrentUid(user.getUid())) throw new IllegalStateException("Sign-in changed");
             DocumentSnapshot invite = transaction.get(inviteRef);
             if (!invite.exists()) throw new IllegalStateException("Pairing code not found");
             Boolean used = invite.getBoolean("used");
@@ -241,12 +300,17 @@ public class CoupleSyncBridge {
             Map<String, Object> userPairing = new HashMap<>();
             userPairing.put("coupleId", coupleId);
             userPairing.put("pairedAt", FieldValue.serverTimestamp());
+            removeInviteMetadata(userPairing);
             transaction.set(userRef, userPairing, SetOptions.merge());
             return coupleId;
         }).addOnSuccessListener(coupleId -> {
+            if (!isCurrentUid(user.getUid())) return;
+            clearSavedInvite();
             attachCouple(coupleId, true);
             postSyncState(true, true, coupleId, "", true);
-        }).addOnFailureListener(e -> postSyncState(true, false, "", safeMessage(e, "Could not join this UsSpace"), false));
+        }).addOnFailureListener(e -> {
+            if (isCurrentUid(user.getUid())) postSyncState(true, false, "", safeMessage(e, "Could not join this UsSpace"), false);
+        });
     }
 
     @JavascriptInterface
@@ -268,12 +332,18 @@ public class CoupleSyncBridge {
             coupleUpdate.put("lastLeaveUid", user.getUid());
             coupleUpdate.put("lastLeaveAt", FieldValue.serverTimestamp());
             transaction.update(coupleRef, coupleUpdate);
-            transaction.update(userRef, Collections.singletonMap("coupleId", FieldValue.delete()));
+            Map<String, Object> userUpdate = new HashMap<>();
+            userUpdate.put("coupleId", FieldValue.delete()); removeInviteMetadata(userUpdate);
+            transaction.update(userRef, userUpdate);
             return null;
         }).addOnSuccessListener(v -> {
+            if (!isCurrentUid(user.getUid())) return;
+            clearSavedInvite();
             attachCouple("", false);
             postSyncState(true, false, "", "", false);
-        }).addOnFailureListener(e -> postSyncState(true, true, coupleId, "Could not disconnect", false));
+        }).addOnFailureListener(e -> {
+            if (isCurrentUid(user.getUid())) postSyncState(true, true, coupleId, safeMessage(e, "Could not disconnect"), false);
+        });
     }
 
     @JavascriptInterface
@@ -354,11 +424,14 @@ public class CoupleSyncBridge {
     private void attachCouple(String coupleId, boolean justPaired) {
         if (commonListener != null) commonListener.remove();
         if (profilesListener != null) profilesListener.remove();
+        if (coupleListener != null) coupleListener.remove();
+        coupleListener = null;
         commonListener = null;
         profilesListener = null;
         cachedCommon = new HashMap<>(); cachedClients = new HashMap<>();
         cachedProfiles.clear();
-        commonReady = false; commonExists = false; commonFromCache = true; profilesFromCache = true; pendingWrites = false; profilePendingWrites = false; syncError = "";
+        commonReady = false; commonExists = false; commonFromCache = true; profilesFromCache = true; pendingWrites = false; profilePendingWrites = false; syncError = ""; pairingReadError = "";
+        if (coupleId == null || !coupleId.equals(currentCoupleId)) { ownerUid = ""; memberCount = -1L; }
         newSpace = coupleId != null && !coupleId.isEmpty() && coupleId.equals(createdCoupleId);
         currentCoupleId = coupleId == null ? "" : coupleId;
         if (currentCoupleId.isEmpty()) {
@@ -368,6 +441,17 @@ public class CoupleSyncBridge {
         postSyncState(true, true, currentCoupleId, "", justPaired);
         final String attachedId = currentCoupleId;
         DocumentReference coupleRef = db.collection("couples").document(attachedId);
+        final String attachedUid = auth.getCurrentUser() == null ? "" : auth.getCurrentUser().getUid();
+        coupleListener = coupleRef.addSnapshotListener(MetadataChanges.INCLUDE, (snap, error) -> {
+            if (!attachedId.equals(currentCoupleId) || !isCurrentUid(attachedUid)) return;
+            if (error != null) { pairingReadError = safeMessage(error, "Could not read pairing state"); postSyncState(true, true, attachedId, pairingReadError, false); return; }
+            pairingReadError = "";
+            if (snap != null && snap.exists()) {
+                ownerUid = snap.getString("ownerUid") == null ? "" : snap.getString("ownerUid");
+                Long count = snap.getLong("memberCount"); memberCount = count == null ? -1L : count;
+            }
+            postSyncState(true, true, attachedId, syncError, false);
+        });
         commonListener = coupleRef.collection("shared").document("common").addSnapshotListener(MetadataChanges.INCLUDE, (snap, error) -> {
             if (!attachedId.equals(currentCoupleId)) return;
             if (error != null) {
@@ -468,28 +552,88 @@ public class CoupleSyncBridge {
             j.put("signedIn", signedIn);
             j.put("paired", paired);
             j.put("coupleId", coupleId == null ? "" : coupleId);
+            putPairingDetails(j, auth.getCurrentUser(), coupleId, paired);
             j.put("justPaired", justPaired);
             j.put("ready", commonReady);
             j.put("newSpace", newSpace);
             j.put("pendingWrites", pendingWrites || profilePendingWrites || transactionPending);
             String phase = !paired ? (signedIn ? "unpaired" : "local") : !commonReady ? "connecting"
-                : !syncError.isEmpty() || commonFromCache || profilesFromCache ? "offline"
+                : !syncError.isEmpty() || !pairingReadError.isEmpty() || commonFromCache || profilesFromCache ? "offline"
                 : pendingWrites || profilePendingWrites || transactionPending ? "syncing" : "live";
             j.put("state", phase);
-            j.put("error", error == null ? "" : error);
+            j.put("error", !pairingReadError.isEmpty() ? pairingReadError : error == null ? "" : error);
         } catch (Exception ignored) { }
         eval("window.onUsSyncState&&window.onUsSyncState(" + j + ");");
     }
 
+    private boolean isCurrentUid(String uid) {
+        FirebaseUser current = auth.getCurrentUser();
+        return current != null && current.getUid().equals(uid) && sessionUid.equals(uid);
+    }
+
+    private void clearSavedInvite() { savedInviteUid = ""; savedInviteCoupleId = ""; savedInviteCode = ""; savedInviteExpiresAt = 0L; }
+    private void cacheInvite(String uid, String coupleId, String code, Timestamp expires) {
+        savedInviteUid = uid; savedInviteCoupleId = coupleId; savedInviteCode = code; savedInviteExpiresAt = expires.toDate().getTime();
+    }
+    private void readSavedInvite(DocumentSnapshot snapshot, String uid, String coupleId) {
+        String associated = snapshot.getString("inviteCoupleId"), code = snapshot.getString("inviteCode");
+        Timestamp expires = snapshot.getTimestamp("inviteExpiresAt");
+        if (coupleId.equals(associated) && code != null && code.matches("[0-9]{6}") && expires != null) cacheInvite(uid, coupleId, code, expires);
+        else clearSavedInvite();
+    }
+    private void putInviteMetadata(Map<String, Object> fields, String code, String coupleId, Timestamp expires) {
+        fields.put("inviteCode", code); fields.put("inviteCoupleId", coupleId); fields.put("inviteExpiresAt", expires);
+    }
+    private void removeInviteMetadata(Map<String, Object> fields) {
+        fields.put("inviteCode", FieldValue.delete()); fields.put("inviteCoupleId", FieldValue.delete()); fields.put("inviteExpiresAt", FieldValue.delete());
+    }
+    private void putPairingDetails(JSONObject output, FirebaseUser user, String coupleId, boolean paired) throws Exception {
+        boolean creator = paired && user != null && user.getUid().equals(ownerUid);
+        boolean waiting = paired && memberCount == 1L;
+        boolean ownInvite = creator && waiting && user.getUid().equals(savedInviteUid) && coupleId != null && coupleId.equals(savedInviteCoupleId);
+        output.put("memberCount", paired ? memberCount : 0L);
+        output.put("isCreator", creator); output.put("awaitingPartner", waiting);
+        output.put("pairCode", ownInvite ? savedInviteCode : "");
+        output.put("pairCodeExpiresAt", ownInvite ? savedInviteExpiresAt : 0L);
+        output.put("inviteExpired", ownInvite && savedInviteExpiresAt <= System.currentTimeMillis());
+    }
+
     private String safeMessage(Exception e, String fallback) {
-        String m = e.getMessage();
-        if (m == null || m.trim().isEmpty()) return fallback;
-        if (m.contains("expired")) return "Pairing code expired";
-        if (m.contains("already used")) return "Pairing code already used";
-        if (m.contains("two people")) return "This UsSpace already has two people";
-        if (m.contains("not found")) return "Pairing code not found";
-        if (m.contains("other person's")) return "Open the code on the other person's Google account";
-        return fallback;
+        // Transactions wrap domain exceptions; inspect the cause chain before mapping SDK errors.
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            String message = cause.getMessage();
+            String m = message == null ? "" : message.toLowerCase(java.util.Locale.US);
+            if (m.contains("expired")) return "Pairing code expired. Ask your partner to make a new code.";
+            if (m.contains("already used")) return "This pairing code has already been used. Ask your partner for a new code.";
+            if (m.contains("two people")) return "This UsSpace already has two accounts.";
+            if (m.contains("not found")) return "Pairing code not found. Enter the code shown on your partner's phone.";
+            if (m.contains("other person's")) return "Use a different Google account from the account that created this code.";
+            if (m.contains("invalid pairing code")) return "Enter the six-digit code created on your partner's phone.";
+            if (m.contains("only the creator")) return "Only the person who created this space can make a new code.";
+            if (m.contains("no longer a member")) return "This account has left that space. Refresh before pairing again.";
+            if (m.contains("sign-in changed")) return "Your Google account changed. Try pairing again with the signed-in account.";
+        }
+        FirebaseFirestoreException firestore = null;
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) if (cause instanceof FirebaseFirestoreException) { firestore = (FirebaseFirestoreException)cause; break; }
+        if (firestore == null) return fallback;
+        switch (firestore.getCode()) {
+            case PERMISSION_DENIED:
+                String project = FirebaseApp.getInstance().getOptions().getProjectId();
+                return "Firebase blocked pairing, or this code is unavailable or expired. Ask for a fresh code. If a fresh code fails, publish the pairing rules in Firebase project " + (project == null ? "for this app" : project) + ".";
+            case UNAVAILABLE:
+            case DEADLINE_EXCEEDED:
+            case CANCELLED:
+                return "Pairing needs an internet connection. Check this phone's connection and try again.";
+            case UNAUTHENTICATED:
+                return "Your Google session needs refreshing. Sign out, sign in again, then try pairing.";
+            case RESOURCE_EXHAUSTED:
+                return "Firebase is temporarily limiting requests. Wait a moment and try pairing again.";
+            case ABORTED:
+                return "Pairing changed on the other phone. Refresh and try again with a fresh code.";
+            case FAILED_PRECONDITION:
+                return "Firestore is not ready for pairing. Check that the database and pairing rules are set up for this Firebase project.";
+            default: return fallback;
+        }
     }
 
     private void eval(String js) {
@@ -500,7 +644,8 @@ public class CoupleSyncBridge {
         if (userListener != null) userListener.remove();
         if (commonListener != null) commonListener.remove();
         if (profilesListener != null) profilesListener.remove();
-        userListener = commonListener = profilesListener = null;
+        if (coupleListener != null) coupleListener.remove();
+        userListener = commonListener = profilesListener = coupleListener = null;
     }
 
     public void close() { detachAll(); }

@@ -8,12 +8,18 @@ Use these exact Android app details in Firebase:
 
 Then:
 
-1. Enable Google in Firebase Authentication providers.
+1. Open [Firebase Authentication providers](https://console.firebase.google.com/project/usspace-c859e/authentication/providers), enable Google, select a support email and save.
 2. Firestore has been created as `(default)` (observed console location: `asia-south2`).
-3. Replace the default Firestore rules with the included `firestore.rules` and publish.
+3. Open [Firestore rules](https://console.firebase.google.com/project/usspace-c859e/firestore/rules), replace the default rules with the included `firestore.rules` and publish.
 4. The refreshed OAuth-enabled `google-services.json` is already present at `app/google-services.json`.
 
 The source uses Firebase BoM 34.19.0 plus Credential Manager 1.3.0 and Google ID 1.1.1, matching Firebase's current Android Google Sign-In guidance when this source was prepared.
+
+## Pair the two phones
+
+Install the same APK on both phones. Sign in with different Google accounts, choose **Create our space** on one phone, then choose **Join with code** on the other and enter the generated six-digit code within 15 minutes. The `123456` placeholder is an example, not an invite. Once both phones show **Realtime**, shared edits sync through Firestore. Health and Cycle remain private on each phone.
+
+The sign-in button opens Google's account selection before Firestore pairing starts. Firestore rules cannot prevent the account picker from opening. Version 0.12.2 uses the explicit Google button flow and displays progress while it opens. If sign-in fails, the card displays the next step and allows another attempt. Install it over the previous APK to preserve local data.
 
 ## Signing key
 The matching development signing key is kept separately as `UsSpace-v0.12-dev-signing-key.p12` and is NOT inside the source ZIP. Do not commit that key to the public GitHub repository.

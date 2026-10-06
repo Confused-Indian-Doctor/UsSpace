@@ -136,15 +136,19 @@ if Path(sys.argv[1]).read_bytes()[:8] != b'\x89PNG\r\n\x1a\n':
 PY
 adb_device shell getprop ro.build.version.sdk > "$output/android-api.txt"
 python3 scripts/android-learning-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+if ! adb_device shell pidof "$package" > "$output/app-pid.txt"; then
+  echo 'ERROR: App process exited during learning navigation or Google sign-in.' >&2
+  exit 1
+fi
 collect_logs
 if grep -Eq 'Uncaught (ReferenceError|TypeError|SyntaxError|RangeError|Error)' "$output/logcat.txt"; then
-  echo 'ERROR: Uncaught JavaScript error during learning navigation.' >&2
+  echo 'ERROR: Uncaught JavaScript error during learning navigation or Google sign-in.' >&2
   exit 1
 fi
 if grep -Eq "Process: $package([,[:space:]]|$)|>>> $package <<<|ANR in $package([[:space:]]|$)|am_crash.*$package|am_anr.*$package" "$output/logcat.txt"; then
-  echo 'ERROR: App crash or ANR during learning navigation.' >&2
+  echo 'ERROR: App crash or ANR during learning navigation or Google sign-in.' >&2
   exit 1
 fi
-printf '{"status":"passed","package":"%s","serial":"%s","observation_seconds":%s}\n' \
+printf '{"status":"passed","package":"%s","serial":"%s","observation_seconds":%s,"google_signin_handoff":"passed","authenticated_success_verified":false}\n' \
   "$package" "$serial" "$observe_seconds" > "$output/smoke-result.json"
 echo "ANDROID_SMOKE_TEST_PASSED: $package remained running and resumed for $observe_seconds seconds."

@@ -1,18 +1,20 @@
-# UsSpace v0.12.1 — realtime sync and embedded learning
+# UsSpace v0.12.2 — Google sign-in, realtime sync and embedded learning
 
 UsSpace v0.12 combines the v0.11 Health Connect build and the embedded Namma ↔ Nammal language module with two-account identity and realtime couple sync.
 
 ## Android identity
 - Package/applicationId: `app.usspace.couple.v012`
-- Version: `0.12.1` / versionCode 13
-- Google Sign-In uses Android Credential Manager.
+- Version: `0.12.2` / versionCode 14
+- The Google sign-in button uses Credential Manager's explicit account selection flow, with visible progress and actionable errors.
 - Firebase Authentication turns the Google ID token into the app identity.
 - Each signed-in Google account has its own `/users/{uid}` document.
 
 ## Pairing
 - One signed-in user creates a private UsSpace and receives a random six-digit invite code.
 - Codes expire after 15 minutes and are single-use.
+- The creator sees the generated invitation while waiting for the second account. Valid invitations return after reopening the app, and the creator can generate a fresh code without discarding the space.
 - The second signed-in Google account joins with that code.
+- The card shows "Waiting for partner" until the second account joins, then "Realtime" once server sync is ready.
 - Firestore rules and the transaction model cap a space at two members.
 - Either member can disconnect their own account.
 

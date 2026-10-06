@@ -43,9 +43,11 @@ service cloud.firestore {
         && request.resource.data.creatorUid == request.auth.uid
         && request.resource.data.used == false
         && request.resource.data.expiresAt > request.time
-        && getAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)).data.ownerUid == request.auth.uid;
-      // Code allocation probes random document IDs before creating an invite.
-      // A signed-in client may observe absence, but existing invites still expire.
+        && getAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)).data.memberCount == 1
+        && existsAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)/members/$(request.auth.uid));
+      // A joining client may check a missing code and report "not found".
+      // Existing invitations are readable only during their valid lifetime.
       allow get: if signedIn()
         && (!exists(/databases/$(database)/documents/pairInvites/$(code))
           || resource.data.expiresAt > request.time);

@@ -31,14 +31,18 @@ const profile = name => ({name, status: 'Available', life: {watchTitle: 'Shared 
 const sharedRef = db => doc(db, 'couples/test-space/shared/common');
 
 async function createSpace(db, uid = 'al', code = '123456') {
+  const expiresAt = Timestamp.fromMillis(Date.now() + 15 * 60 * 1000);
   const batch = writeBatch(db);
   batch.set(doc(db, 'couples/test-space'), {ownerUid: uid, memberCount: 1, createdAt: serverTimestamp()});
   batch.set(doc(db, `couples/test-space/members/${uid}`), {...member(uid), role: 'creator'});
   batch.set(doc(db, `pairInvites/${code}`), {
     coupleId: 'test-space', creatorUid: uid, createdAt: serverTimestamp(),
-    expiresAt: Timestamp.fromMillis(Date.now() + 15 * 60 * 1000), used: false,
+    expiresAt, used: false,
   });
-  batch.set(doc(db, `users/${uid}`), {coupleId: 'test-space', pairedAt: serverTimestamp()}, {merge: true});
+  batch.set(doc(db, `users/${uid}`), {
+    coupleId: 'test-space', pairedAt: serverTimestamp(),
+    inviteCode: code, inviteExpiresAt: expiresAt, inviteCoupleId: 'test-space',
+  }, {merge: true});
   await assertSucceeds(batch.commit());
 }
 
@@ -54,8 +58,31 @@ async function joinSpace(db, uid = 'yashika', code = '123456') {
     transaction.update(inviteRef, {used: true, usedByUid: uid, usedAt: serverTimestamp()});
     transaction.update(coupleRef, {memberCount: 2, lastJoinCode: code, lastJoinUid: uid});
     transaction.set(doc(db, `couples/test-space/members/${uid}`), {...member(uid), role: 'member', inviteCode: code});
-    transaction.set(doc(db, `users/${uid}`), {coupleId: 'test-space', pairedAt: serverTimestamp()}, {merge: true});
+    transaction.set(doc(db, `users/${uid}`), {
+      coupleId: 'test-space', pairedAt: serverTimestamp(),
+      inviteCode: deleteField(), inviteExpiresAt: deleteField(), inviteCoupleId: deleteField(),
+    }, {merge: true});
   }));
+}
+
+function stageInvite(writer, db, uid, code, expiresAt) {
+  writer.set(doc(db, `pairInvites/${code}`), {
+    coupleId: 'test-space', creatorUid: uid, createdAt: serverTimestamp(), expiresAt, used: false,
+  });
+  writer.set(doc(db, `users/${uid}`), {
+    inviteCode: code, inviteExpiresAt: expiresAt, inviteCoupleId: 'test-space',
+  }, {merge: true});
+}
+
+async function regenerateInvite(db, uid = 'al', code = '654321') {
+  const expiresAt = Timestamp.fromMillis(Date.now() + 15 * 60 * 1000);
+  await assertSucceeds(runTransaction(db, async transaction => {
+    const couple = await transaction.get(doc(db, 'couples/test-space'));
+    assert.equal(couple.data().ownerUid, uid);
+    assert.equal(couple.data().memberCount, 1);
+    stageInvite(transaction, db, uid, code, expiresAt);
+  }));
+  return expiresAt;
 }
 
 async function paired() {
@@ -297,4 +324,87 @@ test('signed-out clients cannot probe invites and arbitrary signed-in clients ca
   await assertFails(getDoc(doc(signedOut, 'couples/test-space')));
   await assertFails(getDocs(collection(client('outsider'), 'couples')));
   await assertFails(getDocs(collection(al, 'couples')));
+});
+
+test('the waiting creator refreshes an expired invite in the same space and recovers private invite metadata after restart', async () => {
+  const al = client('al');
+  await createSpace(al);
+  const payload = common();
+  payload.learn.progress.al.xp = 42;
+  await setDoc(sharedRef(al), {payload, updatedBy: 'al'});
+  const expired = Timestamp.fromMillis(Date.now() - 60000);
+  await environment.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), 'pairInvites/123456'), {expiresAt: expired});
+    await updateDoc(doc(context.firestore(), 'users/al'), {inviteExpiresAt: expired});
+  });
+  await assertFails(getDoc(doc(client('yashika'), 'pairInvites/123456')));
+  const restoredCreator = client('al');
+  const waiting = waitForServerSnapshot(doc(restoredCreator, 'users/al'), snapshot => snapshot.exists() && snapshot.data().inviteCode === '654321');
+  try {
+    const expiresAt = await regenerateInvite(al);
+    const metadata = (await waiting.promise).data();
+    assert.equal(metadata.coupleId, 'test-space');
+    assert.equal(metadata.inviteCoupleId, 'test-space');
+    assert.equal(metadata.inviteExpiresAt.toMillis(), expiresAt.toMillis());
+    const reopened = (await getDoc(doc(client('al'), 'users/al'))).data();
+    assert.equal(reopened.inviteCode, '654321');
+    assert.equal(reopened.inviteExpiresAt.toMillis(), expiresAt.toMillis());
+    assert.equal((await getDoc(doc(al, 'couples/test-space'))).data().memberCount, 1);
+    assert.equal((await getDoc(sharedRef(al))).data().payload.learn.progress.al.xp, 42);
+    assert.deepEqual((await getDocs(collection(al, 'couples/test-space/members'))).docs.map(member => member.id), ['al']);
+    await assertFails(getDoc(doc(client('yashika'), 'users/al')));
+    await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(), 'users/al')));
+    assert.equal(Object.hasOwn((await getDoc(doc(al, 'couples/test-space'))).data(), 'inviteCode'), false);
+  } finally {waiting.cancel();}
+});
+
+test('joining a regenerated code delivers the creator member-count transition and the refreshed code can be used only once', async () => {
+  const al = client('al');
+  const yashika = client('yashika');
+  await createSpace(al);
+  await regenerateInvite(al);
+  const initial = waitForServerSnapshot(doc(al, 'couples/test-space'), snapshot => snapshot.exists() && snapshot.data().memberCount === 1);
+  await initial.promise;
+  initial.cancel();
+  const joined = waitForServerSnapshot(doc(al, 'couples/test-space'), snapshot => snapshot.exists() && snapshot.data().memberCount === 2);
+  try {
+    await joinSpace(yashika, 'yashika', '654321');
+    assert.equal((await joined.promise).data().lastJoinUid, 'yashika');
+    assert.equal((await getDoc(doc(yashika, 'pairInvites/654321'))).data().usedByUid, 'yashika');
+    assert.deepEqual((await getDocs(collection(al, 'couples/test-space/members'))).docs.map(member => member.id).sort(), ['al', 'yashika']);
+    await assertFails(getDoc(doc(yashika, 'users/al')));
+    const third = client('third');
+    await assertFails(updateDoc(doc(third, 'pairInvites/654321'), {used: true, usedByUid: 'third', usedAt: serverTimestamp()}));
+    const staleCodeJoin = writeBatch(third);
+    staleCodeJoin.update(doc(third, 'pairInvites/123456'), {used: true, usedByUid: 'third', usedAt: serverTimestamp()});
+    staleCodeJoin.update(doc(third, 'couples/test-space'), {memberCount: 3, lastJoinCode: '123456', lastJoinUid: 'third'});
+    staleCodeJoin.set(doc(third, 'couples/test-space/members/third'), {...member('third'), role: 'member', inviteCode: '123456'});
+    await assertFails(staleCodeJoin.commit());
+    assert.equal((await getDoc(doc(al, 'couples/test-space'))).data().memberCount, 2);
+  } finally {joined.cancel();}
+});
+
+test('invite regeneration rejects full spaces, nonowners and a former owner who has disconnected', async () => {
+  const {al, yashika} = await paired();
+  const expiresAt = Timestamp.fromMillis(Date.now() + 15 * 60 * 1000);
+  const fullSpace = writeBatch(al);
+  stageInvite(fullSpace, al, 'al', '654321', expiresAt);
+  await assertFails(fullSpace.commit());
+  assert.equal((await getDoc(doc(al, 'users/al'))).data().inviteCode, '123456');
+  await assertSucceeds(runTransaction(al, async transaction => {
+    const couple = await transaction.get(doc(al, 'couples/test-space'));
+    transaction.delete(doc(al, 'couples/test-space/members/al'));
+    transaction.update(doc(al, 'couples/test-space'), {memberCount: couple.data().memberCount - 1, lastLeaveUid: 'al', lastLeaveAt: serverTimestamp()});
+    transaction.update(doc(al, 'users/al'), {
+      coupleId: deleteField(), inviteCode: deleteField(), inviteExpiresAt: deleteField(), inviteCoupleId: deleteField(),
+    });
+  }));
+  assert.equal((await getDoc(doc(yashika, 'couples/test-space'))).data().memberCount, 1);
+  for (const [db, uid, code] of [[yashika, 'yashika', '654321'], [al, 'al', '777777']]) {
+    const unauthorized = writeBatch(db);
+    stageInvite(unauthorized, db, uid, code, expiresAt);
+    await assertFails(unauthorized.commit());
+  }
+  await assertSucceeds(getDoc(sharedRef(yashika)));
+  assert.equal((await getDocs(collection(yashika, 'couples/test-space/members'))).size, 1);
 });

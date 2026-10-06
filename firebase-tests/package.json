@@ -1,6 +1,6 @@
 {
   "name": "usspace-firebase-verification",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "private": true,
   "scripts": {
     "test": "node --test --test-concurrency=1 realtime_emulator_test.mjs",

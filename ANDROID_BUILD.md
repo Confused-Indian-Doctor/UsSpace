@@ -29,7 +29,7 @@ bash scripts/android-smoke-test.sh /path/to/UsSpace-v0.12.apk artifacts --existi
 
 Omit `--existing-device` to let the script create and boot its own emulator after installing `system-images;android-35;google_apis;x86_64` and `emulator`. `ANDROID_EMULATOR_ACCEL` defaults to `on`; a local machine without KVM can explicitly set it to `off`. The CI build requires KVM.
 
-The release is version 0.12.1 / versionCode 13 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
+The release is version 0.12.2 / versionCode 14 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
 
 The Android emulator validates packaging, startup and the embedded learning screens. Live Google authentication, two-account Firestore pairing/sync, Samsung Health data availability and Health Connect consent require suitable accounts and devices; the smoke test does not claim those account-dependent flows are verified.
 
