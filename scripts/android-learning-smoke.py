@@ -51,6 +51,54 @@ def visible_bounds(node):
     return bounds
 
 
+def matches(node, pattern):
+    return any(re.search(pattern, value, re.IGNORECASE) for value in
+               (text_of(node), node.get("text", ""), node.get("content-desc", "")))
+
+
+def footer_nodes(root):
+    # Today is also a learning tab; identify the footer with its three unique icons.
+    landmarks = [node for node in root.iter("node") if visible_bounds(node)
+                 and matches(node, r"^(?:⌂\s*Home|♥\s*Us|◫\s*Life)$")
+                 and visible_bounds(node)[1] > height / 2]
+    if len(landmarks) < 2:
+        return []
+    top = min(visible_bounds(node)[1] for node in landmarks)
+    bottom = max(visible_bounds(node)[3] for node in landmarks)
+    return [node for node in root.iter("node") if visible_bounds(node)
+            and matches(node, r"^(?:⌂\s*Home|☀\s*Today|♥\s*Us|◫\s*Life)$")
+            and visible_bounds(node)[1] >= top and visible_bounds(node)[3] <= bottom]
+
+
+def safe_region(root, allow_tabs=False):
+    footer = footer_nodes(root)
+    bottom = min(visible_bounds(node)[1] for node in footer) - 8 if footer else height
+    header = [visible_bounds(node)[3] for node in root.iter("node") if visible_bounds(node)
+              and matches(node, r"^(?:Our icon|UsSpace\s*♥|a little home for)$")
+              and visible_bounds(node)[3] < height / 3]
+    top = max(header, default=0) + 8
+    if not allow_tabs:
+        tabs = [visible_bounds(node) for node in root.iter("node") if visible_bounds(node)
+                and matches(node, r"^(?:☀\s*Today|Course|Script|💬\s*Phrase book|🧠\s*Practice|"
+                            r"↻\s*Review|♥\s*Together|🔥\s*Progress)$")
+                and visible_bounds(node)[1] >= top and visible_bounds(node)[3] <= bottom]
+        footer_height = max((visible_bounds(node)[3] - visible_bounds(node)[1]
+                             for node in footer), default=height * 0.08)
+        if tabs and min(bounds[1] for bounds in tabs) <= top + footer_height + 8:
+            top = max(top, max(bounds[3] for bounds in tabs) + 8)
+    return top, bottom
+
+
+def usable_bounds(node, root, allow_nav=False, allow_tabs=False):
+    bounds = visible_bounds(node)
+    if not bounds:
+        return None
+    if allow_nav:
+        return bounds if node in footer_nodes(root) else None
+    top, bottom = safe_region(root, allow_tabs=allow_tabs)
+    return bounds if bounds[1] >= top and bounds[3] <= bottom else None
+
+
 def resumed_component(activity):
     for marker in ("topResumedActivity", "mResumedActivity"):
         matches = re.findall(marker + r"[^\n]*?\s([\w.]+/[\w.$]+)", activity)
@@ -79,6 +127,7 @@ def sign_in_response(root, activity):
     # HiddenActivity is an internal bridge and must not count as a Google account chooser.
     if foreground_package != PACKAGE or not component.endswith(".MainActivity"):
         return None
+    nodes = [node for node in nodes if usable_bounds(node, root)]
     retry = any(any(re.fullmatch(r"\s*Try Google Sign-In again\s*", label, re.IGNORECASE)
                     for label in (node.get("text", ""), node.get("content-desc", "")))
                 and node.get("enabled", "true") == "true" for node in nodes)
@@ -99,7 +148,7 @@ def sign_in_smoke():
     report = {"status": "failed", "authenticated_success_verified": False,
               "busy_feedback_observed": False, "steps": []}
     try:
-        click("signin-home", r"(?:^| )Home$", direction=False)
+        click("signin-home", r"(?:^| )Home$", direction=False, allow_nav=True)
         click("signin-google", r"(?:^| )Sign in with Google$", direction=True)
         report["steps"] = [step for step in steps if step.get("action", "").startswith("signin-")]
         deadline = time.monotonic() + 60
@@ -135,7 +184,7 @@ def sign_in_smoke():
             if (not scrolled_error and resumed_component(activity).startswith(PACKAGE + "/")
                     and re.search(r"Try Google Sign-In again", visible, re.IGNORECASE)):
                 # The inline error is below the button; reveal it if the card is near the fold.
-                swipe(True)
+                swipe(True, root=root)
                 scrolled_error = True
             attempt += 1
             time.sleep(1)
@@ -156,21 +205,24 @@ def sign_in_smoke():
             pass
 
 
-def swipe(down):
-    start, end = (0.78, 0.30) if down else (0.30, 0.78)
-    adb("shell", "input", "swipe", str(width // 2), str(int(height * start)),
-        str(width // 2), str(int(height * end)), "350")
+def swipe(down, root=None):
+    root = root if root is not None else dump("scroll-region")
+    top, bottom = safe_region(root)
+    if bottom - top < 50:
+        raise RuntimeError("No safe content area for a swipe")
+    start, end = (0.80, 0.20) if down else (0.20, 0.80)
+    adb("shell", "input", "swipe", str(width // 2), str(int(top + (bottom - top) * start)),
+        str(width // 2), str(int(top + (bottom - top) * end)), "350")
     time.sleep(0.4)
 
 
-def click(label, pattern, direction=True):
+def click(label, pattern, direction=True, allow_nav=False, allow_tabs=False):
     for attempt in range(12):
         root = dump(f"{label}-{attempt}")
         for node in root.iter("node"):
-            if not any(re.search(pattern, value, re.IGNORECASE) for value in
-                       (text_of(node), node.get("text", ""), node.get("content-desc", ""))):
+            if not matches(node, pattern):
                 continue
-            bounds = visible_bounds(node)
+            bounds = usable_bounds(node, root, allow_nav=allow_nav, allow_tabs=allow_tabs)
             if not bounds or node.get("enabled", "true") != "true":
                 continue
             left, top, right, bottom = bounds
@@ -182,17 +234,23 @@ def click(label, pattern, direction=True):
             time.sleep(0.6)
             steps.append({"action": label, "matched": text_of(node), "bounds": bounds})
             return
-        swipe(direction)
+        top, _ = safe_region(root, allow_tabs=allow_tabs)
+        above = any(matches(node, pattern) and visible_bounds(node)
+                    and visible_bounds(node)[1] < top for node in root.iter("node"))
+        swipe(False if above else direction, root=root)
     raise RuntimeError(f"Learning UI element not found: {label}")
 
 
 def verify(label, pattern):
     for attempt in range(6):
         root = dump(f"{label}-verify-{attempt}")
-        text = "\n".join(text_of(node) for node in root.iter("node"))
+        text = "\n".join(text_of(node) for node in root.iter("node") if usable_bounds(node, root))
         if re.search(pattern, text, re.IGNORECASE):
             break
-        swipe(True)
+        top, _ = safe_region(root)
+        above = any(matches(node, pattern) and visible_bounds(node)
+                    and visible_bounds(node)[1] < top for node in root.iter("node"))
+        swipe(not above, root=root)
     else:
         raise RuntimeError(f"Learning UI did not render expected content: {label}")
     (output / f"learning-{label}.txt").write_text(text)
@@ -201,16 +259,17 @@ def verify(label, pattern):
 
 
 try:
-    click("open", r"Open Learn Together")
+    click("open-us", r"(?:^| )Us$", allow_nav=True)
+    click("open", r"Open offline lessons")
     verify("today", r"Our language corner|Learn Together")
-    click("kannada-course", r"(?:^| )Course$")
+    click("kannada-course", r"(?:^| )Course$", allow_tabs=True)
     verify("kannada-course", r"Kannada beginner course")
-    click("script", r"(?:^| )Script$")
+    click("script", r"(?:^| )Script$", allow_tabs=True)
     verify("kannada-script", r"ಅ|ಆ|Kannada script|Vowels")
     click("malayalam-learner", r"Yashika learns Malayalam", direction=False)
-    click("malayalam-course", r"(?:^| )Course$")
+    click("malayalam-course", r"(?:^| )Course$", allow_tabs=True)
     verify("malayalam-course", r"Malayalam beginner course")
-    click("malayalam-script", r"(?:^| )Script$")
+    click("malayalam-script", r"(?:^| )Script$", allow_tabs=True)
     verify("malayalam-script", r"അ|ആ|Malayalam script|Vowels")
     (output / "learning-ui-result.json").write_text(json.dumps({"status": "passed", "steps": steps}, indent=2) + "\n")
     print("ANDROID_LEARNING_UI_TEST_PASSED: both bundled courses and scripts rendered in the signed APK")

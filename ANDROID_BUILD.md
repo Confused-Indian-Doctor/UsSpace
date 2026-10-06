@@ -31,7 +31,7 @@ Omit `--existing-device` to let the script create and boot its own emulator afte
 
 The release is version 0.12.2 / versionCode 14 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
 
-The Android emulator validates packaging, startup and the embedded learning screens. Live Google authentication, two-account Firestore pairing/sync, Samsung Health data availability and Health Connect consent require suitable accounts and devices; the smoke test does not claim those account-dependent flows are verified.
+The Android emulator validates packaging, startup, both embedded courses and scripts, and a visible response to pressing the Google sign-in button. It accepts Google's account UI or an actionable app error with an enabled retry button. Tests avoid controls obscured by fixed navigation. Failed runtime tests publish screenshots and accessibility/log diagnostics separately, without publishing a verified APK artifact. Live Google authentication, two-account Firestore pairing/sync, Samsung Health data availability and Health Connect consent require suitable accounts and devices; the smoke test does not claim those account-dependent flows are verified.
 
 ## Signing locally when repository secrets cannot be configured
 
