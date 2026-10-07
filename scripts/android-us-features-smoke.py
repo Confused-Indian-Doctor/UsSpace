@@ -207,7 +207,9 @@ def run():
     # Return to MainActivity; never authenticate or send a message in this test.
     return_from_sign_in()
 
-    open_from_us("comfort", r"^Need Me\?$|Open Need Me")
+    # WebView exposes each hub button as one accessibility node containing its
+    # title, subtitle and action. Match the unique title/action together.
+    open_from_us("comfort", r"\bNeed Me\?.*Come sit with me\s*→")
     verify("comfort-title", r"A little space from Al, whenever you need it")
     ui.click("comfort-sad", r"^Sad$")
     verify("comfort-from-al", r"From Al\s*❤️")
@@ -251,7 +253,7 @@ def run():
     verify("safety-local-contact-setup", r"Trusted person[’']s phone number")
     ui.click("safety-explicit-safe-return", r"^I[’']m somewhere safe now\s*·\s*return$")
 
-    open_from_us("letters", r"^Open When(?:…|\.\.\.)?$|Open When letters")
+    open_from_us("letters", r"\bOpen When(?:…|\.\.\.).*Find your envelope\s*→")
     locked = verify("letters-anonymous-locked", r"Pair your two accounts first")
     verify("letters-pairing-action", r"Open pairing on Home")
     absent(locked, "letters-no-drafts-or-recipients", r"Save private draft|Publish (?:this )?letter|"
@@ -261,7 +263,7 @@ def run():
         raise RuntimeError("The logged-out letters screen exposed an editor")
     ui.steps.append({"assertion": "letters-no-anonymous-editor", "status": "passed"})
 
-    open_from_us("bucket", r"^(?:Our )?Bucket List$|Open bucket list")
+    open_from_us("bucket", r"\bBucket List\b.*Our next little adventure\s*→")
     verify("bucket-pairing-guidance", r"Pair your two phones to add and share here")
     verify("bucket-real-empty-state", r"Our someday starts here")
     ui.click("bucket-editor", r"Add a dream$")
@@ -273,7 +275,7 @@ def run():
     verify("bucket-save-action", r"Save to our bucket list")
     ui.click("bucket-cancel-local-form", r"^Cancel$")
 
-    open_from_us("jar", r"^Appreciation Jar$|Open appreciation jar")
+    open_from_us("jar", r"\bAppreciation Jar\b.*Open our jar\s*→")
     verify("jar-pairing-guidance", r"Pair your two phones to add and share here")
     verify("jar-editor", r"Leave a little appreciation")
     verify("jar-add-action", r"Add to our jar")
