@@ -90,6 +90,52 @@ def open_from_us(label, pattern):
     ui.click(label + "-open", pattern)
 
 
+def click_control(label, pattern):
+    """Tap the associated interactive field, never its separate text label."""
+    original_matches = ui.matches
+
+    def matches_control(node, candidate):
+        return (original_matches(node, candidate)
+                and (candidate != pattern or node.get("clickable") == "true"))
+
+    ui.matches = matches_control
+    try:
+        ui.click(label, pattern)
+    finally:
+        ui.matches = original_matches
+
+
+def scroll_to_heading(label, pattern):
+    # Android reports wholly offscreen WebView nodes as [0,0][0,0], so their
+    # location cannot establish an upward direction. Deliberately reveal the
+    # real page heading before looking for a status or control near its top.
+    for attempt in range(10):
+        root = dump(f"{label}-{attempt}")
+        if any(node.get("class") == "android.widget.TextView" and ui.matches(node, pattern)
+               and ui.usable_bounds(node, root) for node in root.iter("node")):
+            ui.steps.append({"assertion": label, "status": "passed"})
+            return
+        ui.swipe(False, root=root)
+    raise RuntimeError("Page heading could not be revealed: " + label)
+
+
+def choose_country_india():
+    click_control("safety-country", r"^Crisis and emergency help in$")
+    for attempt in range(4):
+        choices = dump(f"safety-native-country-options-{attempt}")
+        if any(node.get("class") in {
+                "android.widget.CheckedTextView", "android.widget.RadioButton", "android.widget.TextView"
+        } and ui.matches(node, r"^India$") and ui.usable_bounds(node, choices)
+                   for node in choices.iter("node")):
+            break
+        time.sleep(0.4)
+    else:
+        raise RuntimeError("The native country selector did not expose its India option")
+    screenshot("safety-native-country-options")
+    ui.steps.append({"assertion": "safety-native-country-options", "status": "passed"})
+    ui.click("safety-country-india", r"^India$")
+
+
 def activate_safety():
     root = dump("comfort-fixed-safety-action")
     footer = ui.footer_nodes(root)
@@ -135,12 +181,23 @@ def exercise_photo_picker():
     scan = ui.adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
                   "-d", "file://" + destination)
     (output / "us-features-photo-media-scan.txt").write_text(scan)
-    ui.click("bucket-open-photo-picker", r"Choose (?:a )?file|No file chosen")
-    activity = ui.adb("shell", "dumpsys", "activity", "activities")
-    (output / "us-features-photo-picker-activity.txt").write_text(activity)
-    foreground = ui.resumed_component(activity).split("/", 1)[0]
-    if not foreground.endswith("documentsui"):
-        raise RuntimeError("The real Android document picker did not become the foreground activity")
+    click_control("bucket-open-photo-picker", r"^Dream photo \(optional\)$|Choose (?:a )?file|No file chosen")
+    deadline = time.monotonic() + 5
+    attempt = 0
+    while True:
+        activity = ui.adb("shell", "dumpsys", "activity", "activities")
+        (output / f"us-features-photo-picker-activity-{attempt}.txt").write_text(activity)
+        component = ui.resumed_component(activity)
+        foreground = component.split("/", 1)[0]
+        if foreground.endswith("documentsui"):
+            (output / "us-features-photo-picker-activity.txt").write_text(activity)
+            break
+        if component and (foreground != ui.PACKAGE or not component.endswith(".MainActivity")):
+            raise RuntimeError("Unexpected activity while opening the photo picker: " + component)
+        if time.monotonic() >= deadline:
+            raise RuntimeError("The real Android document picker did not become foreground within five seconds")
+        attempt += 1
+        time.sleep(0.4)
     screenshot("bucket-system-photo-picker")
     # ACTION_OPEN_DOCUMENT starts at Recents on a fresh emulator. Use the
     # standard DocumentsUI drawer to select Downloads, then the actual file.
@@ -150,6 +207,7 @@ def exercise_photo_picker():
     ui.click("bucket-photo-picker-select-file", r"^UsSpace-photo-test\.png$")
     # This production notice is set only after WebView decodes the selected PNG
     # and its real canvas JPEG result passes the attachment format/size checks.
+    scroll_to_heading("bucket-after-photo-heading", r"^Our Bucket List$")
     verify("bucket-jpeg-compression-completed", r"Photo ready on this phone")
     verify_photo_preview()
     verify("bucket-photo-kept-local-until-save", r"Remove photo")
@@ -243,12 +301,12 @@ def run():
     absent(safety, "safety-no-persona-card", r"From Al\s*❤️|Play voice note|" + sad_pattern)
     verify("safety-contact-al", r"^Contact Al$")
     verify("safety-contact-trusted", r"Contact a trusted person")
-    ui.click("safety-country", r"^Choose your country$")
-    ui.click("safety-country-india", r"^India$")
+    choose_country_india()
     verify("safety-local-emergency", r"Call emergency services\s*·\s*112")
     verify("safety-local-crisis", r"Call Tele-MANAS\s*·\s*14416")
     verify("safety-global-crisis-directory", r"Find local crisis support")
     # Verify contact setup without dialing anyone or opening an external site.
+    scroll_to_heading("safety-contact-return-to-top", r"^Your safety comes first$")
     ui.click("safety-trusted-person", r"^Contact a trusted person$")
     verify("safety-local-contact-setup", r"Trusted person[’']s phone number")
     ui.click("safety-explicit-safe-return", r"^I[’']m somewhere safe now\s*·\s*return$")
