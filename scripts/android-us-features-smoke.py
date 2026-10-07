@@ -71,7 +71,12 @@ def verify(label, pattern):
             screenshot(label)
             ui.steps.append({"assertion": label, "status": "passed"})
             return root
-        top, _ = ui.safe_region(root)
+        top, bottom = ui.safe_region(root)
+        partial = [node for node in root.iter("node")
+                   if ui.matches(node, pattern) and ui.visible_bounds(node)
+                   and ui.visible_bounds(node)[3] - ui.visible_bounds(node)[1] <= bottom - top]
+        if any(align_partly_visible(node, root) for node in partial):
+            continue
         above = any(ui.matches(node, pattern) and ui.visible_bounds(node)
                     and ui.visible_bounds(node)[1] < top for node in root.iter("node"))
         ui.swipe(not above, root=root)
@@ -315,6 +320,7 @@ def run():
     phrase_root = verify("comfort-sad-phrase", sad_pattern)
     first_phrase = next(value for value in SAD_PHRASES if value in text(phrase_root))
     ui.click("comfort-another", r"^Another little word$")
+    scroll_to_heading("comfort-another-return-to-top", r"^Need Me\?$")
     another_root = verify("comfort-another-phrase", sad_pattern)
     second_phrase = next(value for value in SAD_PHRASES if value in text(another_root))
     if first_phrase == second_phrase:
@@ -322,12 +328,16 @@ def run():
     ui.steps.append({"assertion": "comfort-avoids-immediate-repeat", "status": "passed"})
 
     ui.click("comfort-voice", r"^Play voice note$")
+    scroll_to_heading("comfort-voice-return-to-top", r"^Need Me\?$")
     verify("comfort-real-voice-placeholder", r"No recording has been added yet")
     ui.click("comfort-ground", r"^Ground me$")
+    scroll_to_heading("comfort-ground-return-to-top", r"^Need Me\?$")
     verify("ground-jaw-shoulders", r"Unclench your jaw\. Let your shoulders drop")
     ui.click("ground-start-breathing", r"^Start slow breathing$")
+    scroll_to_heading("ground-start-return-to-top", r"^Need Me\?$")
     verify("ground-breathing-started", r"Breathe in gently|Slowly breathe out")
     ui.click("ground-pause-breathing", r"^Pause breathing$")
+    scroll_to_heading("ground-pause-return-to-top", r"^Need Me\?$")
     verify("ground-breathing-paused", r"Unclench your jaw\. Let your shoulders drop")
     for index, prompt in enumerate((
         r"things you can see", r"things you can feel", r"things you can hear",
