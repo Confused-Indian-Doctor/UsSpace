@@ -16,8 +16,8 @@ android {
         applicationId = "app.usspace.couple.v012"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.12.2"
+        versionCode = 15
+        versionName = "0.12.3"
     }
 
     signingConfigs {

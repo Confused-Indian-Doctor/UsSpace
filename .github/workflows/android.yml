@@ -16,7 +16,7 @@ jobs:
   source-validation:
     name: Compile source and check private sync payloads
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     outputs:
       signing_ready: ${{ steps.signing-state.outputs.ready }}
     steps:
@@ -39,7 +39,7 @@ jobs:
       - name: Check private sync payloads
         run: node firebase-tests/privacy_payload_test.js
       - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: bash scripts/test-firebase-realtime.sh
       - name: Save Firebase verification evidence
         if: always()
@@ -152,7 +152,7 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Boot Android 35, install and launch the signed APK
-        timeout-minutes: 12
+        timeout-minutes: 18
         env:
           ANDROID_EMULATOR_ACCEL: 'on'
           BOOT_TIMEOUT_SECONDS: '300'

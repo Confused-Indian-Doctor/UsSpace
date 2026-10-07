@@ -15,6 +15,11 @@ function element(id) {
     attributes: {},
     setAttribute(name, value) { this.attributes[name] = String(value); },
     getAttribute(name) { return this.attributes[name] ?? null; },
+    addEventListener(name, handler) { this.listeners ||= {}; this.listeners[name] = handler; },
+    contains(target) { for (let node = target; node; node = node.parentElement) if (node === this) return true; return false; },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    focus() {},
     click() { if (!this.disabled) this.onclick?.(); },
     classList: {add() {}, remove() {}, toggle() {}},
   });
@@ -253,3 +258,41 @@ assert.equal(element('homeCycle').textContent, 'Private tracker');
 run("state.cycle.lastPeriod='2026-02-30'");
 assert.equal(run('getCycleModel()'), null, 'invalid stored dates must not break rendering');
 console.log('APP_UI_TEST_OK (all bundled scripts, course panels, actual shared actions and private goals)');
+
+const noteCountBeforeComfort = run('state.notes.length');
+run("UsFeatures.messageAl('sad')");
+assert.equal(run('state.notes.length'), noteCountBeforeComfort, 'opening comfort composer cannot share a mood');
+assert.equal(element('alIncludeMood').checked, false);
+assert.doesNotMatch(element('alMessagePreview').textContent, /feeling sad/);
+run("onUsAuthState({signedIn:true,uid:'al-feature-account',error:''});onUsSyncState({paired:true,coupleId:'feature-couple',memberCount:2,state:'live'})");
+run("UsFeatures.messageAl('sad');alMessageText.value='Please call me';updateAlMessagePreview()");
+assert.equal(element('alMessagePreview').textContent, 'Please call me');
+run('alIncludeMood.checked=true;updateAlMessagePreview()');
+assert.match(element('alMessagePreview').textContent, /feeling sad/);
+assert.equal(run('state.notes.length'), noteCountBeforeComfort, 'preview and mood opt-in still require explicit send');
+run("onUsSharedSnapshot({coupleId:'feature-couple',ready:true,exists:true,fromCache:false,common:sharedCommonProjection(),profiles:{}});confirmAlMessage()");
+assert.equal(run('state.notes.length'), noteCountBeforeComfort + 1);
+assert.match(run('state.notes[0].text'), /Please call me/);
+assert.match(run('state.notes[0].text'), /feeling sad/);
+const countBeforePrefill = run('state.memories.length');
+run("UsFeatures.prefillMemory({title:'Tea by the sea',date:'2026-10-07',location:'Kochi',photoId:'photo_memory_test',text:'Our little trip'})");
+assert.equal(run('state.memories.length'), countBeforePrefill, 'turn into a Memory only prefills the editor');
+assert.equal(element('memoryTitle').value, 'Tea by the sea');
+assert.equal(element('memoryDate').value, '2026-10-07');
+assert.equal(element('memoryPlace').value, 'Kochi');
+element('memorySaveBtn').click();
+assert.equal(run('state.memories.length'), countBeforePrefill + 1);
+assert.equal(run('state.memories[0].photoId'), 'photo_memory_test');
+element('memorySaveBtn').disabled = true;
+element('memoryPhotoStatus').textContent = 'Preparing your photo…';
+run('openMemory()');
+assert.equal(element('memorySaveBtn').disabled, false, 'reopening the editor recovers from an obsolete pending photo');
+assert.doesNotMatch(element('memoryPhotoStatus').textContent, /Preparing/);
+assert.match(run('JSON.stringify(sharedCommonProjection())'), /photo_memory_test/);
+run("state.memories.push({id:'invalid-photo',title:'Safe',photoId:'data:image/jpeg;base64,PRIVATE_PHOTO_BYTES',photo:{health:'PRIVATE_NESTED_PHOTO'}})");
+assert.doesNotMatch(run('JSON.stringify(sharedCommonProjection())'), /PRIVATE_PHOTO_BYTES|PRIVATE_NESTED_PHOTO/);
+run("onUsAuthState({signedIn:false,uid:'',error:''})");
+assert.equal(element('alMessageText').value, '', 'account change clears unsent comfort messages');
+assert.equal(run('UsFeatures.identity().uid'), '');
+assert.deepEqual(run('JSON.stringify(UsExtras.get().letters)'), '[]');
+console.log('US_FEATURE_INTEGRATION_TEST_OK (explicit mood sharing, reviewed Memory prefill, scalar photo references and signout privacy)');

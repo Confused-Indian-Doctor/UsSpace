@@ -11,7 +11,7 @@ public final class SyncPatchReducer {
         ITEMS.put("duties", Arrays.asList("id", "owner", "date", "type", "time", "title", "place"));
         ITEMS.put("goals", Arrays.asList("id", "title", "value", "target", "unit", "level"));
         ITEMS.put("notes", Arrays.asList("id", "text", "date"));
-        ITEMS.put("memories", Arrays.asList("id", "title", "date", "place", "text", "emoji"));
+        ITEMS.put("memories", Arrays.asList("id", "title", "date", "place", "text", "emoji", "photoId"));
         PROGRESS_MAPS.put("cards", Arrays.asList("reps", "interval", "due", "ease", "lapses", "lastReviewed"));
         PROGRESS_MAPS.put("units", Arrays.asList("completedAt", "score"));
         PROGRESS_MAPS.put("sessions", Arrays.asList("day", "at", "xp", "attempts", "correct"));
@@ -28,7 +28,7 @@ public final class SyncPatchReducer {
     private static String text(Object value) { if(value==null)return "";if(value instanceof Number){double d=((Number)value).doubleValue();if(d==(long)d)return Long.toString((long)d);}return String.valueOf(value); }
     public static Map<String,Object> projectCommon(Map<String,Object> input) {
         Map<String,Object> out=new LinkedHashMap<>();out.put("visit",input.get("visit") instanceof String?input.get("visit"):"");
-        for(String k:ITEMS.keySet()){List<Object> clean=new ArrayList<>();for(Object entry:list(input.get(k))){Map<String,Object> item=map(entry);if(!(item.get("id") instanceof String||item.get("id") instanceof Number)||("goals".equals(k)&&"Private".equals(item.get("level"))))continue;clean.add(select(item,ITEMS.get(k)));if(clean.size()>=500)break;}out.put(k,clean);}
+        for(String k:ITEMS.keySet()){List<Object> clean=new ArrayList<>();for(Object entry:list(input.get(k))){Map<String,Object> item=map(entry);if(!(item.get("id") instanceof String||item.get("id") instanceof Number)||("goals".equals(k)&&"Private".equals(item.get("level"))))continue;Map<String,Object> cleanItem=select(item,ITEMS.get(k));if("memories".equals(k)&&cleanItem.containsKey("photoId")){Object photo=cleanItem.get("photoId");if(!(photo instanceof String)||(!((String)photo).isEmpty()&&!((String)photo).matches("[A-Za-z0-9_-]{1,140}")))cleanItem.remove("photoId");}clean.add(cleanItem);if(clean.size()>=500)break;}out.put(k,clean);}
         Map<String,Object> progresses=new LinkedHashMap<>(), raw=map(map(input.get("learn")).get("progress"));
         for(String learner:Arrays.asList("al","yashika")){if(!raw.containsKey(learner))continue;Map<String,Object> progress=select(raw.get(learner),PROGRESS);for(String counter:Arrays.asList("v","xp","attempts","correct","streak","dailyGoal"))if(progress.containsKey(counter)&&!(progress.get(counter) instanceof Number))progress.remove(counter);for(String kind:PROGRESS_MAPS.keySet()){Map<String,Object> clean=new LinkedHashMap<>();for(Map.Entry<String,Object> e:map(map(raw.get(learner)).get(kind)).entrySet())if(safeKey(e.getKey()))clean.put(e.getKey(),select(e.getValue(),PROGRESS_MAPS.get(kind)));progress.put(kind,clean);}LinkedHashSet<String> known=new LinkedHashSet<>();for(Object id:list(map(raw.get(learner)).get("known")))if(id instanceof String&&((String)id).length()<160)known.add((String)id);progress.put("known",new ArrayList<>(known));progresses.put(learner,progress);}
         Map<String,Object> learn=new LinkedHashMap<>();learn.put("progress",progresses);out.put("learn",learn);return out;

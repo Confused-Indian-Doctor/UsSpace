@@ -20,6 +20,8 @@ public final class SyncPatchReducerTest {
         Map<String,Object> attack=patch(m("kind","set","path",Arrays.asList("cycle"),"value",m("note","SECRET")),m("kind","latestMap","path",cards,"key","__proto__","value",m("lastReviewed",100,"reps",2)),m("kind","entity","path",Arrays.asList("goals"),"id","secret","fields",m("level","Private","title","SECRET")),op("set",alXp,m("health","SECRET")));
         check(!SyncPatchReducer.applyPatch(m(),attack).toString().contains("SECRET"),"malicious payload admitted");check(!SyncPatchReducer.applyPatch(m(),attack).toString().contains("__proto__"),"unsafe map key admitted");
         Map<String,Object> profile=SyncPatchReducer.projectProfile(m("health",m("note","SECRET"),"name","Me","life",m("watchTitle","Show","health",m("note","SECRET")),"checkins",Collections.emptyList()));check(!profile.toString().contains("SECRET"),"private profile payload admitted");
+        Map<String,Object> photos=SyncPatchReducer.projectCommon(m("memories",Arrays.asList(m("id","photo-ref","photoId","photo_abc"),m("id","photo-bytes","photoId","data:image/jpeg;base64,PRIVATE_PHOTO_BYTES","photo",m("health","SECRET")))));
+        check(photos.toString().contains("photo_abc"),"memory photo reference lost");check(!photos.toString().contains("PRIVATE_PHOTO_BYTES")&&!photos.toString().contains("SECRET"),"photo bytes or nested private data entered common");
         System.out.println("NATIVE_SYNC_REDUCER_TEST_OK (production Java reducer concurrency, progress and privacy)");
     }
 }

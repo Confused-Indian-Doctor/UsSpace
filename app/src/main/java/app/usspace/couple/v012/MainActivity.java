@@ -1,9 +1,14 @@
 package app.usspace.couple.v012;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -16,6 +21,10 @@ public class MainActivity extends Activity {
     private AuthBridge authBridge;
     private CoupleSyncBridge syncBridge;
     private SpeechBridge speechBridge;
+    private UsExtrasBridge extrasBridge;
+    private ValueCallback<Uri[]> photoCallback;
+    private static final int PICK_PHOTO = 1203;
+    private static final String BUNDLED_PAGE = "file:///android_asset/index.html";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,19 +39,57 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
+        // Packaged android_asset content is still available with ordinary filesystem access off.
+        settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
 
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (photoCallback != null) photoCallback.onReceiveValue(null);
+                photoCallback = callback;
+                Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                picker.addCategory(Intent.CATEGORY_OPENABLE);
+                picker.setType("image/*");
+                picker.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/jpeg", "image/png", "image/webp"});
+                picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try { startActivityForResult(picker, PICK_PHOTO); }
+                catch (ActivityNotFoundException | SecurityException failure) {
+                    photoCallback = null;
+                    callback.onReceiveValue(null);
+                    showPickerError("No photo picker is available. You can add a photo later.");
+                }
+                return true;
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String target = request.getUrl().toString();
+                if (isBundledPage(target)) return false;
+                if (request.isForMainFrame() && extrasBridge != null) extrasBridge.openLink(target);
+                // Remote pages and nested frames must never acquire the native app's bridges.
+                return true;
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String target) {
+                if (isBundledPage(target)) return false;
+                if (extrasBridge != null) extrasBridge.openLink(target);
+                return true;
+            }
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 // Authentication callbacks can arrive before the bundled page is ready.
-                if (authBridge != null && "file:///android_asset/index.html".equals(url)) {
+                if (authBridge != null && isBundledPage(url)) {
                     authBridge.publishState();
+                    if (extrasBridge != null) extrasBridge.refresh();
                 }
             }
         });
@@ -51,15 +98,18 @@ public class MainActivity extends Activity {
         authBridge = new AuthBridge(this, webView, syncBridge);
         healthBridge = new HealthBridge(this, webView);
         speechBridge = new SpeechBridge(this, webView);
+        extrasBridge = new UsExtrasBridge(this, webView);
         webView.addJavascriptInterface(authBridge, "UsAuth");
         webView.addJavascriptInterface(syncBridge, "UsSync");
         webView.addJavascriptInterface(healthBridge, "UsHealth");
         webView.addJavascriptInterface(speechBridge, "UsSpeech");
+        webView.addJavascriptInterface(extrasBridge, "UsSpaceExtras");
 
         if (savedInstanceState == null) {
-            webView.loadUrl("file:///android_asset/index.html");
+            webView.loadUrl(BUNDLED_PAGE);
         } else {
             webView.restoreState(savedInstanceState);
+            if (!isBundledPage(webView.getUrl())) webView.loadUrl(BUNDLED_PAGE);
         }
     }
 
@@ -67,12 +117,15 @@ public class MainActivity extends Activity {
     protected void onStart() {
         super.onStart();
         if (authBridge != null) authBridge.publishState();
+        if (extrasBridge != null) extrasBridge.refresh();
     }
 
     @Override
     protected void onDestroy() {
         if (syncBridge != null) syncBridge.close();
         if (speechBridge != null) speechBridge.close();
+        if (extrasBridge != null) extrasBridge.close();
+        if (photoCallback != null) { photoCallback.onReceiveValue(null); photoCallback = null; }
         if (webView != null) webView.destroy();
         super.onDestroy();
     }
@@ -87,6 +140,35 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (healthBridge != null) healthBridge.onRequestPermissionsResult(requestCode);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_PHOTO || photoCallback == null) return;
+        ValueCallback<Uri[]> callback = photoCallback;
+        photoCallback = null;
+        Uri selected = resultCode == RESULT_OK && data != null ? data.getData() : null;
+        if (selected != null) {
+            // The document picker grants access to one selected file. No gallery permission needed.
+            if (!"content".equals(selected.getScheme())) selected = null;
+            else {
+                try {
+                    String mime = getContentResolver().getType(selected);
+                    if (!"image/jpeg".equals(mime) && !"image/png".equals(mime) && !"image/webp".equals(mime)) selected = null;
+                } catch (SecurityException failure) { selected = null; }
+            }
+        }
+        callback.onReceiveValue(selected == null ? null : new Uri[]{selected});
+        if (resultCode == RESULT_OK && selected == null) showPickerError("Choose a JPEG, PNG or WebP photo.");
+    }
+
+    private static boolean isBundledPage(String target) {
+        return target != null && (BUNDLED_PAGE.equals(target) || target.startsWith(BUNDLED_PAGE + "#"));
+    }
+
+    private void showPickerError(String message) {
+        if (webView != null) webView.evaluateJavascript("window.toast&&window.toast(" + org.json.JSONObject.quote(message) + ");", null);
     }
 
     @Override

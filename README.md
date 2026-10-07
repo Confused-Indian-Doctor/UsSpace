@@ -1,10 +1,10 @@
-# UsSpace v0.12.2 — Google sign-in, realtime sync and embedded learning
+# UsSpace v0.12.3 — a little comfort from Al, letters and shared plans
 
 UsSpace v0.12 combines the v0.11 Health Connect build and the embedded Namma ↔ Nammal language module with two-account identity and realtime couple sync.
 
 ## Android identity
 - Package/applicationId: `app.usspace.couple.v012`
-- Version: `0.12.2` / versionCode 14
+- Version: `0.12.3` / versionCode 15
 - The Google sign-in button uses Credential Manager's explicit account selection flow, with visible progress and actionable errors.
 - Firebase Authentication turns the Google ID token into the app identity.
 - Each signed-in Google account has its own `/users/{uid}` document.
@@ -35,6 +35,18 @@ Pronunciation uses Android text-to-speech with an installed offline Kannada or M
 
 ## Privacy boundary
 The native bridge never sends `health`, `healthHistory`, or `cycle`. `firestore.rules` rejects these keys too. Health Connect remains read-only. Cycle data remains local to the phone in v0.12.
+
+## New experiences inside Us
+
+- **Need Me? / From Al:** all six curated comfort categories, gentle breathing and 5-4-3-2-1 grounding, little reminders, memories and an explicit message composer. These are saved personal words, not generated AI or a live response from Al. There is an honest placeholder until a real voice recording exists.
+- **Safety:** an always-available unsafe action and local risk-expression detection replace the persona with real contact options and country-selected crisis/emergency help. Detection is a local aid, not a clinical classifier. No one is notified automatically. Configure Al and a trusted person's telephone numbers locally.
+- **Open When…:** eight editable letters. Choose which signed-in account is Al and which is Yashika once, with the actual account identities shown for confirmation. Drafts stay in Al's account and on his phone. Review and explicitly publish a letter to make its envelope available to Yashika. Opening an envelope has no shared read receipt.
+- **Appreciation Jar:** either person adds a short appreciation, revisits an older note with author/date attribution and adds an optional heart.
+- **Bucket List:** categories, locations, target dates, priority, notes, photos and Dreaming / Planning / Booked / Done states. Completion offers a reviewed Memory prefill including date, place and photo.
+
+Comfort moods, grounding activity, free text and local contacts never enter the sync store. The Message Al composer excludes the mood unless the user explicitly checks the sharing option and then saves the message. Letters use dedicated role-bound queries rather than the common shared document. New shared records use an account/couple-scoped persistent outbox and transaction receipts. Compressed JPEG attachments live in separate per-photo documents; memories and bucket items contain only a photo ID. Photos are uploaded only after Save, and picker access is limited to the selected document.
+
+**Publish the updated `firestore.rules` before using the new shared features.** Existing v0.12.2 pairing rules remain intact, and updating these rules does not require disconnecting the two working accounts. Install the APK over the current app; preserve the application ID and signing key.
 
 ## Build and live Firebase setup
 

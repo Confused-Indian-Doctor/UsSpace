@@ -258,23 +258,24 @@ def verify(label, pattern):
     steps.append({"assertion": label, "status": "passed"})
 
 
-try:
-    click("open-us", r"(?:^| )Us$", allow_nav=True)
-    click("open", r"Open offline lessons")
-    verify("today", r"Our language corner|Learn Together")
-    click("kannada-course", r"(?:^| )Course$", allow_tabs=True)
-    verify("kannada-course", r"Kannada beginner course")
-    click("script", r"(?:^| )Script$", allow_tabs=True)
-    verify("kannada-script", r"ಅ|ಆ|Kannada script|Vowels")
-    click("malayalam-learner", r"Yashika learns Malayalam", direction=False)
-    click("malayalam-course", r"(?:^| )Course$", allow_tabs=True)
-    verify("malayalam-course", r"Malayalam beginner course")
-    click("malayalam-script", r"(?:^| )Script$", allow_tabs=True)
-    verify("malayalam-script", r"അ|ആ|Malayalam script|Vowels")
-    (output / "learning-ui-result.json").write_text(json.dumps({"status": "passed", "steps": steps}, indent=2) + "\n")
-    print("ANDROID_LEARNING_UI_TEST_PASSED: both bundled courses and scripts rendered in the signed APK")
-except Exception:
-    (output / "learning-ui-result.json").write_text(json.dumps({"status": "failed", "steps": steps}, indent=2) + "\n")
-    raise
+if __name__ == "__main__":
+    try:
+        click("open-us", r"(?:^| )Us$", allow_nav=True)
+        click("open", r"Open offline lessons")
+        verify("today", r"Our language corner|Learn Together")
+        click("kannada-course", r"(?:^| )Course$", allow_tabs=True)
+        verify("kannada-course", r"Kannada beginner course")
+        click("script", r"(?:^| )Script$", allow_tabs=True)
+        verify("kannada-script", r"ಅ|ಆ|Kannada script|Vowels")
+        click("malayalam-learner", r"Yashika learns Malayalam", direction=False)
+        click("malayalam-course", r"(?:^| )Course$", allow_tabs=True)
+        verify("malayalam-course", r"Malayalam beginner course")
+        click("malayalam-script", r"(?:^| )Script$", allow_tabs=True)
+        verify("malayalam-script", r"അ|ആ|Malayalam script|Vowels")
+        (output / "learning-ui-result.json").write_text(json.dumps({"status": "passed", "steps": steps}, indent=2) + "\n")
+        print("ANDROID_LEARNING_UI_TEST_PASSED: both bundled courses and scripts rendered in the signed APK")
+    except Exception:
+        (output / "learning-ui-result.json").write_text(json.dumps({"status": "failed", "steps": steps}, indent=2) + "\n")
+        raise
 
-sign_in_smoke()
+    sign_in_smoke()

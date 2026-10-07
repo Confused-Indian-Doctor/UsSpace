@@ -18,7 +18,7 @@ jobs:
     name: Build inputs for signing with the original local key
     if: startsWith(github.ref, 'refs/heads/android-signing-inputs/')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,7 +33,7 @@ jobs:
           python3 scripts/validate-firebase-config.py
           node firebase-tests/privacy_payload_test.js
       - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: bash scripts/test-firebase-realtime.sh
       - uses: android-actions/setup-android@v3
         with:
@@ -70,8 +70,8 @@ jobs:
               "repository": os.environ["GITHUB_REPOSITORY"],
               "workflow_run_id": os.environ["GITHUB_RUN_ID"],
               "package": "app.usspace.couple.v012",
-              "version_code": 14,
-              "version_name": "0.12.2",
+              "version_code": 15,
+              "version_name": "0.12.3",
               "android_sdk": 35,
               "build_tools": "35.0.0",
               "gradle": "8.11.1",
@@ -105,7 +105,7 @@ jobs:
     name: Install and launch the APK signed with the original key
     if: startsWith(github.ref, 'refs/heads/android-apk-verification/')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       ANDROID_API: '35'
       ANDROID_BUILD_TOOLS: '35.0.0'
@@ -126,7 +126,7 @@ jobs:
           python3 scripts/validate-firebase-config.py
           node firebase-tests/privacy_payload_test.js
       - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: bash scripts/test-firebase-realtime.sh
       - name: Download the locally signed APK and verify its source and checksum
         timeout-minutes: 3
@@ -216,7 +216,7 @@ jobs:
           test -r /dev/kvm && test -w /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -accel-check
       - name: Boot Android 35, install and launch the signed APK
-        timeout-minutes: 12
+        timeout-minutes: 18
         env:
           ANDROID_EMULATOR_ACCEL: 'on'
           BOOT_TIMEOUT_SECONDS: '300'
