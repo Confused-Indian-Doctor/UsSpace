@@ -216,6 +216,34 @@ def verify_photo_preview():
     raise RuntimeError("The chosen photo did not render as an actual image preview")
 
 
+def select_document_file():
+    # DocumentsUI appends size/time to the tile's accessible filename. Its
+    # center can also overlap a separate preview icon; select the file using
+    # the lower interior of the real tile, outside every preview control.
+    for attempt in range(4):
+        root = dump(f"bucket-photo-picker-select-file-{attempt}")
+        for node in root.iter("node"):
+            bounds = ui.usable_bounds(node, root)
+            if not bounds or not ui.matches(node, r"^UsSpace-photo-test\.png(?:,|$)"):
+                continue
+            left, top, right, bottom = bounds
+            x, y = (left + right) // 2, bottom - max(8, (bottom - top) // 4)
+            previews = [ui.visible_bounds(child) for child in node.iter("node")
+                        if child.get("resource-id", "").endswith("/preview_icon")
+                        or ui.matches(child, r"^Preview the file ")]
+            if any(area and area[0] <= x < area[2] and area[1] <= y < area[3]
+                   for area in previews):
+                raise RuntimeError("The document tile has no safe lower selection point")
+            ui.adb("shell", "input", "tap", str(x), str(y))
+            time.sleep(0.6)
+            ui.steps.append({"action": "bucket-photo-picker-select-file",
+                             "matched": ui.text_of(node), "bounds": bounds,
+                             "tap": [x, y], "preview_avoided": True})
+            return
+        time.sleep(0.4)
+    raise RuntimeError("The real Downloads document tile was not selectable")
+
+
 def exercise_photo_picker():
     source = output / "UsSpace-v0.12-launch.png"
     if not source.is_file() or source.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
@@ -250,7 +278,7 @@ def exercise_photo_picker():
     ui.click("bucket-photo-picker-roots", r"^Show roots$")
     ui.click("bucket-photo-picker-downloads", r"^Downloads$")
     verify("bucket-photo-picker-file", r"UsSpace-photo-test\.png")
-    ui.click("bucket-photo-picker-select-file", r"^UsSpace-photo-test\.png$")
+    select_document_file()
     # This production notice is set only after WebView decodes the selected PNG
     # and its real canvas JPEG result passes the attachment format/size checks.
     scroll_to_heading("bucket-after-photo-heading", r"^Our Bucket List$")
