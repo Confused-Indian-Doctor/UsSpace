@@ -157,6 +157,38 @@ def exercise_photo_picker():
     report["real_photo_picker"] = "passed"
 
 
+def return_from_sign_in():
+    launch = ui.adb("shell", "am", "start", "-W", "-n", ui.PACKAGE + "/.MainActivity")
+    (output / "us-features-return-to-app.txt").write_text(launch)
+    time.sleep(0.8)
+    providers = {
+        "com.google.android.gms", "com.google.android.gsf.login", "com.android.credentialmanager",
+        "com.android.permissioncontroller", "com.google.android.permissioncontroller",
+        "com.android.settings", "com.google.android.settings", "android",
+    }
+    for attempt in range(5):
+        activity = ui.adb("shell", "dumpsys", "activity", "activities")
+        (output / f"us-features-return-activity-{attempt}.txt").write_text(activity)
+        component = ui.resumed_component(activity)
+        if component.startswith(ui.PACKAGE + "/") and component.endswith(".MainActivity"):
+            (output / "us-features-start-activity.txt").write_text(activity)
+            ui.steps.append({"assertion": "return-from-sign-in", "status": "passed",
+                             "provider_back_presses": attempt, "component": component})
+            return
+        foreground = component.split("/", 1)[0]
+        if foreground not in providers:
+            raise RuntimeError("Unexpected activity while returning from sign-in: " + component)
+        if attempt == 4:
+            break
+        # am start can leave Google's MinuteMaidActivity at the top of the same
+        # task. Cancel only the known provider flow; never authenticate or clear
+        # app data. The following probe must see the actual MainActivity.
+        dump(f"provider-cancel-{attempt}")
+        ui.adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+    raise RuntimeError("MainActivity did not resume after four provider cancellation attempts")
+
+
 SAD_PHRASES = (
     "Hey love, you don’t have to be okay all the time.",
     "If I were there, I’d just hold you quietly.",
@@ -173,14 +205,7 @@ sad_pattern = "|".join(re.escape(value) for value in SAD_PHRASES)
 def run():
     # The prior sign-in smoke intentionally leaves Google's account UI open.
     # Return to MainActivity; never authenticate or send a message in this test.
-    launch = ui.adb("shell", "am", "start", "-W", "-n", ui.PACKAGE + "/.MainActivity")
-    (output / "us-features-return-to-app.txt").write_text(launch)
-    time.sleep(0.8)
-    activity = ui.adb("shell", "dumpsys", "activity", "activities")
-    (output / "us-features-start-activity.txt").write_text(activity)
-    component = ui.resumed_component(activity)
-    if not component.startswith(ui.PACKAGE + "/") or not component.endswith(".MainActivity"):
-        raise RuntimeError("MainActivity did not resume before Us feature navigation")
+    return_from_sign_in()
 
     open_from_us("comfort", r"^Need Me\?$|Open Need Me")
     verify("comfort-title", r"A little space from Al, whenever you need it")
