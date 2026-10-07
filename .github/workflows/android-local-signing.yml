@@ -151,10 +151,15 @@ jobs:
                   require_https(newurl)
                   return super().redirect_request(req, fp, code, msg, headers, newurl)
           subprocess.run(["git", "cat-file", "-e", source_commit + "^{commit}"], check=True)
+          # The Android UI harness is not embedded in the APK. It may advance
+          # independently when correcting real-device selectors or scrolling.
+          # Keep every application/build input, rule, unit/protocol test and
+          # other script identical to the APK's recorded compilation commit.
           subprocess.run([
               "git", "diff", "--exit-code", source_commit, "HEAD", "--",
               "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
               "scripts/", "firebase-tests/", "firestore.rules", "firebase.json",
+              ":(exclude)scripts/android-us-features-smoke.py",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)
@@ -182,6 +187,14 @@ jobs:
           (output / "apk-source.json").write_text(json.dumps(pointer, indent=2) + "\n")
           (output / "SOURCE_COMMIT.txt").write_text(source_commit + "\n")
           (output / "VERIFICATION_COMMIT.txt").write_text(os.environ["GITHUB_SHA"] + "\n")
+          harness = pathlib.Path("scripts/android-us-features-smoke.py")
+          (output / "automation-provenance.json").write_text(json.dumps({
+              "apk_source_commit": source_commit,
+              "automation_commit": os.environ["GITHUB_SHA"],
+              "ui_harness_file": str(harness),
+              "ui_harness_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(),
+              "protected_source": "Application, Android build inputs, Firestore rules, unit/protocol tests and all other scripts match the APK compilation commit",
+          }, indent=2) + "\n")
           print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
           PY
       - uses: android-actions/setup-android@v3

@@ -85,9 +85,51 @@ def absent(root, label, pattern):
     ui.steps.append({"assertion": label, "status": "passed"})
 
 
+def align_partly_visible(node, root):
+    bounds = ui.visible_bounds(node)
+    if not bounds:
+        return False
+    top, bottom = ui.safe_region(root)
+    if bounds[1] < top:
+        down, needed = False, top - bounds[1]
+    elif bounds[3] > bottom:
+        down, needed = True, bounds[3] - bottom
+    else:
+        return False
+    # A large swipe can move a tall card from behind the footer to behind the
+    # sticky header, then back again forever. Align it with a short, slow swipe
+    # wholly inside the safe region; still require its entire bounds before tap.
+    distance = min(160, max(48, needed + 24), (bottom - top) // 2)
+    if distance < 20:
+        raise RuntimeError("No safe content area to align a partly visible control")
+    center = (top + bottom) // 2
+    start, end = center + distance // 2, center - distance // 2
+    if not down:
+        start, end = end, start
+    ui.adb("shell", "input", "swipe", str(ui.width // 2), str(start),
+           str(ui.width // 2), str(end), "650")
+    time.sleep(0.4)
+    return True
+
+
 def open_from_us(label, pattern):
     ui.click(label + "-hub", r"(?:^| )Us$", allow_nav=True)
-    ui.click(label + "-open", pattern)
+    for attempt in range(12):
+        root = dump(f"{label}-open-{attempt}")
+        cards = [node for node in root.iter("node") if ui.matches(node, pattern)
+                 and node.get("class") == "android.widget.Button"
+                 and node.get("clickable") == "true" and node.get("enabled", "true") == "true"]
+        for node in cards:
+            bounds = ui.usable_bounds(node, root)
+            if bounds:
+                left, top, right, bottom = bounds
+                ui.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+                time.sleep(0.6)
+                ui.steps.append({"action": label + "-open", "matched": ui.text_of(node), "bounds": bounds})
+                return
+        if not any(align_partly_visible(node, root) for node in cards):
+            ui.swipe(True, root=root)
+    raise RuntimeError("Us hub button could not be revealed safely: " + label)
 
 
 def click_control(label, pattern):
@@ -164,9 +206,8 @@ def verify_photo_preview():
                 ui.steps.append({"assertion": "bucket-real-photo-preview", "status": "passed",
                                  "class": node.get("class"), "bounds": ui.visible_bounds(node)})
                 return
-        top, _ = ui.safe_region(root)
-        above = any(ui.visible_bounds(node) and ui.visible_bounds(node)[1] < top for node in candidates)
-        ui.swipe(not above, root=root)
+        if not any(align_partly_visible(node, root) for node in candidates):
+            ui.swipe(True, root=root)
     raise RuntimeError("The chosen photo did not render as an actual image preview")
 
 
