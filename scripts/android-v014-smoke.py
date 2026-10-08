@@ -27,7 +27,26 @@ original_dump = ui.dump
 
 
 def dump(label, prefix="v014"):
-    return original_dump(label, prefix=prefix)
+    # UIAutomator can briefly report no idle window during real Activity
+    # recreation. Every attempt deletes the prior XML, so only a fresh,
+    # successfully parsed accessibility snapshot can satisfy an assertion.
+    for attempt in range(3):
+        try:
+            return original_dump(label, prefix=prefix)
+        except (ui.subprocess.CalledProcessError, ui.subprocess.TimeoutExpired,
+                ui.ET.ParseError) as error:
+            if not isinstance(error, ui.ET.ParseError):
+                command = getattr(error, "cmd", [])
+                if not ("uiautomator" in command or
+                        ("cat" in command and "/sdcard/usspace-window.xml" in command)):
+                    raise
+            report.setdefault("accessibility_dump_retries", []).append({
+                "label": label, "attempt": attempt + 1, "error": str(error)[:500],
+                "fresh_xml_required": True,
+            })
+            if attempt == 2:
+                raise
+            time.sleep(0.8 + 0.4 * attempt)
 
 
 ui.dump = dump
