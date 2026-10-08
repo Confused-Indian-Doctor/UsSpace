@@ -19,13 +19,13 @@ Health and Cycle stay private by default. Private goals, comfort moods and lette
 never generate partner pushes. Publish the complete updated `firestore.rules` before
 activating the new private settings/device and optional work-summary collections.
 
-# UsSpace v0.12.3 — a little comfort from Al, letters and shared plans
+## Continuing the existing v0.12.x features
 
-UsSpace v0.12 combines the v0.11 Health Connect build and the embedded Namma ↔ Nammal language module with two-account identity and realtime couple sync.
+The v0.12.x foundation combined Health Connect and the embedded Namma ↔ Nammal language module with two-account identity and realtime couple sync. Version 0.14 keeps that foundation and the comfort, letters and shared-plans features added in v0.12.3.
 
 ## Android identity
 - Package/applicationId: `app.usspace.couple.v012`
-- Version: `0.12.3` / versionCode 15
+- Current version: `0.14.0` / versionCode 16; historical v0.12.3 used versionCode 15.
 - The Google sign-in button uses Credential Manager's explicit account selection flow, with visible progress and actionable errors.
 - Firebase Authentication turns the Google ID token into the app identity.
 - Each signed-in Google account has its own `/users/{uid}` document.
@@ -55,9 +55,9 @@ Both course packs ship as Android assets: Kannada for Al and Malayalam for Yashi
 Pronunciation uses Android text-to-speech with an installed offline Kannada or Malayalam voice. Course content and written pronunciation are bundled; voice data is supplied by the phone’s speech engine. If a voice is unavailable, the app explains how to install it and all written exercises remain available.
 
 ## Privacy boundary
-The native bridge never sends `health`, `healthHistory`, or `cycle`. `firestore.rules` rejects these keys too. Health Connect remains read-only. Cycle data remains local to the phone in v0.12.
+The native bridge never sends `health`, `healthHistory`, or `cycle` in the shared projection. `firestore.rules` rejects these keys too. Health Connect remains read-only. Cycle data remains local to the phone, and Health/Cycle stay private by default in v0.14.
 
-## New experiences inside Us
+## Existing experiences inside Us
 
 - **Need Me? / From Al:** all six curated comfort categories, gentle breathing and 5-4-3-2-1 grounding, little reminders, memories and an explicit message composer. These are saved personal words, not generated AI or a live response from Al. There is an honest placeholder until a real voice recording exists.
 - **Safety:** an always-available unsafe action and local risk-expression detection replace the persona with real contact options and country-selected crisis/emergency help. Detection is a local aid, not a clinical classifier. No one is notified automatically. Configure Al and a trusted person's telephone numbers locally.
@@ -67,7 +67,7 @@ The native bridge never sends `health`, `healthHistory`, or `cycle`. `firestore.
 
 Comfort moods, grounding activity, free text and local contacts never enter the sync store. The Message Al composer excludes the mood unless the user explicitly checks the sharing option and then saves the message. Letters use dedicated role-bound queries rather than the common shared document. New shared records use an account/couple-scoped persistent outbox and transaction receipts. Compressed JPEG attachments live in separate per-photo documents; memories and bucket items contain only a photo ID. Photos are uploaded only after Save, and picker access is limited to the selected document.
 
-**Publish the updated `firestore.rules` before using the new shared features.** Existing v0.12.2 pairing rules remain intact, and updating these rules does not require disconnecting the two working accounts. Install the APK over the current app; preserve the application ID and signing key.
+**Publish the complete v0.14 `firestore.rules` before using the new private settings/device and optional work-summary collections.** The user previously published the v0.12.3 rules; those do not include the v0.14 additions. Existing pairing and Us-feature rules remain intact, and updating the rules does not require disconnecting the two working accounts. Install the APK over the current app; preserve the application ID and signing key.
 
 ## Build and live Firebase setup
 
@@ -78,9 +78,9 @@ The supplied `app/google-services.json` connects the app to Firebase project `us
 3. Deploy the included `firestore.rules` to the existing `(default)` Firestore database before live pairing/sync.
 4. Build using Gradle 8.11.1 (`gradle :app:assembleDebug`) or Android Studio. See `ANDROID_BUILD.md` for signed release builds and emulator verification in GitHub Actions.
 
-The Android workflows run the embedded learning and sync protocol tests, two-client Firestore emulator/security tests, privacy checks and release compilation before signing or publishing an artifact. A successful signed job verifies the APK certificate against the Firebase OAuth configuration and records emulator installation/launch evidence. Configuration and source checks do not establish successful live Google sign-in, pairing or health consent.
+The Android v0.14 workflows retain the embedded learning, sync protocol, comfort, letters, photos and plans tests and add notification/preference/work-schedule checks. The isolated authenticated Firestore suites contain 43 cases: the previous 34 pairing/realtime/Us cases and nine v0.14 permission cases. A successful signed job verifies the original APK certificate against Firebase OAuth, boots Android 35, installs and launches the APK, and records real UI checks for Light/Dark/System rendering, persistence across a force-stop, notification settings, and the signed-out read-only Microsoft setup boundary. See `ANDROID_BUILD.md` for artifact names and evidence. A source/build check alone does not establish successful live Google sign-in, personal-phone push delivery, hospital workbook access or health consent.
 
 ## Stable identity from v0.12 onward
-`app.usspace.couple.v012` is intentionally treated as the permanent Android application ID from v0.12 onward. Future v0.13+ releases should keep this same application ID and signing certificate so they install as updates rather than separate apps.
+`app.usspace.couple.v012` is intentionally treated as the permanent Android application ID from v0.12 onward. Version 0.14 and subsequent releases keep this application ID and signing certificate so they install as updates over the existing app.
 
 For Google Sign-In builds, use the stable signing key supplied separately and register its SHA-1 in Firebase. The project reads the key from `USSPACE_KEYSTORE_*` environment variables; the key itself is deliberately excluded from this source archive.

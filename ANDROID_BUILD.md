@@ -1,42 +1,56 @@
-# Signed Android build and emulator verification
+# UsSpace v0.14 signed Android build and verification
 
-The `Android v0.12` GitHub Actions workflow builds this Firebase-connected source on pushes to `main` and manual dispatches. It uses JDK 17, Gradle 8.11.1, Android Gradle Plugin 8.7.3 and Android SDK 35. An independent source-validation job runs the learning and sync protocol tests, two-client Firestore emulator/security tests, privacy checks and release compilation even if signing secrets are unavailable. Its unsigned output is never published.
+The current source targets **0.14.0 / versionCode 16**, keeps application ID `app.usspace.couple.v012`, and uses the original signing certificate. Historical v0.12.3 was versionCode 15. The `Android v0.14` workflow builds pushes to `main` and manual dispatches with JDK 17, Gradle 8.11.1, Android Gradle Plugin 8.7.3 and Android SDK 35.
 
-Configure these repository Actions secrets before starting a signed build:
+The independent source-validation job runs the existing learning/sync/Us/privacy checks, new notification/preference/work-schedule tests, all **43 authenticated Firestore emulator cases**, and release compilation. Those cases comprise the previous 34 pairing/realtime/Us checks and nine v0.14 permissions checks. Emulator identities and the isolated demo project do not change live Firebase data. A successful source job alone is not a verified signed APK or a successful user-account sign-in.
+
+## Signing with repository Actions secrets
 
 | Secret | Value |
 | --- | --- |
 | `USSPACE_KEYSTORE_B64` | Base64 of the existing stable PKCS12 signing key, supplied separately. |
 | `USSPACE_KEYSTORE_PASSWORD` | Existing keystore password. |
-| `USSPACE_KEY_PASSWORD` | Existing private-key password. Optional when identical to the keystore password. |
+| `USSPACE_KEY_PASSWORD` | Existing private-key password; optional when identical to the keystore password. |
 | `USSPACE_KEY_ALIAS` | Existing alias, if different from `usspace`. |
-| `GOOGLE_SERVICES_JSON_B64` | Optional Base64 Firebase Android client configuration override. Otherwise the checked-in `app/google-services.json` is used. |
+| `GOOGLE_SERVICES_JSON_B64` | Optional Firebase Android client configuration override. Otherwise `app/google-services.json` is used. |
 
-Never commit a signing key, signing passwords or service-account credentials. The automatic signed job runs when the repository contains the keystore and password secrets. Without those secrets, source and realtime checks still run and the signed job is skipped; use the local original-key workflow described below. CI never generates a replacement key. After building, `scripts/verify-release-apk.py` verifies the APK signature, package/version and that the actual signing certificate SHA-1 matches an Android OAuth client in the Firebase configuration. This protects the Google Sign-In identity across updates.
+The signed job runs when the keystore and password secrets are configured. Otherwise the source checks run and signing is skipped; the local original-key workflow below remains available. CI does not generate a replacement key. Keep signing material, passwords and service-account credentials out of source control and downloadable artifacts.
 
-CI enables KVM, boots a disposable Android 35 Google APIs emulator, installs the verified release APK, explicitly launches MainActivity and observes the process for 20 seconds. The smoke test fails if boot, installation or launch times out, if the app exits, if an app crash/ANR appears in logcat, or if MainActivity is not resumed. It records a screenshot and emulator/install/launch/activity/logcat evidence.
+After signing, `scripts/verify-release-apk.py` checks the package/version, signature and actual certificate SHA-1 against the Firebase Android OAuth client. This preserves Google Sign-In and installation as an update over the existing app.
 
-Only a successful signed build and emulator smoke test publishes the `UsSpace-v0.12-verified-apk` artifact. It contains `UsSpace-v0.12.apk`, its SHA-256 checksum, signing verification JSON, a launch screenshot and the smoke-test logs. Download the artifact from the successful Actions run and verify the APK with `sha256sum -c UsSpace-v0.12.apk.sha256` from the extracted artifact directory.
+## Android runtime checks and artifacts
 
-For local verification with an Android SDK and an already running emulator:
+CI requires KVM and boots a disposable Android 35 Google APIs emulator. It installs the exact verified release APK, explicitly launches MainActivity, and checks that it remains resumed without app crashes, ANRs or uncaught WebView errors. Screenshots, accessibility snapshots, install/activity output and logcat provide the evidence.
 
-```bash
-export ANDROID_HOME=/path/to/android-sdk
-export ANDROID_SERIAL=emulator-5554
-python3 scripts/verify-release-apk.py /path/to/UsSpace-v0.12.apk --report artifacts/apk-verification.json
-bash scripts/android-smoke-test.sh /path/to/UsSpace-v0.12.apk artifacts --existing-device
+The runtime suite retains both embedded courses/scripts, Google-button account-UI handoff or an actionable retry error, comfort/safety/grounding/voice-placeholder checks, the signed-out letter boundary, and real Bucket List photo-picker/JPEG-preview and Appreciation Jar screens. The v0.14 suite adds real Light/Dark rendering, force-stop/relaunch theme persistence, System mode following Android Light/Dark, seven notification category controls and quiet-hours toggles, and Work Schedule's signed-out guidance plus read-only Microsoft registration instructions. Guest instructions do not unlock connection fields, sign into Microsoft, or display fabricated shifts.
+
+Only a successful signed verification job publishes **`UsSpace-v0.14-verified-apk`**. It contains `UsSpace-v0.14.apk`, `UsSpace-v0.14.apk.sha256`, signature/provenance reports, screenshots and runtime logs/results. Verify an extracted artifact with:
+
+```sh
+sha256sum -c UsSpace-v0.14.apk.sha256
 ```
 
-Omit `--existing-device` to let the script create and boot its own emulator after installing `system-images;android-35;google_apis;x86_64` and `emulator`. `ANDROID_EMULATOR_ACCEL` defaults to `on`; a local machine without KVM can explicitly set it to `off`. The CI build requires KVM.
+The local-signing verification workflow publishes failures as `UsSpace-v0.14-runtime-diagnostics`, without a verified APK artifact. The main workflow's source-validation evidence artifact is `UsSpace-v0.14-firebase-verification`.
 
-The release is version 0.12.3 / versionCode 16 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
+These checks validate packaging and actual emulator behavior; they do not authenticate either person's Google account, deliver live FCM to their phones, read a hospital workbook before registration/consent, or establish Samsung Health/Health Connect consent. Live push still needs an authorized server: the Spark-compatible Node worker has not been deployed, and no billing plan has been changed. Microsoft Graph still needs a public-client Entra registration and any hospital consent. See `PUSH_SETUP.md` and `WORK_SCHEDULE_SETUP.md`.
 
-The validation script also runs comfort/safety/privacy, letter ownership/publication, bucket/photo/Memory, appreciation/heart and account-scoped outbox tests. The authenticated emulator suites include all 18 existing pairing/realtime checks plus 16 checks for the new collections. The Android runtime smoke opens the real comfort, grounding, voice-placeholder and safety UI, checks the signed-out letter boundary, and renders the bucket and appreciation interfaces without creating shared records or contacting anyone. Authenticated account actions are tested separately with isolated emulator identities; the Android test does not authenticate a real Google account.
+## Local runtime verification
 
-The Android emulator validates packaging, startup, both embedded courses and scripts, and a visible response to pressing the Google sign-in button. It accepts Google's account UI or an actionable app error with an enabled retry button. Tests avoid controls obscured by fixed navigation. Failed runtime tests publish screenshots and accessibility/log diagnostics separately, without publishing a verified APK artifact. Live Google authentication, two-account Firestore pairing/sync, Samsung Health data availability and Health Connect consent require suitable accounts and devices; the smoke test does not claim those account-dependent flows are verified.
+With an Android SDK and an already running emulator:
 
-## Signing locally when repository secrets cannot be configured
+```sh
+export ANDROID_HOME=/path/to/android-sdk
+export ANDROID_SERIAL=emulator-5554
+python3 scripts/verify-release-apk.py /path/to/UsSpace-v0.14.apk --report artifacts/apk-verification.json
+bash scripts/android-smoke-test.sh /path/to/UsSpace-v0.14.apk artifacts --existing-device
+```
 
-The separate `Android local signing and verification` workflow provides a path that keeps the original signing key on the local machine. Push a branch under `android-signing-inputs/` to compile the unsigned release and produce `UsSpace-v0.12-signing-inputs`. The artifact contains `signing-inputs/app-release-unsigned.apk`, the required Android 35 signing/verification tools, checksums and the source commit. It contains no signing key or passwords. After extraction, restore executable permission on `apksigner`, `zipalign` and `aapt`, check `SHA256SUMS`, then align and sign the APK locally with the original key.
+Omit `--existing-device` to create and boot an emulator after installing `system-images;android-35;google_apis;x86_64` and `emulator`. `ANDROID_EMULATOR_ACCEL` defaults to `on`; a local machine without KVM can explicitly set it to `off`. CI requires KVM.
 
-Verify the locally signed APK with `scripts/verify-release-apk.py`, then upload that APK to a public HTTPS asset URL. On a temporary branch under `android-apk-verification/`, commit only `.ci-artifacts/apk-source.json` containing its `url`, lowercase `sha256` and the signing-inputs `source_commit`. That push downloads the exact signed APK over HTTPS, verifies its checksum, checks that the app/build/verification source matches the recorded source commit, and verifies its Firebase OAuth signing certificate. It then checks private sync payloads, boots the Android 35 emulator, installs and launches that APK, and publishes `UsSpace-v0.12-verified-apk` only after all checks succeed. The artifact records both source and verification commits. Never commit or upload the original signing key or passwords in either branch or artifact. The normal `Android v0.12` workflow remains the path for ongoing release builds with configured repository secrets.
+## Signing locally with the original key
+
+The `Android local signing and verification` workflow keeps the original key on the local machine. Push a branch under `android-signing-inputs/` to compile and produce **`UsSpace-v0.14-signing-inputs`**. Its `signing-inputs/app-release-unsigned.apk`, Android 35 signing tools, checksums and source commit are inputs for local signing; there is no key or password in the artifact. Restore executable permission on `apksigner`, `zipalign` and `aapt`, check `SHA256SUMS`, then align and sign with the existing key.
+
+Verify the signed APK locally, then upload it to an HTTPS asset URL. On a temporary `android-apk-verification/` branch, add `.ci-artifacts/apk-source.json` with its `url`, lowercase `sha256` and signing-inputs `source_commit`. The workflow downloads that exact APK, verifies its checksum and Firebase OAuth certificate, checks that all app/build/rules/unit/protocol/server inputs match the compilation commit, and runs the full Android suite.
+
+The named Android UI harnesses may advance independently for selectors/scrolling because they are not embedded in the APK. `automation-provenance.json` records their hashes and the verification commit; `SOURCE_COMMIT.txt` records the APK compilation commit. A verified artifact is published only after every required check passes. The main `Android v0.14` workflow remains the ongoing release path once repository signing secrets are available.

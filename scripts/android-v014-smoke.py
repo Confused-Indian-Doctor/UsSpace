@@ -81,7 +81,8 @@ def find(label, pattern, class_name=None, interactive=False, enabled=None, direc
     for attempt in range(12):
         root = dump(f"{label}-{attempt}")
         candidates = [node for node in root.iter("node") if ui.matches(node, pattern)
-                      and (class_name is None or node.get("class") == class_name)
+                      and (class_name is None or node.get("class") in
+                           (class_name if isinstance(class_name, tuple) else (class_name,)))
                       and (not interactive or node.get("clickable") == "true")
                       and (enabled is None or node.get("enabled", "true") == str(enabled).lower())]
         for node in candidates:
@@ -321,15 +322,16 @@ def run():
     verify("appearance-section", r"^Appearance$")
     # Both choices are actual accessible buttons, and rendered pixels are
     # checked independently of accessibility labels or JS implementation state.
-    tap("choose-light", r"^Light$")
+    theme_classes = ("android.widget.Button", "android.widget.ToggleButton")
+    tap("choose-light", r"^Light$", class_name=theme_classes)
     verify_theme("light-theme-rendered", dark=False)
-    tap("choose-dark", r"^Dark$")
+    tap("choose-dark", r"^Dark$", class_name=theme_classes)
     verify_theme("dark-theme-rendered", dark=True)
     restart("dark-choice-force-stop")
     verify_theme("dark-choice-persists-after-force-stop", dark=True)
 
     open_settings("open-system-appearance-settings")
-    tap("choose-system", r"^System$")
+    tap("choose-system", r"^System$", class_name=theme_classes)
     close_settings()
     set_system_night("system-dark", enabled=True)
     verify_theme("system-theme-follows-android-dark", dark=True)
