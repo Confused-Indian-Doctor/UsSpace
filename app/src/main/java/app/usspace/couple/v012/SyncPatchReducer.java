@@ -10,7 +10,7 @@ public final class SyncPatchReducer {
     static {
         ITEMS.put("duties", Arrays.asList("id", "owner", "date", "type", "time", "title", "place"));
         ITEMS.put("goals", Arrays.asList("id", "title", "value", "target", "unit", "level"));
-        ITEMS.put("notes", Arrays.asList("id", "text", "date"));
+        ITEMS.put("notes", Arrays.asList("id", "text", "date", "kind"));
         ITEMS.put("memories", Arrays.asList("id", "title", "date", "place", "text", "emoji", "photoId"));
         PROGRESS_MAPS.put("cards", Arrays.asList("reps", "interval", "due", "ease", "lapses", "lastReviewed"));
         PROGRESS_MAPS.put("units", Arrays.asList("completedAt", "score"));

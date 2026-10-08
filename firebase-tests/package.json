@@ -1,9 +1,9 @@
 {
   "name": "usspace-firebase-verification",
-  "version": "0.12.3",
+  "version": "0.14.0",
   "private": true,
   "scripts": {
-    "test": "node --test --test-concurrency=1 realtime_emulator_test.mjs us_extras_emulator_test.mjs",
+    "test": "node --test --test-concurrency=1 realtime_emulator_test.mjs us_extras_emulator_test.mjs v014_push_emulator_test.mjs",
     "test:emulator": "npx --yes firebase-tools@14.12.1 emulators:exec --config ../firebase.json --only firestore --project demo-usspace \"npm test\""
   },
   "devDependencies": {

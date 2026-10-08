@@ -1,4 +1,4 @@
-name: Android v0.12
+name: Android v0.14
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.12-firebase-verification
+          name: UsSpace-v0.14-firebase-verification
           path: artifacts/firebase-realtime-tests.log
           if-no-files-found: ignore
           retention-days: 7
@@ -133,9 +133,9 @@ jobs:
       - name: Verify signing certificate, Firebase OAuth and APK identity
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/release/app-release.apk artifacts/UsSpace-v0.12.apk
-          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.12.apk --report artifacts/apk-verification.json
-          (cd artifacts && sha256sum UsSpace-v0.12.apk > UsSpace-v0.12.apk.sha256)
+          cp app/build/outputs/apk/release/app-release.apk artifacts/UsSpace-v0.14.apk
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.14.apk --report artifacts/apk-verification.json
+          (cd artifacts && sha256sum UsSpace-v0.14.apk > UsSpace-v0.14.apk.sha256)
 
       - name: Enable KVM for the Android emulator
         run: |
@@ -152,7 +152,7 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Boot Android 35, install and launch the signed APK
-        timeout-minutes: 18
+        timeout-minutes: 25
         env:
           ANDROID_EMULATOR_ACCEL: 'on'
           BOOT_TIMEOUT_SECONDS: '300'
@@ -162,12 +162,12 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           avdmanager create avd -n usspace-ci -k "system-images;android-$ANDROID_API;google_apis;x86_64" --force --path "$ANDROID_AVD_HOME/usspace-ci.avd" <<< no
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fxq usspace-ci
-          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.12.apk artifacts
+          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.14.apk artifacts
 
       - name: Upload verified APK and emulator evidence
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.12-verified-apk
+          name: UsSpace-v0.14-verified-apk
           path: artifacts/
           if-no-files-found: error
           retention-days: 30

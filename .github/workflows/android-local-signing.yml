@@ -35,6 +35,10 @@ jobs:
       - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
         timeout-minutes: 12
         run: bash scripts/test-firebase-realtime.sh
+      - name: Validate notification server dependencies and entry points
+        run: |
+          npm --prefix functions install --ignore-scripts --no-audit --no-fund
+          npm --prefix functions run check
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -70,8 +74,8 @@ jobs:
               "repository": os.environ["GITHUB_REPOSITORY"],
               "workflow_run_id": os.environ["GITHUB_RUN_ID"],
               "package": "app.usspace.couple.v012",
-              "version_code": 15,
-              "version_name": "0.12.3",
+              "version_code": 16,
+              "version_name": "0.14.0",
               "android_sdk": 35,
               "build_tools": "35.0.0",
               "gradle": "8.11.1",
@@ -96,7 +100,7 @@ jobs:
       - name: Upload inputs for original-key local signing
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.12-signing-inputs
+          name: UsSpace-v0.14-signing-inputs
           path: artifact-stage/
           if-no-files-found: error
           retention-days: 7
@@ -105,7 +109,7 @@ jobs:
     name: Install and launch the APK signed with the original key
     if: startsWith(github.ref, 'refs/heads/android-apk-verification/')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       ANDROID_API: '35'
       ANDROID_BUILD_TOOLS: '35.0.0'
@@ -158,12 +162,13 @@ jobs:
           subprocess.run([
               "git", "diff", "--exit-code", source_commit, "HEAD", "--",
               "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
-              "scripts/", "firebase-tests/", "firestore.rules", "firebase.json",
+              "scripts/", "firebase-tests/", "functions/", "firestore.rules", "firebase.json",
               ":(exclude)scripts/android-us-features-smoke.py",
+              ":(exclude)scripts/android-v014-smoke.py",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)
-          apk = output / "UsSpace-v0.12.apk"
+          apk = output / "UsSpace-v0.14.apk"
           digest = hashlib.sha256()
           size = 0
           deadline = time.monotonic() + 120
@@ -197,6 +202,10 @@ jobs:
           }, indent=2) + "\n")
           print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
           PY
+      - name: Validate notification server dependencies and entry points
+        run: |
+          npm --prefix functions install --ignore-scripts --no-audit --no-fund
+          npm --prefix functions run check
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -205,8 +214,8 @@ jobs:
         run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
       - name: Verify the original-key APK and Firebase OAuth identity
         run: |
-          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.12.apk --report artifacts/apk-verification.json
-          (cd artifacts && sha256sum UsSpace-v0.12.apk > UsSpace-v0.12.apk.sha256)
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.14.apk --report artifacts/apk-verification.json
+          (cd artifacts && sha256sum UsSpace-v0.14.apk > UsSpace-v0.14.apk.sha256)
           python3 - <<'PY'
           import json, os, pathlib
           path = pathlib.Path("artifacts/apk-verification.json")
@@ -229,7 +238,7 @@ jobs:
           test -r /dev/kvm && test -w /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -accel-check
       - name: Boot Android 35, install and launch the signed APK
-        timeout-minutes: 18
+        timeout-minutes: 25
         env:
           ANDROID_EMULATOR_ACCEL: 'on'
           BOOT_TIMEOUT_SECONDS: '300'
@@ -239,11 +248,11 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           avdmanager create avd -n usspace-ci -k "system-images;android-$ANDROID_API;google_apis;x86_64" --force --path "$ANDROID_AVD_HOME/usspace-ci.avd" <<< no
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fxq usspace-ci
-          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.12.apk artifacts
+          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.14.apk artifacts
       - name: Upload verified APK and emulator evidence
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.12-verified-apk
+          name: UsSpace-v0.14-verified-apk
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
@@ -252,7 +261,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.12-runtime-diagnostics
+          name: UsSpace-v0.14-runtime-diagnostics
           path: |
             artifacts/*.png
             artifacts/*.xml

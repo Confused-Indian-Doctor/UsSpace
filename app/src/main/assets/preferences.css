@@ -1,0 +1,115 @@
+/* The existing warm palette remains the Light theme; twilight is the Dark theme. */
+.preferences-section{margin:22px 0;padding-top:18px;border-top:1px solid var(--line)}.preferences-section h3{font-size:19px;margin:0 0 7px}.preferences-section .sub{line-height:1.5;margin:6px 0 14px}.preferences-theme{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.preferences-theme-choice{min-height:46px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);font:inherit;font-size:14px;font-weight:750;padding:11px 8px}.preferences-theme-choice[aria-pressed=true]{background:#fff0f3;border-color:var(--rose);color:#9e4055;box-shadow:inset 0 0 0 1px var(--rose)}.preferences-switch{display:flex!important;justify-content:space-between;align-items:center;gap:16px;padding:12px 2px;line-height:1.4;font-size:14px}.preferences-switch>span{min-width:0}.preferences-switch small{display:block;font-size:11px;color:var(--muted);margin-top:4px}.preferences-switch input[type=checkbox]{width:22px;height:22px;flex:0 0 22px;accent-color:var(--rose);margin:0}.preferences-categories{margin:9px 0 18px;padding:3px 12px;background:#f9f1f3;border:1px solid var(--line);border-radius:18px}.preferences-categories .preferences-switch+.preferences-switch{border-top:1px solid var(--line)}.preferences-quiet{border:1px solid var(--line);border-radius:18px;padding:4px 12px 11px}.preferences-times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}.preferences-times label,.preferences-zone{font-size:12px;font-weight:750;min-width:0;display:block}.preferences-times .field,.preferences-zone .field{font-weight:400;min-width:0;width:100%;font-family:inherit}.preferences-zone{margin-top:3px}.preferences-privacy{line-height:1.55;margin:16px 1px 0}.preferences-warning{border:1px solid #dfbd89;border-radius:14px;background:#fff5e4;color:#785722;padding:11px 12px;font-size:12px;line-height:1.5}.preferences-save{min-height:18px;line-height:1.5;margin:12px 0 20px}.preferences-section button:focus-visible,.preferences-section input:focus-visible,.preferences-section select:focus-visible{outline:3px solid #6c7dba;outline-offset:3px}.preferences-section input:disabled{opacity:.5}
+html[data-theme=dark]{--bg:#171c2b;--card:#222a3c;--ink:#f5e8e9;--muted:#c0adb8;--rose:#f397ab;--rose2:#744755;--peach:#754a3f;--lav:#4c416a;--sage:#304d43;--line:#414054;--shadow:0 12px 30px rgba(4,7,16,.23);color-scheme:dark}
+html[data-theme=light]{color-scheme:light}
+html[data-theme=dark] .top{background:linear-gradient(var(--bg) 78%,rgba(23,28,43,0))}
+html[data-theme=dark] .card{border-color:var(--line)}
+html[data-theme=dark] :is(.pill,.mini,.goal,.lifecard,.hubcard,.field,.calday,.cyday,.cycleStat,.courseUnit,.letterCard,.quizOption,.topicBtn){background:var(--card);border-color:var(--line);color:var(--ink)}
+html[data-theme=dark] .field::placeholder{color:#ab99a6;opacity:1}
+html[data-theme=dark] .nav{background:rgba(25,30,46,.97);border-color:var(--line)}
+html[data-theme=dark] .navbtn{color:#c2aeb9}html[data-theme=dark] .navbtn.active{color:var(--rose)}
+html[data-theme=dark] .hero{background:linear-gradient(140deg,#523648,#614536 55%,#3b3658)}
+html[data-theme=dark] .hero:after{color:rgba(255,225,232,.12)}
+html[data-theme=dark] .eyebrow{color:#e7b3bf}
+html[data-theme=dark] :is(.btn,.circlebtn,.backpill){background:#373447;color:var(--ink)}
+html[data-theme=dark] .btn.primary{background:#b45170;color:#fff}
+html[data-theme=dark] .btn.soft{background:#472e41;color:#ffbdcd}
+html[data-theme=dark] .danger{color:#ffafbb}
+html[data-theme=dark] :is(.tag,.ownerchip.partner){background:#472e41;color:#ffc0cf}
+html[data-theme=dark] .ownerchip.you{background:#303957;color:#bacdff}
+html[data-theme=dark] :is(.note,.choice,.mutedbox,.datebox){background:#343044;color:#e9d6e0}
+html[data-theme=dark] .note:nth-child(even){background:#35304d}
+html[data-theme=dark] .choice.sel{background:#452f42;border-color:var(--rose)}
+html[data-theme=dark] .progress{background:#3c3345}
+html[data-theme=dark] .bar{background:linear-gradient(90deg,#b55976,#df879e)}
+html[data-theme=dark] .modal{background:rgba(3,6,15,.67)}
+html[data-theme=dark] .sheet{background:var(--bg);color:var(--ink)}
+html[data-theme=dark] .toast{background:#f2dbe4;color:#2b2537}
+html[data-theme=dark] .hubmeta{color:#d4abbc}
+html[data-theme=dark] .usHero{background:linear-gradient(140deg,#442c40,#4c3a30 55%,#34304c)}
+html[data-theme=dark] .lifeHero{background:linear-gradient(140deg,#293b54,#393249 55%,#2c443b)}
+html[data-theme=dark] .doneBadge{background:#29473a;color:#b5e8c0}
+html[data-theme=dark] .watchBadge{background:#403255;color:#d7bbee}
+html[data-theme=dark] .syncCard{background:linear-gradient(145deg,#253149,#222a3c);border-color:#45506e}
+html[data-theme=dark] .syncBadge{background:#34405d;color:#c0d1ff}
+html[data-theme=dark] .syncBadge.live{background:#29473a;color:#b5e8c0}
+html[data-theme=dark] .syncMeta{color:#bdc6dc}html[data-theme=dark] .syncError{color:#ffb7c3}
+html[data-theme=dark] .pairCode{background:#4b3c2b;color:#ffe0a4}
+html[data-theme=dark] :is(.privateLock,.privacy){background:#393049;border-color:#5e4976;color:#ddc5ec}
+/* The green Health hero and the language course's campfire hero keep their own dark palettes. */
+html[data-theme=dark] .healthstat{background:#233c33;border-color:#3d5b4b}
+html[data-theme=dark] .healthstat b{color:#c8eed3}html[data-theme=dark] .healthstat .small{color:#abcdb6}
+html[data-theme=dark] .privacyBadge{background:#29473a;color:#b5e8c0}
+html[data-theme=dark] :is(.healthWarn,.warning){background:#483b29;border-color:#6e5c3f;color:#f1d6a4}
+html[data-theme=dark] .healthConnect{background:#28344e;border-color:#405577}
+html[data-theme=dark] .hcStatus{color:#c2cfee}html[data-theme=dark] .hcMeta{background:#313d56;color:#c2cfee}
+html[data-theme=dark] .cycleHero{background:linear-gradient(145deg,#432d40,#252b3d 55%,#36304b)}
+html[data-theme=dark] .cyclechip.period{background:#573141;color:#ffb7ca}html[data-theme=dark] .cyclechip.fertile{background:#354a31;color:#c6e5b7}html[data-theme=dark] .cyclechip.ovulation{background:#493354;color:#dfbbed}html[data-theme=dark] .cyclechip.lower{background:#33404a;color:#c0d2dc}
+html[data-theme=dark] .cyday.period{background:#573141;border-color:#795062}html[data-theme=dark] .cyday.fertile{background:#354a31;border-color:#586b4e}html[data-theme=dark] .cyday.ovulation{background:#493354;border-color:#735783}html[data-theme=dark] .cyday.lower{background:#2b3544}
+html[data-theme=dark] .learnTab{background:#303246;color:#e3d6e0;border-color:var(--line)}html[data-theme=dark] .learnTab.active{background:#735129;color:#fff0ca;border-color:#a77b3e}
+html[data-theme=dark] .langCard{background:#303040;border-color:#574838}html[data-theme=dark] .langCard.learned{background:#293d32;border-color:#465e43}
+html[data-theme=dark] .roman{color:#efc079}html[data-theme=dark] .meaning{color:#e3d6e0}
+html[data-theme=dark] .miniBtn{background:#493c30;color:#f4d4a4}html[data-theme=dark] .miniBtn.learned{background:#354d35;color:#cce6bd}
+html[data-theme=dark] .topicBtn.active{background:#d99b3d;color:#17181b;border-color:#d99b3d}
+html[data-theme=dark] .quizOption.correct{background:#2e4b34;border-color:#587751}html[data-theme=dark] .quizOption.wrong{background:#583140;border-color:#825068}
+html[data-theme=dark] :is(.learnStat,.grammarCard,.answerFeedback){background:#443827;border-color:#665239;color:#f3e4ce}
+html[data-theme=dark] .answerFeedback.good{background:#2d4732}html[data-theme=dark] .answerFeedback.again{background:#512f40}
+html[data-theme=dark] .unitNumber{background:#58442b;color:#ffe0a3}
+html[data-theme=dark] :is(.courseUnit,.letterCard,.learnAction):active{background:#504032}
+html[data-theme=dark] .mastered span{background:#2d4430;border-color:#435b3b}
+html[data-theme=dark] .dateChallenge{background:linear-gradient(145deg,#523a29,#45372b 55%,#3c304b);border-color:#68523e}
+html[data-theme=dark] .progressRing:after{background:var(--bg)}html[data-theme=dark] .offlineNote{background:#294033;border-color:#435f49;color:#bed7c0}
+/* Need Me retains its twilight header; supporting cards remain readable at night. */
+html[data-theme=dark] #comfort{--comfort-navy:#c8d6ef;--comfort-rose:#ed9eb2;--comfort-peach:#593b33}
+html[data-theme=dark] .comfort-chip{background:#2f3043;border-color:#555063;color:#ecd6e3}html[data-theme=dark] .comfort-chip.selected{background:#573349;border-color:#cf799b;color:#ffd4e1}
+html[data-theme=dark] .comfort-mode{background:#343144;border-color:#555063;color:#e4d2df}html[data-theme=dark] .comfort-mode.selected{background:#51617f;color:#fff;border-color:#6c7f9d}
+html[data-theme=dark] .comfort-from{background:linear-gradient(135deg,#523b36,#3c303d 66%,#3d3350);border-color:#67505e}
+html[data-theme=dark] .comfort-from .eyebrow{color:#ffb8ca}html[data-theme=dark] .comfort-quote{color:#f6e3ec}
+html[data-theme=dark] .comfort-actions .btn{background:#393244;border-color:#564357;color:#f4dfe9}html[data-theme=dark] .comfort-actions .primary{background:#a54e70;color:#fff}
+html[data-theme=dark] :is(.comfort-reminder,.comfort-reminder-small){background:linear-gradient(135deg,#493c2d,#3d3041);border-color:#665142}
+html[data-theme=dark] :is(.comfort-contact-settings,.comfort-unsafe){background:#292d40;border-color:#675064;color:#f6b5c6}
+html[data-theme=dark] .comfort-contact-settings summary{color:#e8d1df}
+html[data-theme=dark] .comfort-voice{background:linear-gradient(130deg,#373047,#4b362f)}html[data-theme=dark] .comfort-voice-symbol{color:#d9b2df}
+html[data-theme=dark] .comfort-ground{background:#2b2c3b;border-color:#595062}
+html[data-theme=dark] .comfort-breath{background:radial-gradient(circle at 30% 25%,#725541,#624459 60%,#51445f);color:#ffecdc;box-shadow:0 0 0 14px #333042}
+html[data-theme=dark] .comfort-breath-status{color:#e4c5db}html[data-theme=dark] .comfort-senses{border-color:#56445b}
+html[data-theme=dark] .comfort-sense-number{background:#62414b;color:#ffe3e9}html[data-theme=dark] .comfort-senses p{color:#d8becd}
+html[data-theme=dark] .comfort-safety{background:#252e41;border-color:#91a5c2;color:#eff3ff}
+html[data-theme=dark] .comfort-safety h2{color:#f5f6ff}html[data-theme=dark] .comfort-safety .eyebrow{color:#bacde7}
+html[data-theme=dark] .comfort-safety :is(.small,.label){color:#d0ddf0}
+html[data-theme=dark] .comfort-safety .primary{background:#517c9c;color:#fff}
+html[data-theme=dark] .comfort-emergency{background:#5e3038;border-color:#bd828e;color:#ffe6e9}
+html[data-theme=dark] .comfort-error{color:#ffb8bd}html[data-theme=dark] .comfort-notice{background:#344157;color:#e0e8f5}
+html[data-theme=dark] .comfort-safety #comfortSafeAgain{background:#3c4559;color:#e3ebfb}
+html[data-theme=dark] #comfort.active #comfortUnsafe{background:#332e40;border-color:#b6849a;color:#ffd0df}
+/* Envelopes and authored letters use soft night paper rather than glaring white. */
+html[data-theme=dark] #letters .letter-hero{background:linear-gradient(135deg,#543a39,#493237 55%,#3d324b)}
+html[data-theme=dark] #letters .letter-hero h2,html[data-theme=dark] #letters h3{color:#f4e2ee}
+html[data-theme=dark] #letters .letter-hero p{color:#e5c5d2}html[data-theme=dark] #letters .letter-privacy{background:#3e2c3d;color:#f5c4d8}
+html[data-theme=dark] #letters :is(.letter-notice p,.letter-role>p,.letter-intro,.letter-envelope p,.letter-waiting,.letter-status){color:#d3b5c9}
+html[data-theme=dark] #letters :is(.letter-identity,.letter-role-summary){background:#342b3d;border-color:#5a435b}
+html[data-theme=dark] #letters :is(.letter-identity span,code,.letter-role-summary small){color:#cfb9d5}
+html[data-theme=dark] #letters .letter-role-summary span{color:#e7bed8}
+html[data-theme=dark] #letters .letter-confirm{background:#4c382f;border-color:#705343}html[data-theme=dark] #letters .letter-confirm h4{color:#ffe0cc}html[data-theme=dark] #letters .letter-confirm small{color:#d5b5be}
+html[data-theme=dark] #letters .letter-envelope{background:linear-gradient(140deg,#36303b,#3f2e3f);border-color:#64485a}
+html[data-theme=dark] #letters .letter-seal{background:linear-gradient(135deg,#875668,#684763);color:#ffe5ed}
+html[data-theme=dark] #letters .letter-paper{background:linear-gradient(150deg,#3e332e,#352b3e)}html[data-theme=dark] #letters .letter-body{color:#f2dce7}
+html[data-theme=dark] #letters .letter-paper>.small{border-color:#68505c;color:#d8b6c9}
+html[data-theme=dark] #letters .letter-draft-notice{background:#482e43;color:#f2cbdf}
+html[data-theme=dark] #letters .letter-error{background:#512e35;border-color:#79535c;color:#ffc5c4}
+/* Shared plans, photos and the appreciation jar. */
+html[data-theme=dark] :is(.plans-heading h2,.plans-editor h3,.plans-item h3,.plans-complete h3,.plans-empty h3){color:#f4e4ed}
+html[data-theme=dark] :is(.plans-sharing,.plans-detail,.plans-status,.plans-item .plans-body){color:#dbbbce}
+html[data-theme=dark] .plans-status[role=alert]{background:#512f3b;border-color:#765063;color:#ffc3ce}
+html[data-theme=dark] .plans-editor{background:linear-gradient(145deg,#252b3e,#342e3c)}
+html[data-theme=dark] :is(.plans-editor label,.plans-filters label,.plans-photo-editor input[type=file]){color:#e6bacd}
+html[data-theme=dark] .plans-tag{background:#523a2f;color:#ffcfaf}html[data-theme=dark] .plans-state{background:#38415e;color:#cfddff}
+html[data-theme=dark] .plans-photo-editor{background:#302b3b;border-color:#765668}
+html[data-theme=dark] .plans-complete{background:linear-gradient(130deg,#54372f,#4e3244 65%,#353955)}
+html[data-theme=dark] .plans-empty{background:linear-gradient(145deg,#252b3e,#48312f)}html[data-theme=dark] .plans-empty p{color:#cdb7c3}
+html[data-theme=dark] .plans-old-note{background:linear-gradient(135deg,#53392e,#503344 55%,#38324f)}html[data-theme=dark] .plans-note-text{color:#f5e3ef}
+html[data-theme=dark] :is(.plans-note,.plans-old-note) .btn[aria-pressed=false]{background:#482f41;color:#ffb5cd}
+html[data-theme=dark] .preferences-theme-choice[aria-pressed=true]{background:#482f41;color:#ffcbda}
+html[data-theme=dark] .preferences-categories{background:#292637}
+html[data-theme=dark] .preferences-warning{background:#483b29;border-color:#6e5c3f;color:#f1d6a4}
+@media(prefers-reduced-motion:reduce){.preferences-theme-choice{transition:none}}

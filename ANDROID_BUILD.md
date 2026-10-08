@@ -29,7 +29,7 @@ bash scripts/android-smoke-test.sh /path/to/UsSpace-v0.12.apk artifacts --existi
 
 Omit `--existing-device` to let the script create and boot its own emulator after installing `system-images;android-35;google_apis;x86_64` and `emulator`. `ANDROID_EMULATOR_ACCEL` defaults to `on`; a local machine without KVM can explicitly set it to `off`. The CI build requires KVM.
 
-The release is version 0.12.3 / versionCode 15 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
+The release is version 0.12.3 / versionCode 16 and keeps the original application ID and signing certificate. Firestore integration tests use isolated test accounts and a local emulator; they do not modify the live Firebase project.
 
 The validation script also runs comfort/safety/privacy, letter ownership/publication, bucket/photo/Memory, appreciation/heart and account-scoped outbox tests. The authenticated emulator suites include all 18 existing pairing/realtime checks plus 16 checks for the new collections. The Android runtime smoke opens the real comfort, grounding, voice-placeholder and safety UI, checks the signed-out letter boundary, and renders the bucket and appreciation interfaces without creating shared records or contacting anyone. Authenticated account actions are tested separately with isolated emulator identities; the Android test does not authenticate a real Google account.
 

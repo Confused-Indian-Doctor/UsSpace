@@ -1,3 +1,18 @@
+# v0.14 setup status
+
+The existing Firebase client project and original Google OAuth/signing identity are preserved.
+The v0.14 source adds strict private per-user preferences/device rules and opt-in times-only
+work summaries. The prior v0.12.3 rules publication does not include these new collections;
+publish the full updated rules in the existing default Firestore database.
+
+The user is on Spark. FCM is free, but Cloud Functions deployment would require Blaze.
+A trusted external Node worker is supplied as the Spark-compatible option. No administrator
+credentials/authorized host are configured in this session, so live push delivery is not
+activated or claimed. See PUSH_SETUP.md for both activation options.
+
+Microsoft Graph app registration and tenant consent are external setup prerequisites.
+The APK offers private setup and read-only instructions, not fabricated rota data.
+
 # Firebase status — UsSpace v0.12.3
 
 Connected project: `usspace-c859e`  

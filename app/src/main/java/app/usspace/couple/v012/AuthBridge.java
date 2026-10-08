@@ -44,6 +44,10 @@ public class AuthBridge {
     private final Executor mainExecutor;
     private volatile boolean signingIn;
     private volatile String lastAuthError = "";
+    private NotificationBridge notificationBridge;
+    private boolean signingOut;
+
+    public void setNotificationBridge(NotificationBridge bridge) { notificationBridge = bridge; }
 
     public AuthBridge(Activity activity, WebView webView, CoupleSyncBridge sync) {
         this.activity = activity;
@@ -153,9 +157,19 @@ public class AuthBridge {
 
     @JavascriptInterface
     public void signOut() {
+        activity.runOnUiThread(() -> {
+            if (signingOut) return;
+            signingOut = true;
+            if (notificationBridge != null) notificationBridge.beforeSignOut(this::finishSignOut);
+            else finishSignOut();
+        });
+    }
+
+    private void finishSignOut() {
         signingIn = false;
         lastAuthError = "";
         auth.signOut();
+        signingOut = false;
         sync.onSignedOut();
         ClearCredentialStateRequest request = new ClearCredentialStateRequest();
         credentialManager.clearCredentialStateAsync(

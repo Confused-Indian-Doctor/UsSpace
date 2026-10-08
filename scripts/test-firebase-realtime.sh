@@ -13,11 +13,20 @@ mkdir -p artifacts
   node firebase-tests/comfort_feature_test.js
   node firebase-tests/letters_feature_test.js
   node firebase-tests/plans_feature_test.js
+  node firebase-tests/preferences_feature_test.js
+  node firebase-tests/work_schedule_feature_test.js
+  node firebase-tests/v014_push_test.mjs
+  node firebase-tests/v014_integration_test.js
+  bash scripts/test-rota-parser.sh
+  bash scripts/test-work-schedule-native.sh
   native_test_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-sync-tests.XXXXXX")"
   trap 'rm -rf "$native_test_dir"' EXIT
   javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/SyncPatchReducer.java firebase-tests/SyncPatchReducerTest.java app/src/main/java/app/usspace/couple/v012/UsExtrasPolicy.java firebase-tests/UsExtrasPolicyTest.java
   java -cp "$native_test_dir" app.usspace.couple.v012.SyncPatchReducerTest
   java -cp "$native_test_dir" app.usspace.couple.v012.UsExtrasPolicyTest
+  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/PreferencePolicy.java firebase-tests/PreferencePolicyTest.java app/src/main/java/app/usspace/couple/v012/NotificationPolicy.java firebase-tests/NotificationPolicyTest.java
+  java -cp "$native_test_dir" app.usspace.couple.v012.PreferencePolicyTest
+  java -cp "$native_test_dir" app.usspace.couple.v012.NotificationPolicyTest
   npm --prefix firebase-tests ci --ignore-scripts --no-audit --no-fund
   (
     cd firebase-tests

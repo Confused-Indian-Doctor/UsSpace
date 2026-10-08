@@ -22,6 +22,9 @@ public class MainActivity extends Activity {
     private CoupleSyncBridge syncBridge;
     private SpeechBridge speechBridge;
     private UsExtrasBridge extrasBridge;
+    private UserPreferencesBridge preferencesBridge;
+    private NotificationBridge notificationBridge;
+    private WorkScheduleBridge workScheduleBridge;
     private ValueCallback<Uri[]> photoCallback;
     private static final int PICK_PHOTO = 1203;
     private static final String BUNDLED_PAGE = "file:///android_asset/index.html";
@@ -90,6 +93,9 @@ public class MainActivity extends Activity {
                 if (authBridge != null && isBundledPage(url)) {
                     authBridge.publishState();
                     if (extrasBridge != null) extrasBridge.refresh();
+                    if (preferencesBridge != null) preferencesBridge.refresh();
+                    if (notificationBridge != null) notificationBridge.onPageReady();
+                    if (workScheduleBridge != null) workScheduleBridge.requestRender();
                 }
             }
         });
@@ -99,11 +105,19 @@ public class MainActivity extends Activity {
         healthBridge = new HealthBridge(this, webView);
         speechBridge = new SpeechBridge(this, webView);
         extrasBridge = new UsExtrasBridge(this, webView);
+        preferencesBridge = new UserPreferencesBridge(this, webView);
+        notificationBridge = new NotificationBridge(this, webView);
+        workScheduleBridge = new WorkScheduleBridge(this, webView);
+        authBridge.setNotificationBridge(notificationBridge);
         webView.addJavascriptInterface(authBridge, "UsAuth");
         webView.addJavascriptInterface(syncBridge, "UsSync");
         webView.addJavascriptInterface(healthBridge, "UsHealth");
         webView.addJavascriptInterface(speechBridge, "UsSpeech");
         webView.addJavascriptInterface(extrasBridge, "UsSpaceExtras");
+        webView.addJavascriptInterface(preferencesBridge, "AndroidPreferences");
+        webView.addJavascriptInterface(notificationBridge, "UsNotifications");
+        webView.addJavascriptInterface(workScheduleBridge, "AndroidWorkSchedule");
+        notificationBridge.handleIntent(getIntent());
 
         if (savedInstanceState == null) {
             webView.loadUrl(BUNDLED_PAGE);
@@ -118,10 +132,23 @@ public class MainActivity extends Activity {
         super.onStart();
         if (authBridge != null) authBridge.publishState();
         if (extrasBridge != null) extrasBridge.refresh();
+        if (preferencesBridge != null) preferencesBridge.refresh();
+        if (notificationBridge != null) notificationBridge.refresh();
+        if (workScheduleBridge != null) workScheduleBridge.requestRender();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (notificationBridge != null) notificationBridge.handleIntent(intent);
     }
 
     @Override
     protected void onDestroy() {
+        if (notificationBridge != null) notificationBridge.close();
+        if (preferencesBridge != null) preferencesBridge.destroy();
+        if (workScheduleBridge != null) workScheduleBridge.close();
         if (syncBridge != null) syncBridge.close();
         if (speechBridge != null) speechBridge.close();
         if (extrasBridge != null) extrasBridge.close();
@@ -140,11 +167,13 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (healthBridge != null) healthBridge.onRequestPermissionsResult(requestCode);
+        if (notificationBridge != null) notificationBridge.onRequestPermissionsResult(requestCode);
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (workScheduleBridge != null && workScheduleBridge.onActivityResult(requestCode, resultCode, data)) return;
         if (requestCode != PICK_PHOTO || photoCallback == null) return;
         ValueCallback<Uri[]> callback = photoCallback;
         photoCallback = null;

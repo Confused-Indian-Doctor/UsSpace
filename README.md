@@ -1,3 +1,24 @@
+# UsSpace v0.14.0
+
+This release continues the verified v0.12.3 Android app with the same application ID,
+original signing key, Google Sign-In and paired Firestore data. It adds private per-user
+System/Light/Dark appearance, seven opt-in push categories and quiet hours, and a native
+Microsoft Graph Excel Work Schedule reader under Life with a compact Today view.
+The existing Us features, Health Connect, language courses and calendar remain available.
+
+- [Push setup](PUSH_SETUP.md): Firebase Spark can use the trusted external Node worker;
+  Cloud Functions are an alternative requiring Blaze. No billing plan was changed and
+  live server delivery is inactive until the selected server is configured.
+- [Work Schedule setup](WORK_SCHEDULE_SETUP.md): Microsoft read access is used through
+  a public-client app registration and PKCE. Paste the existing SharePoint Excel link into
+  private on-phone settings. The source link, Microsoft tokens and full rota are not
+  shared with the partner. Optional shift-time summaries are off by default.
+- [Android notification integration](NOTIFICATIONS_ANDROID.md) and [Android builds](ANDROID_BUILD.md).
+
+Health and Cycle stay private by default. Private goals, comfort moods and letter drafts
+never generate partner pushes. Publish the complete updated `firestore.rules` before
+activating the new private settings/device and optional work-summary collections.
+
 # UsSpace v0.12.3 — a little comfort from Al, letters and shared plans
 
 UsSpace v0.12 combines the v0.11 Health Connect build and the embedded Namma ↔ Nammal language module with two-account identity and realtime couple sync.

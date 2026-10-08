@@ -79,9 +79,60 @@ service cloud.firestore {
         && d.recipientUid == extrasRoles(coupleId).yashikaUid;
     }
 
+    // v0.14 settings/tokens are private to the signed-in account. Recipient
+    // identity, pairs and generic notification contents are derived by Functions.
+    function actorMatchesIfPresent() {
+      return !('updatedBy' in request.resource.data) || request.resource.data.updatedBy == request.auth.uid;
+    }
+    function validClock(value) { return value is string && value.matches('([01][0-9]|2[0-3]):[0-5][0-9]'); }
+    function validTimeZone(value) { return shortText(value, 80) && value.size() > 0 && value.matches('[A-Za-z0-9_+/-]+'); }
+    function currentPair(coupleId) {
+      return isMember(coupleId)
+        && get(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 2
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.coupleId == coupleId;
+    }
+    function validDevice(d, uid, id) {
+      return d.keys().hasOnly(['uid','installationId','token','platform','enabled','updatedAt'])
+        && d.uid == uid && d.installationId == id && id.matches('[A-Za-z0-9_-]{8,100}')
+        && d.platform == 'android' && d.enabled is bool
+        && shortText(d.token, 4096) && d.token.size() >= 20 && d.token.matches('[A-Za-z0-9_:.-]+')
+        && d.updatedAt == request.time;
+    }
+    function validPreferences(d) {
+      return d.keys().hasOnly(['theme','notifications','updatedAt'])
+        && d.theme in ['system','light','dark'] && d.updatedAt == request.time
+        && d.notifications is map && d.notifications.keys().hasOnly(['enabled','categories','quietHours'])
+        && d.notifications.enabled is bool && d.notifications.categories is map
+        && d.notifications.categories.keys().hasOnly(['pings','notes','status','goals','bucket','memories','calendar'])
+        && d.notifications.categories.pings is bool && d.notifications.categories.notes is bool
+        && d.notifications.categories.status is bool && d.notifications.categories.goals is bool
+        && d.notifications.categories.bucket is bool && d.notifications.categories.memories is bool
+        && d.notifications.categories.calendar is bool && d.notifications.quietHours is map
+        && d.notifications.quietHours.keys().hasOnly(['enabled','start','end','timeZone'])
+        && d.notifications.quietHours.enabled is bool && validClock(d.notifications.quietHours.start)
+        && validClock(d.notifications.quietHours.end) && validTimeZone(d.notifications.quietHours.timeZone);
+    }
+    function validWorkSummary(d, coupleId, uid) {
+      return d.keys().hasOnly(['uid','coupleId','date','start','end','timeZone','enabled','updatedAt'])
+        && d.uid == uid && d.uid == request.auth.uid && d.coupleId == coupleId
+        && optionalDate(d.date) && d.date != '' && validClock(d.start) && validClock(d.end)
+        && validTimeZone(d.timeZone) && d.enabled == true && d.updatedAt == request.time;
+    }
+
     match /users/{uid} {
       allow read, create, update: if signedIn() && request.auth.uid == uid;
       allow delete: if signedIn() && request.auth.uid == uid;
+
+      match /devices/{installationId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && validDevice(request.resource.data, uid, installationId);
+      }
+      match /preferences/{preferenceId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid && preferenceId == 'v014';
+        allow create, update: if signedIn() && request.auth.uid == uid && preferenceId == 'v014'
+          && validPreferences(request.resource.data);
+      }
 
       // Drafts survive disconnect but remain strictly within their author's
       // account; no partner query or accidental common-document projection.
@@ -103,6 +154,10 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+
+    match /_pushDeliveries/{id} { allow read, write: if false; }
+    match /_pushWorkerCursors/{id} { allow read, write: if false; }
+    match /_pushWorkerLeases/{id} { allow read, write: if false; }
 
     match /pairInvites/{code} {
       allow create: if signedIn()
@@ -175,6 +230,24 @@ service cloud.firestore {
       }
 
 
+      match /usPings/{id} {
+        allow read: if currentPair(coupleId);
+        allow create: if currentPair(coupleId)
+          && request.resource.data.keys().hasOnly(['id','senderUid','createdAt'])
+          && request.resource.data.id == id && itemId(id)
+          && request.resource.data.senderUid == request.auth.uid && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+      // Optional partner summary contains only the owner's shift times. No
+      // workbook URL, Graph token, room, simulation, patient or rota-row data.
+      match /workSummaries/{uid} {
+        allow read: if currentPair(coupleId);
+        allow create, update: if currentPair(coupleId) && request.auth.uid == uid
+          && validWorkSummary(request.resource.data, coupleId, uid);
+        // An owner can revoke an old summary even after leaving that pair.
+        allow delete: if signedIn() && request.auth.uid == uid && resource.data.uid == uid;
+      }
+
       match /usRoles/{roleId} {
         allow read: if roleId == 'identity' && isMember(coupleId);
         allow create: if roleId == 'identity' && isMember(coupleId)
@@ -237,12 +310,12 @@ service cloud.firestore {
 
       match /shared/{docId} {
         allow read: if isMember(coupleId);
-        allow write: if docId == 'common' && isMember(coupleId) && safeCommon();
+        allow write: if docId == 'common' && isMember(coupleId) && safeCommon() && actorMatchesIfPresent();
       }
 
       match /profiles/{uid} {
         allow read: if isMember(coupleId);
-        allow write: if isMember(coupleId) && request.auth.uid == uid && safeProfile();
+        allow write: if isMember(coupleId) && request.auth.uid == uid && safeProfile() && actorMatchesIfPresent();
       }
     }
   }

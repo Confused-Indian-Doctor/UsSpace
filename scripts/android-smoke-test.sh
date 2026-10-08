@@ -137,6 +137,7 @@ PY
 adb_device shell getprop ro.build.version.sdk > "$output/android-api.txt"
 python3 scripts/android-learning-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 python3 scripts/android-us-features-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+python3 scripts/android-v014-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 if ! adb_device shell pidof "$package" > "$output/app-pid.txt"; then
   echo 'ERROR: App process exited during learning, sign-in or Us feature navigation.' >&2
   exit 1

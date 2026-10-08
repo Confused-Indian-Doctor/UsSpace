@@ -2,7 +2,7 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.UsRealtime=api})(typeof globalThis!=='undefined'?globalThis:this,function(){
 'use strict';
 const collections=['duties','goals','notes','memories'];
-const itemFields={duties:['id','owner','date','type','time','title','place'],goals:['id','title','value','target','unit','level'],notes:['id','text','date'],memories:['id','title','date','place','text','emoji','photoId']};
+const itemFields={duties:['id','owner','date','type','time','title','place'],goals:['id','title','value','target','unit','level'],notes:['id','text','date','kind'],memories:['id','title','date','place','text','emoji','photoId']};
 const progressFields=['v','known','xp','attempts','correct','streak','lastActive','cards','units','sessions','dailyGoal'];
 const mapFields={cards:['reps','interval','due','ease','lapses','lastReviewed'],units:['completedAt','score'],sessions:['day','at','xp','attempts','correct']};
 const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
