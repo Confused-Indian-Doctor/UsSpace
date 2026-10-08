@@ -317,15 +317,41 @@ def set_system_night(label, enabled):
 
 def checkbox(label, pattern, expected=None, enabled=None):
     root, node = find(label, pattern, class_name="android.widget.CheckBox", enabled=enabled)
-    checked = node.get("checked")
-    if checked not in ("true", "false"):
-        raise RuntimeError("The actual Android checkbox has no checked state: " + label)
-    if expected is not None and checked != str(expected).lower():
+    # This WebView reports checkable=false/checked=false for visually checked
+    # HTML inputs. Read the actual accent fill inside the AX-located input;
+    # never substitute JavaScript state for the rendered Android control.
+    bounds = ui.usable_bounds(node, root)
+    png = screenshot(label)
+    width, height, channels, rows = decode_png(png)
+    if (width, height) != (ui.width, ui.height):
+        raise RuntimeError("Checkbox screenshot dimensions do not match Android")
+    left, top, right, bottom = bounds
+    crop = [left + 2, top + 2, right - 2, bottom - 2]
+    if crop[2] - crop[0] < 8 or crop[3] - crop[1] < 8:
+        raise RuntimeError("The real checkbox is too small for a reliable pixel read")
+    accent, neutral, pixels = 0, 0, 0
+    for y in range(crop[1], crop[3]):
+        for x in range(crop[0], crop[2]):
+            index = x * channels
+            red, green, blue = rows[y][index:index + 3]
+            accent += red > 170 and red > green + 35 and red > blue + 15
+            neutral += max(red, green, blue) - min(red, green, blue) <= 28
+            pixels += 1
+    accent_fraction, neutral_fraction = accent / pixels, neutral / pixels
+    if accent_fraction >= .25:
+        checked = True
+    elif accent_fraction <= .03 and neutral_fraction >= .85:
+        checked = False
+    else:
+        raise RuntimeError("Actual checkbox pixels are ambiguous: " + label)
+    if expected is not None and checked != expected:
         raise RuntimeError("The actual Android checkbox state did not change: " + label)
-    screenshot(label)
-    passed(label, checked=checked == "true", enabled=node.get("enabled", "true") == "true",
-           matched=ui.text_of(node), bounds=ui.usable_bounds(node, root))
-    return checked == "true"
+    passed(label, checked=checked, enabled=node.get("enabled", "true") == "true",
+           matched=ui.text_of(node), bounds=bounds, checked_source="actual Android screenshot pixels",
+           pixel_crop=crop, pixel_count=pixels, accent_fraction=round(accent_fraction, 6),
+           neutral_fraction=round(neutral_fraction, 6),
+           accessibility_checked=node.get("checked"), accessibility_checkable=node.get("checkable"))
+    return checked
 
 
 def toggle_and_restore(label, pattern):
