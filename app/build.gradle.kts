@@ -55,6 +55,8 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
     implementation("androidx.work:work-runtime:2.10.1")
+    // Worker exposes ListenableFuture; Firebase's empty conflict artifact is not its API.
+    implementation("com.google.guava:guava:33.4.8-android")
     implementation("net.openid:appauth:0.11.1")
 
     implementation("androidx.credentials:credentials:1.3.0")
