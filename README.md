@@ -1,5 +1,22 @@
 # UsSpace v0.14.0
 
+## Verified Android release
+
+[Download UsSpace v0.14.0 APK](https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/cfda2e14-3302-4481-9fc0-952b46707bdf-UsSpace-v0.14.0.apk).
+Install it as an update on both phones and keep the existing pair.
+
+[Android 35 verification passed](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/37783875100):
+original signing certificate, exact APK checksum, install/launch, both embedded language
+courses, Google account UI handoff, all 51 existing Us checks, and all 40 distinct v0.14
+screen checks. All 43 authenticated Firestore emulator tests passed. The new checks verify
+real Light/Dark/System rendering, restart persistence, all seven notification controls,
+category and quiet-hour toggle/restore, and the private Microsoft setup boundary.
+
+Live push still requires the authorized external worker or Cloud Functions described below.
+Live hospital workbook access still requires Microsoft app registration and consent.
+The emulator uses an anonymous app session and does not claim personal account login,
+live push delivery, hospital access or publishing the new Firebase rules.
+
 This release continues the verified v0.12.3 Android app with the same application ID,
 original signing key, Google Sign-In and paired Firestore data. It adds private per-user
 System/Light/Dark appearance, seven opt-in push categories and quiet hours, and a native
