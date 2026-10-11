@@ -153,20 +153,32 @@ test('transactions can update a hydrated shared relationship without rewriting a
   assert.equal((await getDoc(ref(al))).data().startDate, '2023-04-01');
 });
 
-test('a hydrated client keeps a cached relationship date offline and cannot falsely acknowledge an offline transaction', async () => {
+test('a hydrated client retains offline date edits without server acknowledgement until reconnection', async () => {
   const {al} = await pair();
   await assertSucceeds(setDoc(ref(al), profile('al', '2024-02-29')));
   await getDoc(ref(al));
   await disableNetwork(al);
+  let pendingWrite, acknowledged = false;
   try {
     const cached = await getDocFromCache(ref(al));
     assert.equal(cached.data().startDate, '2024-02-29');
     assert.equal(cached.metadata.fromCache, true);
-    await assert.rejects(runTransaction(al, async transaction => {
-      await transaction.get(ref(al)); transaction.set(ref(al), profile('al', '2025-03-25'));
-    }, {maxAttempts: 1}));
+    // Node transactions use a direct RPC even with streaming disabled. Exercise
+    // the actual SDK offline write queue, not an assumed transaction rejection.
+    pendingWrite = setDoc(ref(al), profile('al', '2025-03-25'));
+    pendingWrite.then(() => { acknowledged = true; }, () => { acknowledged = true; });
+    const queued = await getDocFromCache(ref(al));
+    assert.equal(queued.data().startDate, '2025-03-25');
+    assert.equal(queued.metadata.fromCache, true);
+    assert.equal(queued.metadata.hasPendingWrites, true);
+    await environment.withSecurityRulesDisabled(async context => {
+      assert.equal((await getDoc(ref(context.firestore()))).data().startDate, '2024-02-29');
+    });
+    assert.equal(acknowledged, false, 'local cache must not claim server acknowledgement');
   } finally { await enableNetwork(al); }
-  assert.equal((await getDoc(ref(al))).data().startDate, '2024-02-29');
+  await assertSucceeds(pendingWrite);
+  assert.equal((await getDoc(ref(al))).data().startDate, '2025-03-25');
+  assert.equal(acknowledged, true);
 });
 
 test('unpairing revokes the date for both previous partners and denies delayed writes', async () => {
