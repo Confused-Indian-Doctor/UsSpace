@@ -167,8 +167,10 @@ def tap(label, pattern, class_name=None, allow_tabs=False):
     time.sleep(0.45)
 
 
-def verify(label, pattern, capture=True):
-    root, node = find(label, pattern, direction=False if "Together for" in pattern else True)
+def verify(label, pattern, capture=True, direction=None):
+    if direction is None:
+        direction = False if "Together for" in pattern else True
+    root, node = find(label, pattern, direction=direction)
     (output / f"v015-{label}.txt").write_text(visible_text(root))
     if capture:
         screenshot(label)
@@ -422,9 +424,75 @@ def set_system_night(label, enabled):
     restart(label + "-relaunch")
 
 
+# These original cards are <div onclick> elements. Android exposes their real
+# title/copy as separate non-clickable TextViews, unlike the newer native HTML
+# buttons with one combined accessibility label. Keep this exception bounded
+# to known existing routes, the actual card ancestor, and fully visible content.
+LEGACY_HUB_TITLES = {
+    ("Us", r"\bGoals\b.*Keep each other accountable"): r"^Goals$",
+    ("Us", r"\bLove notes\b.*Small messages"): r"^Love notes$",
+    ("Us", r"\bMemories\b.*Trips, dates"): r"^Memories$",
+    ("Us", r"\bLearn together\b.*Open offline lessons\s*→"): r"^Learn together$",
+    ("Life", r"\bCalendar & duty\b.*Work, teaching"): r"^Calendar & duty$",
+    ("Life", r"\bHealth\b.*Steps, sleep"): r"^Health$",
+    ("Life", r"\bCycle\b.*Private cycle notes"): r"^Cycle$",
+}
+
+
+def tap_legacy_hub(label, entry, title_pattern):
+    for attempt in range(12):
+        root = dump(f"{label}-{attempt}")
+        parents = {child: parent for parent in root.iter() for child in parent}
+        candidates = []
+        for title in root.iter("node"):
+            if (title.get("class") != "android.widget.TextView"
+                    or title.get("enabled", "true") != "true"
+                    or not ui.matches(title, title_pattern)):
+                continue
+            card = parents.get(title)
+            if (card is None or card.get("class") != "android.view.View"
+                    or card.get("enabled", "true") != "true"):
+                continue
+            children = list(card)
+            # The existing hub wrapper contains its icon/title/copy/meta as
+            # direct text children. Never match a broad screen or grid ancestor.
+            if (len(children) < 3 or any(child.get("class") != "android.widget.TextView"
+                                         for child in children)):
+                continue
+            card_text = " ".join(ui.text_of(child) for child in children)
+            if not re.search(entry, card_text, re.IGNORECASE):
+                continue
+            candidates.append((title, card, card_text))
+            card_bounds = ui.usable_bounds(card, root)
+            title_bounds = ui.usable_bounds(title, root)
+            if (card_bounds and title_bounds
+                    and all(ui.usable_bounds(child, root) for child in children)):
+                left, top, right, bottom = title_bounds
+                ui.adb("shell", "input", "tap", str((left + right) // 2),
+                       str((top + bottom) // 2))
+                ui.steps.append({"action": label, "matched": ui.text_of(title),
+                                 "bounds": title_bounds, "card_bounds": card_bounds,
+                                 "card_label": card_text,
+                                 "known_legacy_hub_title_tap": True,
+                                 "accessibility_evidence_file": dump.last_path.name})
+                time.sleep(0.45)
+                return
+        if any(align(card, root) for _, card, _ in candidates):
+            continue
+        top, _ = ui.safe_region(root)
+        above = any(ui.visible_bounds(card) and ui.visible_bounds(card)[1] < top
+                    for _, card, _ in candidates)
+        ui.swipe(not above, root=root)
+    raise RuntimeError("v0.15 known legacy hub card not fully visible: " + label)
+
+
 def section(label, parent, entry, heading):
     ui.click(label + "-parent", r"(?:^| )" + re.escape(parent) + "$", allow_nav=True)
-    tap(label + "-open", entry)
+    title_pattern = LEGACY_HUB_TITLES.get((parent, entry))
+    if title_pattern:
+        tap_legacy_hub(label + "-open", entry, title_pattern)
+    else:
+        tap(label + "-open", entry)
     verify(label + "-real-section", heading)
 
 
@@ -517,14 +585,16 @@ def test_overlays_and_nested_pages():
     section("learn-nested", "Us", r"\bLearn together\b.*Open offline lessons\s*→", r"^Learn Together$")
     tap("learn-nested-today", r"^☀\s*Today$", allow_tabs=True)
     tap("learn-nested-continue-unit", r"^Continue lesson\s*→$")
-    verify("learn-nested-unit-visible", r"^← All units$")
+    verify("learn-nested-unit-visible", r"^← All units$", direction=False)
     tap("learn-nested-open-checkpoint", r"^Start checkpoint\s*→$")
-    verify("learn-nested-checkpoint-visible", r"^Unit checkpoint$")
+    verify("learn-nested-checkpoint-visible", r"^Unit checkpoint$", direction=False)
     back("learn-nested-checkpoint-back")
-    root = verify("learn-nested-checkpoint-keeps-unit", r"^← All units$", capture=False)
+    root = verify("learn-nested-checkpoint-keeps-unit", r"^← All units$", capture=False,
+                  direction=False)
     absent(root, "learn-nested-checkpoint-popped-only-one-page", r"^Unit checkpoint$|\bTogether for\b")
     back("learn-nested-first-back")
-    root = verify("learn-nested-keeps-course-list", r"(?:Kannada|Malayalam) beginner course", capture=False)
+    root = verify("learn-nested-keeps-course-list", r"(?:Kannada|Malayalam) beginner course",
+                  capture=False, direction=False)
     absent(root, "learn-nested-unit-closed-before-home", r"^← All units$|\bTogether for\b")
     back_home("learn-nested-second-back")
 
