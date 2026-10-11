@@ -66,15 +66,28 @@ async function leave(db, uid) {
 function serverUpdate(reference, predicate) {
   let stop;
   let timer;
+  let readyResolve, readyReject;
+  const ready = new Promise((resolve, reject) => {readyResolve = resolve; readyReject = reject;});
+  const observed = [];
   const promise = new Promise((resolve, reject) => {
-    timer = setTimeout(() => {stop?.(); reject(new Error('Us feature server update timed out'));}, 15000);
+    timer = setTimeout(() => {
+      stop?.();
+      const error = new Error('Us feature server update timed out: ' + JSON.stringify(observed));
+      readyReject(error); reject(error);
+    }, 15000);
     stop = onSnapshot(reference, {includeMetadataChanges: true}, snapshot => {
+      observed.push({exists: snapshot.exists(), fromCache: snapshot.metadata.fromCache,
+        pending: snapshot.metadata.hasPendingWrites});
+      if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) readyResolve(snapshot);
       if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites && predicate(snapshot)) {
         clearTimeout(timer); stop?.(); resolve(snapshot);
       }
-    }, error => {clearTimeout(timer); stop?.(); reject(error);});
+    }, error => {clearTimeout(timer); stop?.(); readyReject(error); reject(error);});
   });
-  return {promise, cancel: () => {clearTimeout(timer); stop?.();}};
+  // A failure before the live-subscription barrier must not leave an unobserved
+  // rejection; callers still await and assert the original delivery promise.
+  promise.catch(() => {});
+  return {promise, ready, cancel: () => {clearTimeout(timer); stop?.();}};
 }
 
 test('roles bind distinct current members once and cannot be reassigned or forged', async () => {
@@ -190,6 +203,8 @@ test('a shared appreciation reaches the other client without sharing private dra
   await setDoc(draftRef(al), draft());
   const waiting = serverUpdate(ref(yashika, 'usJar', 'note-1'), snapshot => snapshot.exists());
   try {
+    const initial = await waiting.ready;
+    assert.equal(initial.exists(), false, 'partner live subscription is established before the note is written');
     await assertSucceeds(setDoc(ref(al, 'usJar', 'note-1'), jar()));
     const delivered = (await waiting.promise).data();
     assert.deepEqual(delivered, jar());
