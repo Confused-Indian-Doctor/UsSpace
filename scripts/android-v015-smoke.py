@@ -66,6 +66,21 @@ ui.dump = dump
 
 def safe_region(root, allow_tabs=False):
     top, bottom = original_safe_region(root, allow_tabs=allow_tabs)
+    # The sheet sits above the sticky header/footer. WebView still exposes those
+    # background landmarks in accessibility XML; they do not obscure the modal.
+    # Bind the exception to the actual bounded sheet ancestor, not a guessed tap.
+    parents = {child: parent for parent in root.iter() for child in parent}
+    for title in root.iter("node"):
+        if not ui.matches(title, r"^(?:Our space|Leave a note\s*💌|Add a memory)$"):
+            continue
+        parent = parents.get(title)
+        while parent is not None:
+            bounds = ui.visible_bounds(parent)
+            if (bounds and parent.get("class") == "android.view.View"
+                    and bounds[2] - bounds[0] >= ui.width * .9
+                    and ui.height * .15 < bounds[3] - bounds[1] < ui.height * .97):
+                return bounds[1] + 8, bounds[3] - 8
+            parent = parents.get(parent)
     # Need Me's real fixed safety action obscures content above the footer.
     overlays = [ui.visible_bounds(node) for node in root.iter("node")
                 if ui.visible_bounds(node) and ui.matches(node, r"^I don[’']t feel safe$")
