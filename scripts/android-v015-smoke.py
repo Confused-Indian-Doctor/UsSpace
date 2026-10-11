@@ -209,7 +209,12 @@ def open_settings(label):
             ui.steps.append({"action": label, "matched": ui.text_of(node), "bounds": bounds,
                              "legitimate_fixed_header_control": True})
             time.sleep(0.45)
-            verify(label + "-sheet", r"^Our space$", capture=False)
+            # Modal scroll position survives closing. A later date edit can
+            # reopen midway down the sheet, so seek its title upward first.
+            sheet, title = find(label + "-sheet", r"^Our space$", direction=False)
+            passed(label + "-sheet", matched=ui.text_of(title),
+                   bounds=ui.usable_bounds(title, sheet),
+                   accessibility_evidence_file=dump.last_path.name)
             return
     raise RuntimeError("The actual fixed-header settings gear is not available")
 
