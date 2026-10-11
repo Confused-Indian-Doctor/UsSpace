@@ -176,7 +176,13 @@
       return true;
     }
     function closeLetter() { context(); selected = ''; reader = ''; confirmation = null; status = ''; return true; }
-    return { getView, chooseRole, confirmRole, cancel, edit, update, saveDraft, requestPublish, confirmPublish, openLetter, closeLetter };
+    function handleBack() {
+      const view = getView();
+      if (view.confirmation || view.roleChoice) return cancel();
+      if (view.draft || view.opened) return closeLetter();
+      return false;
+    }
+    return { getView, chooseRole, confirmRole, cancel, edit, update, saveDraft, requestPublish, confirmPublish, openLetter, closeLetter, handleBack };
   }
 
   function renderMarkup(view) {
@@ -279,6 +285,6 @@
     global.UsExtras.subscribe(render);
     render();
   }
-  global.UsLetters = { init, render };
+  global.UsLetters = { init, render, handleBack() { if (!controller || !controller.handleBack()) return false; render(); return true; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = { createController, renderMarkup, categories: CATEGORIES.map(x => ({ id: x.id, title: x.title })) };
 })(typeof window !== 'undefined' ? window : globalThis);

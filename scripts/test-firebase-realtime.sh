@@ -17,6 +17,8 @@ mkdir -p artifacts
   node firebase-tests/work_schedule_feature_test.js
   node firebase-tests/v014_push_test.mjs
   node firebase-tests/v014_integration_test.js
+  node firebase-tests/relationship_feature_test.js
+  node firebase-tests/navigation_feature_test.js
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh
   native_test_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-sync-tests.XXXXXX")"
@@ -27,6 +29,8 @@ mkdir -p artifacts
   javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/PreferencePolicy.java firebase-tests/PreferencePolicyTest.java app/src/main/java/app/usspace/couple/v012/NotificationPolicy.java firebase-tests/NotificationPolicyTest.java
   java -cp "$native_test_dir" app.usspace.couple.v012.PreferencePolicyTest
   java -cp "$native_test_dir" app.usspace.couple.v012.NotificationPolicyTest
+  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/RelationshipPolicy.java firebase-tests/RelationshipPolicyTest.java
+  java -cp "$native_test_dir" RelationshipPolicyTest
   npm --prefix firebase-tests ci --ignore-scripts --no-audit --no-fund
   (
     cd firebase-tests

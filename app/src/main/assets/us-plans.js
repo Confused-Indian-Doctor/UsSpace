@@ -82,6 +82,7 @@
     }
     function edit(key, value) { sync(); if (editor && FIELDS.includes(key)) editor.values[key] = value; }
     function cancel() { sync(); editor = null; error = ''; photoToken++; }
+    function handleBack() { sync(); if (!editor) return false; cancel(); return true; }
     async function pick(file, field) {
       sync(); error = ''; if (!editor || !['photoId', 'completedPhotoId'].includes(field) || !file) return false;
       const token = ++photoToken, target = editor, originalScope = scope;
@@ -153,7 +154,7 @@
       return queue('heart', id, {active: !(m.hearts && Array.isArray(m.hearts[id]) && m.hearts[id].includes(m.uid))});
     }
     return {
-      sync, openBucket, edit, cancel, pick, clearPhoto, saveBucket, changeState, turnMemory, addNote, heart,
+      sync, openBucket, edit, cancel, handleBack, pick, clearPhoto, saveBucket, changeState, turnMemory, addNote, heart,
       setJarText(value) { sync(); jarText = text(value); },
       setFilters(category, state) { sync(); categoryFilter = CATEGORIES.includes(category) ? category : ''; stateFilter = STATES.includes(state) ? state : ''; },
       anotherNote() { const m = sync(); selectedId = chooseOld(m.jar, selectedId, now(), random); },
@@ -272,7 +273,7 @@
       ['bucket', 'jar'].forEach(id => { const section = element(id); if (!section) return; section.addEventListener('click', onClick); section.addEventListener('input', onInput); section.addEventListener('change', onChange); section.addEventListener('submit', onSubmit); });
       root.UsExtras.subscribe(render); render();
     }
-    root.UsPlans = {init, render};
+    root.UsPlans = {init, render, handleBack() { if (!controller || !controller.handleBack()) return false; render(); return true; }};
   }
   return {CATEGORIES, STATES, PRIORITIES, MAX_PHOTO, MAX_SOURCE, normalize, changes, filterItems, attribution, chooseOld, photoData, createController, mount};
 });

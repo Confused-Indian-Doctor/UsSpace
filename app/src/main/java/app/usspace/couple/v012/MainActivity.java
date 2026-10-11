@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.view.View;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -12,6 +13,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 
 import com.google.firebase.FirebaseApp;
 
@@ -25,6 +28,9 @@ public class MainActivity extends Activity {
     private UserPreferencesBridge preferencesBridge;
     private NotificationBridge notificationBridge;
     private WorkScheduleBridge workScheduleBridge;
+    private RelationshipBridge relationshipBridge;
+    private OnBackInvokedCallback backCallback;
+    private boolean backNavigationInFlight;
     private ValueCallback<Uri[]> photoCallback;
     private static final int PICK_PHOTO = 1203;
     private static final String BUNDLED_PAGE = "file:///android_asset/index.html";
@@ -96,6 +102,7 @@ public class MainActivity extends Activity {
                     if (preferencesBridge != null) preferencesBridge.refresh();
                     if (notificationBridge != null) notificationBridge.onPageReady();
                     if (workScheduleBridge != null) workScheduleBridge.requestRender();
+                    if (relationshipBridge != null) relationshipBridge.refresh();
                 }
             }
         });
@@ -108,6 +115,7 @@ public class MainActivity extends Activity {
         preferencesBridge = new UserPreferencesBridge(this, webView);
         notificationBridge = new NotificationBridge(this, webView);
         workScheduleBridge = new WorkScheduleBridge(this, webView);
+        relationshipBridge = new RelationshipBridge(this, webView);
         authBridge.setNotificationBridge(notificationBridge);
         webView.addJavascriptInterface(authBridge, "UsAuth");
         webView.addJavascriptInterface(syncBridge, "UsSync");
@@ -117,7 +125,13 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(preferencesBridge, "AndroidPreferences");
         webView.addJavascriptInterface(notificationBridge, "UsNotifications");
         webView.addJavascriptInterface(workScheduleBridge, "AndroidWorkSchedule");
+        webView.addJavascriptInterface(relationshipBridge, "AndroidRelationship");
         notificationBridge.handleIntent(getIntent());
+        if (Build.VERSION.SDK_INT >= 33) {
+            backCallback = this::handleAppBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback);
+        }
 
         if (savedInstanceState == null) {
             webView.loadUrl(BUNDLED_PAGE);
@@ -135,6 +149,7 @@ public class MainActivity extends Activity {
         if (preferencesBridge != null) preferencesBridge.refresh();
         if (notificationBridge != null) notificationBridge.refresh();
         if (workScheduleBridge != null) workScheduleBridge.requestRender();
+        if (relationshipBridge != null) relationshipBridge.refresh();
     }
 
     @Override
@@ -146,6 +161,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
+            backCallback = null;
+        }
+        if (relationshipBridge != null) relationshipBridge.close();
         if (notificationBridge != null) notificationBridge.close();
         if (preferencesBridge != null) preferencesBridge.destroy();
         if (workScheduleBridge != null) workScheduleBridge.close();
@@ -202,7 +222,27 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        handleAppBack();
+    }
+
+    private void handleAppBack() {
+        if (isFinishing() || isDestroyed() || backNavigationInFlight) return;
+        if (webView == null) { finish(); return; }
+        backNavigationInFlight = true;
+        // Android's IME and system picker callbacks have priority. Once they are
+        // closed, the bundled router handles exactly one visible app layer.
+        // Browser history contains no meaningful section stack in this app.
+        String script = "(function(){try{"
+                + "if(window.UsNavigation)return window.UsNavigation.handleBack()===true;"
+                + "var modal=document.querySelector('.modal.show');"
+                + "if(modal){if(window.closeM)window.closeM(modal.id);return true;}"
+                + "var page=document.querySelector('.screen.active');"
+                + "if(page&&page.id!=='home'){if(window.go)window.go('home');return true;}"
+                + "return false;"
+                + "}catch(e){console.error('UsSpace Back navigation failed',e);return true;}})();";
+        webView.evaluateJavascript(script, result -> {
+            backNavigationInFlight = false;
+            if (!isFinishing() && !isDestroyed() && "false".equals(result)) finish();
+        });
     }
 }

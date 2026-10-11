@@ -12,6 +12,8 @@ import sys
 
 
 PACKAGE = "app.usspace.couple.v012"
+ORIGINAL_SIGNING_SHA1 = "67eafa2c1f58fe0c4bf3ea2470f6628072157310"
+ORIGINAL_SIGNING_SHA256 = "b5edfcc256feb46edc9fa4f2c4e95aeae3a8572b248ef234ba2a61b4eaefc308"
 
 
 def main():
@@ -36,6 +38,12 @@ def main():
     if len(signer_sha1s) != 1:
         raise ValueError("Expected exactly one verified APK signing certificate.")
     sha1 = signer_sha1s[0].replace(":", "").lower()
+    signer_sha256s = re.findall(r"Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F:]+)", verified.stdout)
+    if len(signer_sha256s) != 1:
+        raise ValueError("Expected exactly one verified APK signing certificate SHA-256 digest.")
+    sha256 = signer_sha256s[0].replace(":", "").lower()
+    if sha1 != ORIGINAL_SIGNING_SHA1 or sha256 != ORIGINAL_SIGNING_SHA256:
+        raise ValueError("APK must use the existing original UsSpace signing identity.")
     config = json.loads(args.config.read_text())
     clients = [client for client in config.get("client", [])
                if client.get("client_info", {}).get("android_client_info", {}).get("package_name") == PACKAGE]
@@ -57,15 +65,16 @@ def main():
     badging = subprocess.run([str(tools / "aapt"), "dump", "badging", str(args.apk)],
                              check=True, capture_output=True, text=True).stdout
     identity = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.MULTILINE)
-    if not identity or identity.groups() != (PACKAGE, "16", "0.14.0"):
-        raise ValueError("APK identity must be app.usspace.couple.v012, versionCode 16, versionName 0.14.0.")
+    if not identity or identity.groups() != (PACKAGE, "17", "0.15.0"):
+        raise ValueError("APK identity must be app.usspace.couple.v012, versionCode 17, versionName 0.15.0.")
     report = {
         "status": "verified",
         "package": PACKAGE,
-        "version_code": 16,
-        "version_name": "0.14.0",
+        "version_code": 17,
+        "version_name": "0.15.0",
         "firebase_project": config.get("project_info", {}).get("project_id"),
         "signing_sha1": sha1,
+        "signing_sha256": sha256,
         "apk_sha256": hashlib.sha256(args.apk.read_bytes()).hexdigest(),
     }
     if args.report:

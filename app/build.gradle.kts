@@ -16,8 +16,8 @@ android {
         applicationId = "app.usspace.couple.v012"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.14.0"
+        versionCode = 17
+        versionName = "0.15.0"
         manifestPlaceholders["appAuthRedirectScheme"] = "app.usspace.couple.v012"
     }
 

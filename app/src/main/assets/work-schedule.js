@@ -141,7 +141,14 @@
       const shifts = s.shifts || [];
       return {...s, identity: {...identity}, config: safeConfig(conf), draft: draft ? {...draft, columnMapping: {...draft.columnMapping}} : null, setupOpen, mappingOpen, instructionsOpen, localError: error, notice, date, now: now(), today: shifts.filter(row => row.date === date), week: weekly(shifts, date), partnerText: summaryText(s.partnerSummary, now()), summaryText: summaryText(s.summary, now()), sharingEligible: !!identity.uid && !!identity.coupleId && s.paired && s.canShare && s.connected && shifts.some(row => row.date === date && row.start && row.end)};
     }
-    return {onIdentity, accept, readStatus, openInstructions() { if (identity.uid) return false; instructionsOpen = true; return true; }, closeInstructions() { instructionsOpen = false; }, openSetup, edit, save, connect, setSharing, view, cancelSetup() { draft = null; setupOpen = false; error = ''; }, toggleMapping() { mappingOpen = !mappingOpen; }, refresh: () => invoke('refresh'), disconnect: () => invoke('disconnect'), clearCache: () => invoke('clearCache')};
+    function cancelSetup() { draft = null; setupOpen = false; mappingOpen = false; error = ''; }
+    function handleBack() {
+      if (setupOpen && mappingOpen) { mappingOpen = false; return true; }
+      if (setupOpen) { cancelSetup(); return true; }
+      if (instructionsOpen) { instructionsOpen = false; return true; }
+      return false;
+    }
+    return {onIdentity, accept, readStatus, openInstructions() { if (identity.uid) return false; instructionsOpen = true; return true; }, closeInstructions() { instructionsOpen = false; }, openSetup, edit, save, connect, setSharing, view, cancelSetup, handleBack, toggleMapping() { mappingOpen = !mappingOpen; }, refresh: () => invoke('refresh'), disconnect: () => invoke('disconnect'), clearCache: () => invoke('clearCache')};
   }
   function lastSync(value) {
     const date = typeof value === 'number' ? new Date(value) : new Date(text(value));
@@ -218,6 +225,7 @@
     root.UsWorkSchedule = {
       init(value) { options = value || {}; getController(); render(); },
       render,
+      handleBack() { if (!getController().handleBack()) return false; render(); return true; },
       onIdentity(value) { getController().onIdentity(value); getController().readStatus(); render(); const v = getController().view(); if (options.onSummary) options.onSummary({own: v.summary, partner: v.partnerSummary, partnerText: v.partnerText}); },
       onNativeState(value) { if (!getController().accept(value)) return false; render(); const v = getController().view(); if (options.onSummary) options.onSummary({own: v.summary, partner: v.partnerSummary, partnerText: v.partnerText}); return true; },
       refresh() { getController().readStatus(); render(); },

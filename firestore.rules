@@ -119,6 +119,21 @@ service cloud.firestore {
         && validTimeZone(d.timeZone) && d.enabled == true && d.updatedAt == request.time;
     }
 
+    // v0.15 relationship metadata is separate from shared common/Health/Cycle.
+    // Validate real Gregorian dates (including century leap-year exceptions).
+    function validRelationshipDate(value) {
+      return value is string && value.size() == 10
+        && value.matches('(19[0-9]{2}|2[01][0-9]{2}|2200)-[0-9]{2}-[0-9]{2}')
+        && (value.matches('[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-8]))')
+          || value.matches('(([0-9]{2})(0[48]|[2468][048]|[13579][26])|([2468][048]|[13579][26])00)-02-29'));
+    }
+    function validRelationshipProfile(d) {
+      return d.keys().hasOnly(['startDate','updatedBy','updatedAt'])
+        && d.keys().hasAll(['startDate','updatedBy','updatedAt'])
+        && validRelationshipDate(d.startDate)
+        && d.updatedBy == request.auth.uid && d.updatedAt == request.time;
+    }
+
     match /users/{uid} {
       allow read, create, update: if signedIn() && request.auth.uid == uid;
       allow delete: if signedIn() && request.auth.uid == uid;
@@ -229,6 +244,13 @@ service cloud.firestore {
         allow delete: if signedIn() && request.auth.uid == uid && isMember(coupleId);
       }
 
+
+      match /relationship/{profileId} {
+        allow get: if profileId == 'profile' && currentPair(coupleId);
+        allow create, update: if profileId == 'profile' && currentPair(coupleId)
+          && validRelationshipProfile(request.resource.data);
+        allow list, delete: if false;
+      }
 
       match /usPings/{id} {
         allow read: if currentPair(coupleId);

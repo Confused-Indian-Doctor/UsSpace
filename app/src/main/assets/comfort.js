@@ -357,5 +357,12 @@
     }
     render();
   }
-  root.UsComfort = {init, render, stop: () => session?.stop()};
+  root.UsComfort = {init, render, stop: () => session?.stop(), callAl() {
+    render();
+    if (!session) return false;
+    if (session.snapshot().contacts.alPhone) return session.contact('al');
+    if (!session.snapshot().contactsOpen) session.toggleContacts();
+    doc.querySelector?.('.comfort-contact-settings')?.scrollIntoView?.({behavior: 'smooth', block: 'center'});
+    return false;
+  }};
 })(typeof window !== 'undefined' ? window : null);

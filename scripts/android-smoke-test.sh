@@ -138,11 +138,16 @@ adb_device shell getprop ro.build.version.sdk > "$output/android-api.txt"
 python3 scripts/android-learning-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 python3 scripts/android-us-features-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 python3 scripts/android-v014-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+python3 scripts/android-v015-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 if ! adb_device shell pidof "$package" > "$output/app-pid.txt"; then
-  echo 'ERROR: App process exited during learning, sign-in or Us feature navigation.' >&2
+  echo 'ERROR: App process exited during learning, sign-in, Us features or relationship navigation.' >&2
   exit 1
 fi
 collect_logs
+if ! grep -Eq "(mResumedActivity|topResumedActivity).*${package//./\\.}/(\.MainActivity|${package//./\\.}\.MainActivity)" "$output/activity.txt"; then
+  echo 'ERROR: MainActivity is not resumed after all UI and Back navigation checks.' >&2
+  exit 1
+fi
 if grep -Eq 'Uncaught (ReferenceError|TypeError|SyntaxError|RangeError|Error)' "$output/logcat.txt"; then
   echo 'ERROR: Uncaught JavaScript error during learning, sign-in or Us feature navigation.' >&2
   exit 1
@@ -151,6 +156,6 @@ if grep -Eq "Process: $package([,[:space:]]|$)|>>> $package <<<|ANR in $package(
   echo 'ERROR: App crash or ANR during learning, sign-in or Us feature navigation.' >&2
   exit 1
 fi
-printf '{"status":"passed","package":"%s","serial":"%s","observation_seconds":%s,"google_signin_handoff":"passed","us_features":"passed","authenticated_success_verified":false}\n' \
+printf '{"status":"passed","package":"%s","serial":"%s","observation_seconds":%s,"google_signin_handoff":"passed","us_features":"passed","v014_features":"passed","relationship_and_navigation":"passed","authenticated_success_verified":false}\n' \
   "$package" "$serial" "$observe_seconds" > "$output/smoke-result.json"
 echo "ANDROID_SMOKE_TEST_PASSED: $package remained running and resumed for $observe_seconds seconds."

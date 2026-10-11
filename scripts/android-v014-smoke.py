@@ -149,7 +149,7 @@ def open_settings(label):
     root = dump(label + "-header")
     for node in root.iter("node"):
         bounds = ui.visible_bounds(node)
-        if (bounds and ui.matches(node, r"^⚙️?$")
+        if (bounds and ui.matches(node, r"^(?:⚙️?|Settings)$")
                 and node.get("class") == "android.widget.Button"
                 and node.get("clickable") == "true" and node.get("enabled", "true") == "true"
                 and bounds[3] < ui.height / 3):

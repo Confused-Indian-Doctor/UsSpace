@@ -1,0 +1,17 @@
+/* A calm first glance: relationship, next visit, your person and six actions. */
+#home .home-next-visit{padding:17px 19px;margin-top:10px;box-shadow:none}
+#home .home-next-visit .count{font-size:26px;margin:7px 0 6px;position:relative;z-index:1}
+#home .home-next-visit .hero:after{font-size:95px}
+.home-quick-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:14px 0 18px}
+.home-quick-actions button{min-height:74px;border:1px solid var(--line);border-radius:20px;background:var(--card);color:var(--ink);font:inherit;font-size:12px;font-weight:750;padding:11px 5px;box-shadow:0 4px 15px rgba(110,68,78,.04)}
+.home-quick-actions button span{display:block;font-size:23px;color:var(--rose);margin-bottom:5px}
+.home-quick-actions button:focus-visible{outline:3px solid var(--rose);outline-offset:3px}
+.home-thought{border:1px solid var(--line);border-radius:20px;padding:16px 18px;background:linear-gradient(120deg,#fff2e6,#fff0f3);margin:15px 0}
+.home-thought p{margin:7px 0 0;font-size:16px;line-height:1.5;color:var(--ink)}
+.home-activity-list{list-style:none;margin:0;padding:0}
+.home-activity-list li{padding:12px 0;border-bottom:1px solid var(--line);line-height:1.45;font-size:14px}
+.home-activity-list li:last-child{border-bottom:0}
+.home-activity-list small{display:block;color:var(--muted);margin-top:3px}
+html[data-theme=dark] .home-thought{background:linear-gradient(120deg,#44382f,#3a2f42)}
+html[data-theme=dark] .home-quick-actions button{box-shadow:0 4px 15px rgba(4,7,16,.12)}
+@media(max-width:340px){.home-quick-actions{gap:6px}.home-quick-actions button{font-size:11px}}
