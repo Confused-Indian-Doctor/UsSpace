@@ -2,7 +2,7 @@
 
 The current source targets **0.15.0 / versionCode 17**, keeps application ID `app.usspace.couple.v012`, and uses the original signing certificate. Historical v0.12.3 was versionCode 15. The `Android v0.15` workflow builds pushes to `main` and manual dispatches with JDK 17, Gradle 8.11.1, Android Gradle Plugin 8.7.3 and Android SDK 35.
 
-The independent source-validation job runs the existing learning/sync/Us/privacy checks, new notification/preference/work-schedule tests, all **56 authenticated Firestore emulator cases**, and release compilation. Those cases comprise the previous 34 pairing/realtime/Us checks and nine v0.15 permissions checks. Emulator identities and the isolated demo project do not change live Firebase data. A successful source job alone is not a verified signed APK or a successful user-account sign-in.
+The independent source-validation job runs the existing learning/sync/Us/privacy checks, new notification/preference/work-schedule tests, all **56 authenticated Firestore emulator cases**, and release compilation. Those cases comprise 34 pairing/realtime/Us checks, nine notification/settings/work permission checks and 13 relationship-profile checks. Emulator identities and the isolated demo project do not change live Firebase data. A successful source job alone is not a verified signed APK or a successful user-account sign-in.
 
 ## Signing with repository Actions secrets
 
@@ -22,7 +22,7 @@ After signing, `scripts/verify-release-apk.py` checks the package/version, signa
 
 CI requires KVM and boots a disposable Android 35 Google APIs emulator. It installs the exact verified release APK, explicitly launches MainActivity, and checks that it remains resumed without app crashes, ANRs or uncaught WebView errors. Screenshots, accessibility snapshots, install/activity output and logcat provide the evidence.
 
-The runtime suite retains both embedded courses/scripts, Google-button account-UI handoff or an actionable retry error, comfort/safety/grounding/voice-placeholder checks, the signed-out letter boundary, and real Bucket List photo-picker/JPEG-preview and Appreciation Jar screens. The v0.15 suite adds real Light/Dark rendering, force-stop/relaunch theme persistence, System mode following Android Light/Dark, seven notification category controls and quiet-hours toggles, and Work Schedule's signed-out guidance plus read-only Microsoft registration instructions. Guest instructions do not unlock connection fields, sign into Microsoft, or display fabricated shifts.
+The runtime suite retains both embedded courses/scripts, Google-button account-UI handoff or an actionable retry error, comfort/safety/grounding/voice-placeholder checks, the signed-out letter boundary, and real Bucket List photo-picker/JPEG-preview and Appreciation Jar screens. The retained v0.14 suite verifies real Light/Dark rendering, force-stop/relaunch theme persistence, System mode following Android Light/Dark, seven notification category controls and quiet-hours toggles, and Work Schedule's signed-out guidance plus read-only Microsoft registration instructions. The v0.15 suite additionally exercises the live counter, relationship date editor and timeline, their appearance modes, Home actions and Android Back behavior. Guest instructions do not unlock connection fields, sign into Microsoft, or display fabricated shifts.
 
 Only a successful signed verification job publishes **`UsSpace-v0.15-verified-apk`**. It contains `UsSpace-v0.15.apk`, `UsSpace-v0.15.apk.sha256`, signature/provenance reports, screenshots and runtime logs/results. Verify an extracted artifact with:
 
@@ -57,4 +57,15 @@ The named Android UI harnesses may advance independently for selectors/scrolling
 
 ## Together for and explicit Android Back
 
-The v0.15 suite adds 54 relationship calendar/UI checks, 36 router checks and 60 native policy/persistence assertions with 109,938 Gregorian dates. It retains all preceding checks. Actual emulator interaction verifies date edits and restart persistence, counter milestones, Light/Dark/System card and timeline rendering, all major section routes, immediate modal/nested-page closure and Home exit/relaunch. The new `scripts/android-v015-smoke.py` harness is recorded alongside the existing two harnesses in verification provenance. See [V015_RELATIONSHIP.md](V015_RELATIONSHIP.md) for civil-date rules and the required additive production Firestore rule update.
+The v0.15 suite adds 54 relationship calendar/UI checks, 36 router checks and 60 native policy/persistence assertions with 109,938 Gregorian dates. It retains all preceding checks. Actual emulator interaction verifies date edits and restart persistence, counter milestones, Light/Dark/System card and timeline rendering, all major section routes, immediate modal/nested-page closure and Home exit/relaunch. The new `scripts/android-v015-smoke.py` harness is recorded alongside the existing two harnesses in verification provenance. See [V015_RELATIONSHIP.md](V015_RELATIONSHIP.md) for civil-date rules and the additive relationship-profile rule update. The owner confirmed publishing the complete v0.15 production rules on 11 October 2026; CI validates the same rules in an isolated emulator.
+
+## This verified release
+
+The original-key signed APK was compiled from `17904b3783f1551c86840f37540188568478179c` and exercised by
+[the successful Android verification run](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/38166736333) at
+`9f8d5196f9c41a332fc55c63b0bd4ef541831af3`. The APK SHA-256 is
+`c341cd382fcd89c50fc94913fdbc1b28c3763c1079b7d7466a162c9753c4a8dd`; its size is 8,679,473 bytes. Verification-harness changes after
+compilation are recorded separately in the automation provenance. The application,
+Firebase rules and protected build/test inputs must still match the compilation
+commit. The original certificate SHA-1 remains
+`67:EA:FA:2C:1F:58:FE:0C:4B:F3:EA:24:70:F6:62:80:72:15:73:10`.

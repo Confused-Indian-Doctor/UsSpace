@@ -1,33 +1,109 @@
-# Firebase status — UsSpace v0.14.0
+# Firebase status — UsSpace v0.15.0
 
 Connected client project: `usspace-c859e`  
 Permanent Android package: `app.usspace.couple.v012`  
-Current source version: `0.14.0` / versionCode 16
+Current source version: `0.15.0` / versionCode 17
 
-The existing Firebase Android/Web client configuration, Google Sign-In and original signing identity are preserved. The original certificate SHA-1 is `67:EA:FA:2C:1F:58:FE:0C:4B:F3:EA:24:70:F6:62:80:72:15:73:10`. Release verification checks the actual signed APK against that OAuth configuration; source configuration alone does not establish a finished v0.14 APK or a live Google account sign-in.
+The Firebase Android/Web client configuration, Google Sign-In, paired data model
+and original signing identity are preserved. The original certificate SHA-1 is
+`67:EA:FA:2C:1F:58:FE:0C:4B:F3:EA:24:70:F6:62:80:72:15:73:10`. Release verification
+checks the actual signed APK against that OAuth configuration.
 
-## Current setup requirements
+## Rules and shared relationship date
 
-The user published the v0.12.3 rules and retains a working pair. The full v0.14 `firestore.rules` adds owner-only per-user preferences/device registration, strict explicit pings, and opt-in times-only work summaries. Publish the complete rules to the same `(default)` database; do not disconnect or recreate the pair. Existing invite/member/shared and Us-feature rule branches remain intact.
+The owner confirmed publishing the complete v0.15 `firestore.rules` on
+11 October 2026. This is an owner confirmation, not an independent Firebase
+administrator check by CI. The additive rule permits the current two-account pair
+to read and explicitly save `/couples/{coupleId}/relationship/profile`, containing
+a strict Gregorian `startDate`, the authenticated `updatedBy` and a server
+timestamp. The default date is 25 March 2023. Publishing rules does not create or
+overwrite the date; an explicit Save writes the profile. Existing pairing, Us,
+owner-only preferences/devices, optional work summaries and privacy branches remain.
+Do not disconnect or recreate the existing pair.
 
-The user is on Spark. FCM is free, but deploying Cloud Functions requires Blaze. A trusted external Node worker is supplied as the Spark-compatible option. No authorized host or Firebase Admin credentials have been configured in this session, so that worker has not been deployed and live push delivery is not activated or claimed. No billing plan was changed. See `PUSH_SETUP.md` for either server option.
+Each account receives relationship-profile changes through a Firestore snapshot
+listener. Guest/unpaired dates remain local and are never automatically copied into
+a paired profile. Queued writes and caches stay scoped to their original
+account/couple; server-confirmed membership gates shared data after a fully offline
+restart. See [V015_RELATIONSHIP.md](V015_RELATIONSHIP.md).
 
-Microsoft workbook access also needs a public-client Entra registration and any required hospital tenant consent. The app provides private setup and read-only instructions, with an empty workbook-link default. Paste the existing sharing link into encrypted on-phone settings after signing in. The invitation URL, tokens and full rota are absent from public defaults and shared Firestore data. See `WORK_SCHEDULE_SETUP.md`.
+## Remaining service setup
 
-## Current verification scope
+The user is on Spark. FCM is free, but deploying Cloud Functions requires Blaze.
+The supplied trusted external Node worker is the Spark-compatible option. No
+authorized host or Firebase Admin credentials have been configured in this
+session, so the worker has not been deployed and live push delivery is not
+activated or claimed. No billing plan was changed. See [PUSH_SETUP.md](PUSH_SETUP.md).
 
-The isolated authenticated Firestore suites contain **43 cases**: all 34 preceding pairing/realtime/Us checks plus nine v0.14 preference/device/ping/summary permission cases. They use demo/emulator accounts, not the live project. The existing native transaction, learning, comfort, letters, plans, photo and privacy tests are retained, with new push/preference/rota checks.
+Microsoft workbook access still needs a public-client Entra registration and any
+required hospital tenant consent. The app provides private setup and read-only
+instructions, with an empty workbook-link default. Paste the existing sharing link
+into encrypted on-phone settings after signing in. The invitation URL, tokens and
+full rota are absent from public defaults and shared Firestore data. See
+[WORK_SCHEDULE_SETUP.md](WORK_SCHEDULE_SETUP.md).
 
-Android v0.14 verification boots Android 35, installs and launches the signed APK, retains the earlier feature runtime checks, and adds real System/Light/Dark rendering, force-stop persistence, notification category/quiet-hours controls and the signed-out Work Schedule setup boundary. A successful source job does not substitute for the final runtime artifact. The resulting Actions logs/artifacts record the outcome of each stage; no live personal-account FCM or hospital workbook read is inferred from an emulator pass.
+## Verification scope
+
+All **56 authenticated Firestore emulator cases** passed: the previous 34
+pairing/realtime/Us cases, nine v0.14 preference/device/ping/summary permission cases
+and 13 relationship-profile cases. Authenticated demo/emulator accounts exercise
+paired realtime delivery, offline queued writes and access restrictions without
+changing live Firebase data. Existing native transaction, learning, comfort,
+letters, plans, photo and privacy suites remain; push/preference/rota checks are
+retained. The relationship addition passes **54 feature tests**, **36 navigation
+tests**, **60 native date/persistence assertions**, and validation of all
+**109,938 supported Gregorian dates**.
+
+[Android v0.15 runtime verification passed](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/38166736333), using verification commit
+`9f8d5196f9c41a332fc55c63b0bd4ef541831af3`. Android 35 installed and launched the exact original-key
+signed APK compiled from `17904b3783f1551c86840f37540188568478179c`. Existing embedded language, Google
+account-UI handoff, Us and v0.14 checks remain. New actual-input checks cover the
+local-date counter, date edit/restart/restore, anniversary/day milestones,
+System/Light/Dark card and timeline rendering, Home actions, main and nested routes,
+modal closure and normal Home exit/relaunch. APK identity, signatures, screenshots,
+accessibility snapshots and logs are recorded in the successful artifact.
+
+The Android app session is anonymous. The account-UI handoff does not authenticate
+either person's Google account. Production pairing on personal phones, live push
+delivery, hospital workbook access and Samsung Health/Health Connect consent are
+not inferred from an emulator pass. Rules publication is recorded separately from
+the owner's confirmation above.
 
 ## Preserved privacy and features
 
-Open When roles bind the actual Al/Yashika account UIDs through explicit confirmation. Drafts remain private to their owner; released letters are readable only by the author or assigned recipient. Letter opens, private Need Me moods and local contacts are never shared automatically. Account-owned immutable receipts retain the existing replay protection.
+Open When roles bind the actual Al/Yashika account UIDs through explicit
+confirmation. Drafts remain private to their owner; released letters are readable
+only by the author or assigned recipient. Letter opens, private Need Me moods and
+local contacts are never shared automatically. Account-owned immutable receipts
+retain the existing replay protection.
 
-Health Connect stays read-only. Health history, Cycle data and private goals stay on the phone and are excluded from shared projections and the native transaction reducer. None generates a partner notification. Appearance and notification preferences and device tokens are owner-only; the other partner cannot read them. A work summary requires explicit sharing and includes only the verified owner's shift date/times/timezone. Turning it off deletes the summary, with owner revocation permitted after leaving an old pair.
+Health Connect stays read-only. Health history, Cycle data and private goals stay
+on the phone and are excluded from shared projections and the native transaction
+reducer. None generates a partner notification. Appearance and notification
+preferences and device tokens are owner-only; the other partner cannot read them.
+A work summary requires explicit sharing and includes only the verified owner's
+shift date/times/timezone. Turning it off deletes the summary, with owner
+revocation permitted after leaving an old pair. The shared relationship date is
+relationship data and does not change Health/Cycle protections.
 
-Both embedded beginner tracks retain 14 units and 140 phrases, script guides, grammar, dialogues, recall/typed practice, checkpoints and spaced review. All 64 original phrases and IDs remain preserved. Need Me, Open When, Bucket List, Appreciation Jar, calendar, goals, memories, Google Sign-In and existing Firestore pairing/realtime sync remain part of the same app.
+Both embedded beginner tracks retain 14 units and 140 phrases, script guides,
+grammar, dialogues, recall/typed practice, checkpoints and spaced review. All
+64 original phrases and IDs remain preserved. Need Me, Open When, Bucket List,
+Appreciation Jar, calendar, goals, memories, Google Sign-In and Firestore
+pairing/realtime sync remain part of the same app.
 
 ## Historical verification
 
-Historical v0.12.3 was version `0.12.3` / code 15 and introduced the Us collections with 34 authenticated emulator cases. The user confirmed publishing those rules. Earlier, [v0.12.1 verification](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/37372641976) passed its 15 authenticated Firestore tests, native reducer, learning/UI and privacy checks. Version 0.12.2 added explicit Google-button sign-in and invitation visibility, restoration and renewal; the user confirmed live pairing after its rules publication. Those older outcomes are history, while the [current Actions runs](https://github.com/Confused-Indian-Doctor/UsSpace/actions) and versioned artifacts record v0.14 build/runtime results.
+Historical v0.12.3 used versionCode 15 and introduced the Us collections with
+34 authenticated emulator cases. The owner confirmed publishing those rules.
+Earlier, [v0.12.1 verification](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/37372641976)
+passed its 15 authenticated Firestore cases, native reducer, learning/UI and privacy
+checks. Version 0.12.2 added explicit Google-button sign-in and invitation
+visibility, restoration and renewal; the owner confirmed live pairing after its
+rules publication.
+
+The previous [v0.14 Android verification](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/37783875100)
+passed the exact signed APK, embedded language, Google UI handoff, 51 existing Us
+checks, 40 distinct v0.14 screen checks and all 43 authenticated Firestore emulator
+cases. Version 0.15 continues that working release with versionCode 17 and the
+same package/key. Current versioned Actions artifacts record the new outcome.
