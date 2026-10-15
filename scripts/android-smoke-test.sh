@@ -98,12 +98,21 @@ until [ "$(adb_device shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
 done
 
 adb_device shell input keyevent 82
+if [ -s "$output/UsSpace-v0.15-baseline.apk" ]; then
+  adb_device install -r "$output/UsSpace-v0.15-baseline.apk" > "$output/upgrade-baseline-install.txt"
+  adb_device shell am start -W -n "$activity" > "$output/upgrade-baseline-launch.txt"
+  USSPACE_UPGRADE_STAGE=before python3 scripts/android-upgrade-probe.py --adb "$adb_bin" --serial "$serial" --output "$output"
+fi
 adb_device install -r "$apk" | tr -d '\r' | tee "$output/install.txt"
 grep -qx 'Success' "$output/install.txt"
 adb_device shell am force-stop "$package"
 adb_device logcat -b all -c
 adb_device shell am start -W -n "$activity" | tr -d '\r' | tee "$output/launch.txt"
 grep -qx 'Status: ok' "$output/launch.txt"
+
+if [ -s "$output/UsSpace-v0.15-baseline.apk" ]; then
+  USSPACE_UPGRADE_STAGE=after python3 scripts/android-upgrade-probe.py --adb "$adb_bin" --serial "$serial" --output "$output"
+fi
 
 deadline=$((SECONDS + observe_seconds))
 while [ "$SECONDS" -lt "$deadline" ]; do
@@ -140,6 +149,9 @@ python3 scripts/android-us-features-smoke.py --adb "$adb_bin" --serial "$serial"
 python3 scripts/android-v014-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 python3 scripts/android-v015-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 python3 scripts/android-v016-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+if [ -s "$output/travel-runtime-test.apk" ]; then
+  npx --yes firebase-tools@14.12.1 emulators:exec --config firebase.json --only auth,firestore --project demo-usspace "bash scripts/run-travel-runtime.sh"
+fi
 if ! adb_device shell pidof "$package" > "$output/app-pid.txt"; then
   echo 'ERROR: App process exited during learning, sign-in, Us features or relationship navigation.' >&2
   exit 1

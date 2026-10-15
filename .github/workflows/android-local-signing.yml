@@ -51,7 +51,7 @@ jobs:
       - name: Compile unsigned release for local signing
         run: |
           test -z "${USSPACE_KEYSTORE_PATH:-}"
-          gradle --no-daemon :app:assembleRelease
+          gradle --no-daemon :app:assembleRelease :app:assembleReleaseAndroidTest
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
       - name: Package APK and the SDK signing tools
         run: |
@@ -61,6 +61,9 @@ jobs:
           target_tools="$inputs/android-sdk/build-tools/35.0.0"
           mkdir -p "$target_tools/lib" "$target_tools/lib64"
           cp app/build/outputs/apk/release/app-release-unsigned.apk "$inputs/app-release-unsigned.apk"
+          test_apk=$(find app/build/outputs/apk/androidTest/release -name "*.apk" -type f | head -1)
+          test -s "$test_apk"
+          cp "$test_apk" "$inputs/travel-runtime-androidTest.apk"
           cp "$source_tools/apksigner" "$source_tools/zipalign" "$source_tools/aapt" "$target_tools/"
           cp "$source_tools/lib/apksigner.jar" "$target_tools/lib/"
           cp "$source_tools/lib64/libc++.so" "$target_tools/lib64/"
@@ -74,8 +77,8 @@ jobs:
               "repository": os.environ["GITHUB_REPOSITORY"],
               "workflow_run_id": os.environ["GITHUB_RUN_ID"],
               "package": "app.usspace.couple.v012",
-              "version_code": 18,
-              "version_name": "0.16.0",
+              "version_code": 19,
+              "version_name": "0.17.0",
               "android_sdk": 35,
               "build_tools": "35.0.0",
               "gradle": "8.11.1",
@@ -86,7 +89,7 @@ jobs:
           PY
           (
             cd "$inputs"
-            sha256sum app-release-unsigned.apk SOURCE_COMMIT.txt signing-inputs-metadata.json \
+            sha256sum app-release-unsigned.apk travel-runtime-androidTest.apk SOURCE_COMMIT.txt signing-inputs-metadata.json \
               android-sdk/build-tools/35.0.0/apksigner \
               android-sdk/build-tools/35.0.0/lib/apksigner.jar \
               android-sdk/build-tools/35.0.0/zipalign \
@@ -98,7 +101,7 @@ jobs:
       - name: Upload inputs for original-key local signing
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-signing-inputs
+          name: UsSpace-v0.17-signing-inputs
           path: artifact-stage/signing-inputs/
           if-no-files-found: error
           retention-days: 7
@@ -106,7 +109,7 @@ jobs:
         if: hashFiles('artifact-stage/apk-parts/part-000.bin') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-unsigned-apk-part-000
+          name: UsSpace-v0.17-unsigned-apk-part-000
           path: artifact-stage/apk-parts/part-000.bin
           if-no-files-found: error
           retention-days: 7
@@ -114,7 +117,7 @@ jobs:
         if: hashFiles('artifact-stage/apk-parts/part-001.bin') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-unsigned-apk-part-001
+          name: UsSpace-v0.17-unsigned-apk-part-001
           path: artifact-stage/apk-parts/part-001.bin
           if-no-files-found: error
           retention-days: 7
@@ -122,7 +125,7 @@ jobs:
         if: hashFiles('artifact-stage/apk-parts/part-002.bin') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-unsigned-apk-part-002
+          name: UsSpace-v0.17-unsigned-apk-part-002
           path: artifact-stage/apk-parts/part-002.bin
           if-no-files-found: error
           retention-days: 7
@@ -130,7 +133,7 @@ jobs:
         if: hashFiles('artifact-stage/apk-parts/part-003.bin') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-unsigned-apk-part-003
+          name: UsSpace-v0.17-unsigned-apk-part-003
           path: artifact-stage/apk-parts/part-003.bin
           if-no-files-found: error
           retention-days: 7
@@ -138,7 +141,7 @@ jobs:
         if: hashFiles('artifact-stage/apk-parts/part-004.bin') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-unsigned-apk-part-004
+          name: UsSpace-v0.17-unsigned-apk-part-004
           path: artifact-stage/apk-parts/part-004.bin
           if-no-files-found: error
           retention-days: 7
@@ -205,10 +208,11 @@ jobs:
               ":(exclude)scripts/android-v014-smoke.py",
               ":(exclude)scripts/android-v015-smoke.py",
               ":(exclude)scripts/android-v016-smoke.py",
+              ":(exclude)scripts/android-travel-smoke.py",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)
-          apk = output / "UsSpace-v0.16.apk"
+          apk = output / "UsSpace-v0.17.apk"
           digest = hashlib.sha256()
           size = 0
           deadline = time.monotonic() + 120
@@ -229,6 +233,17 @@ jobs:
           if size == 0 or digest.hexdigest() != expected_sha:
               apk.unlink(missing_ok=True)
               raise SystemExit("Downloaded APK checksum does not match apk-source.json")
+          qa_url = pointer["instrumentation_url"]
+          qa_sha = pointer["instrumentation_sha256"]
+          require_https(qa_url)
+          if not re.fullmatch(r"[0-9a-f]{64}", qa_sha):
+              raise SystemExit("Invalid signed instrumentation checksum")
+          with opener.open(qa_url, timeout=30) as response:
+              require_https(response.geturl())
+              qa_bytes = response.read(32 * 1024 * 1024 + 1)
+          if not qa_bytes or len(qa_bytes) > 32 * 1024 * 1024 or hashlib.sha256(qa_bytes).hexdigest() != qa_sha:
+              raise SystemExit("Signed instrumentation checksum/size mismatch")
+          (output / "travel-runtime-test.apk").write_bytes(qa_bytes)
           (output / "apk-source.json").write_text(json.dumps(pointer, indent=2) + "\n")
           (output / "SOURCE_COMMIT.txt").write_text(source_commit + "\n")
           (output / "VERIFICATION_COMMIT.txt").write_text(os.environ["GITHUB_SHA"] + "\n")
@@ -263,8 +278,8 @@ jobs:
         run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
       - name: Verify the original-key APK and Firebase OAuth identity
         run: |
-          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.16.apk --report artifacts/apk-verification.json
-          (cd artifacts && sha256sum UsSpace-v0.16.apk > UsSpace-v0.16.apk.sha256)
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.17.apk --report artifacts/apk-verification.json
+          (cd artifacts && sha256sum UsSpace-v0.17.apk > UsSpace-v0.17.apk.sha256)
           python3 - <<'PY'
           import json, os, pathlib
           path = pathlib.Path("artifacts/apk-verification.json")
@@ -286,6 +301,16 @@ jobs:
           ls -l /dev/kvm
           test -r /dev/kvm && test -w /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Download the verified original-key upgrade baseline
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, pathlib, urllib.request
+          url = "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/a9986d44-129f-4426-aee2-b90b1e9d15f5-UsSpace-v0.15.0.apk"
+          content = urllib.request.urlopen(url, timeout=30).read(12 * 1024 * 1024)
+          if hashlib.sha256(content).hexdigest() != "c341cd382fcd89c50fc94913fdbc1b28c3763c1079b7d7466a162c9753c4a8dd":
+              raise SystemExit("Upgrade baseline checksum mismatch")
+          pathlib.Path("artifacts/UsSpace-v0.15-baseline.apk").write_bytes(content)
+          PYCODE
       - name: Boot Android 35, install and launch the signed APK
         timeout-minutes: 60
         env:
@@ -297,12 +322,15 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           avdmanager create avd -n usspace-ci -k "system-images;android-$ANDROID_API;google_apis;x86_64" --force --path "$ANDROID_AVD_HOME/usspace-ci.avd" <<< no
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fxq usspace-ci
-          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.16.apk artifacts
+          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.17.apk artifacts
       - name: Upload verified APK and emulator evidence
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-verified-apk
-          path: artifacts/
+          name: UsSpace-v0.17-verified-apk
+          path: |
+            artifacts/
+            !artifacts/UsSpace-v0.15-baseline.apk
+            !artifacts/travel-runtime-test.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -310,7 +338,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: UsSpace-v0.16-runtime-diagnostics
+          name: UsSpace-v0.17-runtime-diagnostics
           path: |
             artifacts/*.png
             artifacts/*.xml

@@ -65,13 +65,13 @@ def main():
     badging = subprocess.run([str(tools / "aapt"), "dump", "badging", str(args.apk)],
                              check=True, capture_output=True, text=True).stdout
     identity = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.MULTILINE)
-    if not identity or identity.groups() != (PACKAGE, "18", "0.16.0"):
-        raise ValueError("APK identity must be app.usspace.couple.v012, versionCode 18, versionName 0.16.0.")
+    if not identity or identity.groups() != (PACKAGE, "19", "0.17.0"):
+        raise ValueError("APK identity must be app.usspace.couple.v012, versionCode 19, versionName 0.17.0.")
     report = {
         "status": "verified",
         "package": PACKAGE,
-        "version_code": 18,
-        "version_name": "0.16.0",
+        "version_code": 19,
+        "version_name": "0.17.0",
         "firebase_project": config.get("project_info", {}).get("project_id"),
         "signing_sha1": sha1,
         "signing_sha256": sha256,

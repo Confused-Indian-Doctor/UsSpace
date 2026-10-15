@@ -16,8 +16,9 @@ android {
         applicationId = "app.usspace.couple.v012"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.16.0"
+        testInstrumentationRunner = "app.usspace.couple.v012.TravelRuntimeInstrumentation"
+        versionCode = 19
+        versionName = "0.17.0"
         manifestPlaceholders["appAuthRedirectScheme"] = "app.usspace.couple.v012"
     }
 
@@ -42,6 +43,8 @@ android {
             signingConfigs.findByName("usspaceStable")?.let { signingConfig = it }
         }
     }
+
+    testBuildType = "release"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

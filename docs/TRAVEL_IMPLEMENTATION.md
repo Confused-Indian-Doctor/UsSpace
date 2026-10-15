@@ -71,3 +71,26 @@ Remaining: exploring/audio/offline reading UX, production provider configuration
 and deployment, complete regression/security checks, signed APK assembly with the
 original certificate, exact upgrade-install/runtime tests and screenshots.
 Existing v0.15 remains the last verified release. No new APK is claimed verified.
+
+## Offline and exploring implementation checkpoint
+
+User-invoked exploration reads only the selected saved place: nearby café
+candidates, timestamped Open-Meteo forecasts, or Geoapify travel-time estimates to
+another saved place in the same destination. Failure/quota/unconfigured responses
+keep manual planning usable. Selecting a café opens a private edit/review rather
+than silently saving. These paths have five local UI tests; live providers are not
+yet configured or claimed tested. Forecast advice does not rewrite an itinerary.
+
+Travel narration reads the visible saved title/location/notes using a separate,
+foreground-only Android offline English TTS bridge. Transcript, play, pause,
+resume and stop are available. It stops when leaving the app and on scope changes.
+No synthetic Al voice, invented guide facts, or remote speech service is used.
+Three local UI tests pass; native playback needs runtime verification.
+
+Explicit offline itinerary copies contain trip/stop notes in app-private storage,
+scoped to the signed-in account, at most 12 copies/1.5 MB. They are read-only and
+labelled with save time; photos and map tiles are not downloaded. Shared copies
+are cleared on observed membership revocation, sign-out or account switch. A
+remote unpair cannot be detected while disconnected; the UI states this limit.
+Four local tests cover reading, Back, account switching and removal. Native
+lifecycle/restart/unpair behavior still requires Android runtime verification.
