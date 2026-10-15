@@ -41,6 +41,8 @@ mkdir -p artifacts
   java -cp "$native_test_dir" app.usspace.couple.v012.PushEventPolicyTest
   javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/HealthSyncPolicy.java firebase-tests/HealthSyncPolicyTest.java
   java -cp "$native_test_dir" HealthSyncPolicyTest
+  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/TravelImportPolicy.java firebase-tests/TravelImportPolicyTest.java
+  java -cp "$native_test_dir" TravelImportPolicyTest
   npm --prefix firebase-tests ci --ignore-scripts --no-audit --no-fund
   (
     cd firebase-tests

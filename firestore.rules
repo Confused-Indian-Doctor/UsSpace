@@ -37,7 +37,7 @@ service cloud.firestore {
     // New Us features use scalar-only schemas. Private feelings/contact details
     // never belong in these shared collections, including nested payload maps.
     function shortText(value, maximum) { return value is string && value.size() <= maximum; }
-    function itemId(value) { return value is string && value.size() > 0 && value.size() <= 140 && value.matches('[A-Za-z0-9_-]+'); }
+    function itemId(value) { return value is string && value.matches('[A-Za-z0-9_-]{1,140}'); }
     function isoTime(value) { return shortText(value, 64) && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z'); }
     function optionalDate(value) { return value == '' || (shortText(value, 10) && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')); }
     function letterCategory(value) { return value in ['miss','sad','anxious','sleep','reassurance','proud','laugh','argument']; }
@@ -350,28 +350,29 @@ service cloud.firestore {
         && d.updatedBy == request.auth.uid;
     }
     function travelRefs(v, maximum) {
-      return v is list && v.size() <= maximum && v.toSet().size() == v.size()
-        && (v.size() < 1 || v[0] is string)
-        && (v.size() < 2 || v[1] is string)
-        && (v.size() < 3 || v[2] is string)
-        && (v.size() < 4 || v[3] is string)
-        && (v.size() < 5 || v[4] is string)
-        && (v.size() < 6 || v[5] is string)
-        && (v.size() < 7 || v[6] is string)
-        && (v.size() < 8 || v[7] is string)
-        && (v.size() < 9 || v[8] is string)
-        && (v.size() < 10 || v[9] is string)
-        && (v.size() < 11 || v[10] is string)
-        && (v.size() < 12 || v[11] is string)
-        && (v.size() < 13 || v[12] is string)
-        && (v.size() < 14 || v[13] is string)
-        && (v.size() < 15 || v[14] is string)
-        && (v.size() < 16 || v[15] is string)
-        && (v.size() < 17 || v[16] is string)
-        && (v.size() < 18 || v[17] is string)
-        && (v.size() < 19 || v[18] is string)
-        && (v.size() < 20 || v[19] is string)
-        && (v.size() == 0 || v.join('/').matches('[A-Za-z0-9_-]{1,140}(/[A-Za-z0-9_-]{1,140})*'));
+      let count = v.size();
+      return v is list && count <= maximum && v.toSet().size() == count
+        && (count < 1 || v[0] is string)
+        && (count < 2 || v[1] is string)
+        && (count < 3 || v[2] is string)
+        && (count < 4 || v[3] is string)
+        && (count < 5 || v[4] is string)
+        && (count < 6 || v[5] is string)
+        && (count < 7 || v[6] is string)
+        && (count < 8 || v[7] is string)
+        && (count < 9 || v[8] is string)
+        && (count < 10 || v[9] is string)
+        && (count < 11 || v[10] is string)
+        && (count < 12 || v[11] is string)
+        && (count < 13 || v[12] is string)
+        && (count < 14 || v[13] is string)
+        && (count < 15 || v[14] is string)
+        && (count < 16 || v[15] is string)
+        && (count < 17 || v[16] is string)
+        && (count < 18 || v[17] is string)
+        && (count < 19 || v[18] is string)
+        && (count < 20 || v[19] is string)
+        && (count == 0 || v.join('/').matches('[A-Za-z0-9_-]{1,140}(/[A-Za-z0-9_-]{1,140})*'));
     }
     function travelUrl(v) { return v == '' || (shortText(v, 2048) && v.matches('https://[^ @]+')); }
     function travelPlace(p) {

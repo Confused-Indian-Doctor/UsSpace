@@ -97,7 +97,7 @@ public final class TravelBridge {
         ListenerRegistration listener=root(shared,account,space).collection(COLLECTIONS[index]).limit(250).addSnapshotListener(MetadataChanges.INCLUDE,(snapshot,failure)->{
           if(!account(account,token)||shared&&(!ready||!space.equals(pair)))return;
           String prefix=visibility+":"+recordKind+":";
-          if(failure!=null){records.entrySet().removeIf(x->x.getKey().startsWith(prefix));error="Some travel plans could not sync. Check the travel rules and connection, then retry.";post();return;}
+          if(failure!=null){records.entrySet().removeIf(x->x.getKey().startsWith(prefix));error="Some plans could not sync. Reconnect and retry; pending edits stay on this phone.";post();return;}
           if(snapshot==null)return;
           records.entrySet().removeIf(x->x.getKey().startsWith(prefix));
           for(DocumentSnapshot doc:snapshot.getDocuments()){
