@@ -53,8 +53,8 @@ public final class TravelBridge {
     private final Map<String,Map<String,Object>> reactions=java.util.Collections.synchronizedMap(new LinkedHashMap<>());
     private final Set<String> reactionWatches=new HashSet<>();
     private ListenerRegistration userListener,memberListener,roomListener;
-    private String uid="",pair="",error=""; private long epoch;
-    private boolean closed,ready,sending,pageReady;
+    private volatile String uid="",pair="",error=""; private volatile long epoch;
+    private volatile boolean closed,ready,pageReady; private boolean sending;
     public TravelBridge(Activity activity,WebView view){this.activity=activity;this.view=view;
       prefs=activity.getSharedPreferences("usspace.travel.v1",0);
       authListener=a->activity.runOnUiThread(this::observeAuth);auth.addAuthStateListener(authListener);}
@@ -62,7 +62,7 @@ public final class TravelBridge {
     private static int kind(String value){return Arrays.asList(KINDS).indexOf(value);}
     private boolean account(String account,long token){FirebaseUser user=auth.getCurrentUser();return !closed&&epoch==token&&uid.equals(account)&&user!=null&&account.equals(user.getUid());}
     private void observeAuth(){FirebaseUser user=auth.getCurrentUser();String next=user==null?"":user.getUid();if(next.equals(uid))return;
-      detach(privateListeners);clearShared();if(userListener!=null)userListener.remove();userListener=null;uid=next;epoch++;sending=false;records.clear();reactions.clear();reactionWatches.clear();error="";post();
+      detach(privateListeners);clearShared();if(userListener!=null)userListener.remove();userListener=null;epoch++;sending=false;records.clear();reactions.clear();reactionWatches.clear();error="";uid=next;post();
       if(uid.isEmpty())return;String account=uid;long token=epoch;
       attach(false,account,"",token);
       userListener=db.collection("users").document(account).addSnapshotListener(MetadataChanges.INCLUDE,(snapshot,failure)->{

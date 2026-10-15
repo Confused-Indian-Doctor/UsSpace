@@ -29,7 +29,7 @@ public final class TravelImportBridge {
     private final Activity activity; private final WebView view; private final SharedPreferences prefs;
     private final java.util.concurrent.ExecutorService executor=Executors.newSingleThreadExecutor();
     private final FirebaseAuth auth=FirebaseAuth.getInstance();private final FirebaseAuth.AuthStateListener listener;
-    private boolean pageReady,closed;private String error="";
+    private boolean pageReady;private volatile boolean closed;private String error="";
     private static final int MAX_BYTES=TravelImportPolicy.MAX_IMAGE_BYTES;
     private final java.util.concurrent.atomic.AtomicInteger pendingReads=new java.util.concurrent.atomic.AtomicInteger();
     public TravelImportBridge(Activity activity,WebView view){this.activity=activity;this.view=view;prefs=activity.getSharedPreferences("usspace.travel.imports.v1",0);
