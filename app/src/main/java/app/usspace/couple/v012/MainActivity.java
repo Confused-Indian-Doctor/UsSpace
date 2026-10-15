@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
+        settings.setUserAgentString(settings.getUserAgentString()+" UsSpace/0.17 (+https://github.com/Confused-Indian-Doctor/UsSpace)");
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         // Packaged android_asset content is still available with ordinary filesystem access off.

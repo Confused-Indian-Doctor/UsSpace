@@ -374,7 +374,7 @@ service cloud.firestore {
         && (count < 20 || v[19] is string)
         && (count == 0 || v.join('/').matches('[A-Za-z0-9_-]{1,140}(/[A-Za-z0-9_-]{1,140})*'));
     }
-    function travelUrl(v) { return v == '' || (shortText(v, 2048) && v.matches('https://[^ @]+')); }
+    function travelUrl(v) { return v == '' || (shortText(v, 2048) && v.matches('https://[A-Za-z0-9.-]+(:443)?([/?#][^\\s]*)?')); }
     function travelPlace(p) {
       return p == null || (p is map && p.keys().hasAll(['provider','placeId','name','latitude','longitude','sourceUrl','confirmedAt'])
         && p.keys().hasOnly(['provider','placeId','name','latitude','longitude','sourceUrl','confirmedAt'])
@@ -443,8 +443,10 @@ service cloud.firestore {
       return d.tripId is string
         && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.deleted==false
         && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.updatedAt==request.time
-        && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision
-          == get(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision+1;
+        && (exists(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId))
+          ? getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision
+            == get(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision+1
+          : getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision==1);
     }
     match /users/{uid}/{travelKind}/{id} {
       allow read: if travelKind in ['travelItems','travelCollections','travelTrips','travelStops','travelImports','travelMemories','travelPhotos'] && signedIn() && request.auth.uid==uid;
@@ -453,6 +455,7 @@ service cloud.firestore {
         && (travelKind!='travelStops' || travelParent(request.resource.data,'users',uid));
       allow update: if signedIn() && request.auth.uid==uid && travelBase(request.resource.data,id,'private','')
         && travelFields(request.resource.data,travelKind) && travelUpdate(request.resource.data)
+        && (travelKind!='travelStops' || request.resource.data.tripId==resource.data.tripId)
         && (travelKind!='travelStops' || travelParent(request.resource.data,'users',uid));
       allow delete: if false;
     }
@@ -463,6 +466,7 @@ service cloud.firestore {
         && (travelKind!='travelStops' || travelParent(request.resource.data,'couples',pairId));
       allow update: if currentPair(pairId) && travelBase(request.resource.data,id,'shared',pairId)
         && travelFields(request.resource.data,travelKind) && travelUpdate(request.resource.data)
+        && (travelKind!='travelStops' || request.resource.data.tripId==resource.data.tripId)
         && (travelKind!='travelStops' || travelParent(request.resource.data,'couples',pairId));
       allow delete: if false;
     }
