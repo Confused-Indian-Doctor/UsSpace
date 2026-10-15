@@ -351,16 +351,27 @@ service cloud.firestore {
     }
     function travelRefs(v, maximum) {
       return v is list && v.size() <= maximum && v.toSet().size() == v.size()
-        && (v.size() < 1 || itemId(v[0])) && (v.size() < 2 || itemId(v[1]))
-        && (v.size() < 3 || itemId(v[2])) && (v.size() < 4 || itemId(v[3]))
-        && (v.size() < 5 || itemId(v[4])) && (v.size() < 6 || itemId(v[5]))
-        && (v.size() < 7 || itemId(v[6])) && (v.size() < 8 || itemId(v[7]))
-        && (v.size() < 9 || itemId(v[8])) && (v.size() < 10 || itemId(v[9]))
-        && (v.size() < 11 || itemId(v[10])) && (v.size() < 12 || itemId(v[11]))
-        && (v.size() < 13 || itemId(v[12])) && (v.size() < 14 || itemId(v[13]))
-        && (v.size() < 15 || itemId(v[14])) && (v.size() < 16 || itemId(v[15]))
-        && (v.size() < 17 || itemId(v[16])) && (v.size() < 18 || itemId(v[17]))
-        && (v.size() < 19 || itemId(v[18])) && (v.size() < 20 || itemId(v[19]));
+        && (v.size() < 1 || v[0] is string)
+        && (v.size() < 2 || v[1] is string)
+        && (v.size() < 3 || v[2] is string)
+        && (v.size() < 4 || v[3] is string)
+        && (v.size() < 5 || v[4] is string)
+        && (v.size() < 6 || v[5] is string)
+        && (v.size() < 7 || v[6] is string)
+        && (v.size() < 8 || v[7] is string)
+        && (v.size() < 9 || v[8] is string)
+        && (v.size() < 10 || v[9] is string)
+        && (v.size() < 11 || v[10] is string)
+        && (v.size() < 12 || v[11] is string)
+        && (v.size() < 13 || v[12] is string)
+        && (v.size() < 14 || v[13] is string)
+        && (v.size() < 15 || v[14] is string)
+        && (v.size() < 16 || v[15] is string)
+        && (v.size() < 17 || v[16] is string)
+        && (v.size() < 18 || v[17] is string)
+        && (v.size() < 19 || v[18] is string)
+        && (v.size() < 20 || v[19] is string)
+        && (v.size() == 0 || v.join('/').matches('[A-Za-z0-9_-]{1,140}(/[A-Za-z0-9_-]{1,140})*'));
     }
     function travelUrl(v) { return v == '' || (shortText(v, 2048) && v.matches('https://[^ @]+')); }
     function travelPlace(p) {

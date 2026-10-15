@@ -10,6 +10,7 @@ const FIELDS={
  stop:['tripId','bucketItemId','title','localDate','orderKey','startTime','durationMinutes','travelMode','estimatedCost','notes','kind','fixed','sourceUrl'],
  import:['sourceUrl','sourceKey','text','imageId','extractionStatus','confidence','candidateIds'],
  memory:['bucketItemId','tripId','title','localDate','location','photoIds','reflection'],
+ photo:['data'],
  reaction:['itemId','uid','interest','rating']
 };
 const DEFAULTS={
@@ -19,6 +20,7 @@ const DEFAULTS={
  stop:{tripId:'',bucketItemId:'',title:'',localDate:'',orderKey:1024,startTime:'',durationMinutes:60,travelMode:'walk',estimatedCost:null,notes:'',kind:'place',fixed:false,sourceUrl:''},
  import:{sourceUrl:'',sourceKey:'',text:'',imageId:'',extractionStatus:'review',confidence:0,candidateIds:[]},
  memory:{bucketItemId:'',tripId:'',title:'',localDate:'',location:'',photoIds:[],reflection:''},
+ photo:{data:''},
  reaction:{itemId:'',uid:'',interest:'maybe',rating:0}
 };
 function fail(message){throw new Error(message);}
@@ -39,6 +41,7 @@ function normalize(kind,input,identity){if(!Object.hasOwn(FIELDS,kind)||!input||
  if(kind==='stop'){v.tripId=id(v.tripId);v.bucketItemId=id(v.bucketItemId,true);v.localDate=date(v.localDate,false);v.orderKey=number(v.orderKey,-1e12,1e12,'stop order');if(v.startTime!==''&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(v.startTime))fail('Choose a valid arrival time.');v.durationMinutes=number(v.durationMinutes,0,1440,'duration');if(!Number.isInteger(v.durationMinutes))fail('Use whole minutes.');v.travelMode=one(v.travelMode,['walk','cycle','drive','transit'],'travel mode');v.estimatedCost=number(v.estimatedCost,0,10000000,'estimated cost',true);v.notes=str(v.notes,4000,'notes');v.kind=one(v.kind,['place','accommodation','meal','rest','reservation','free'],'stop type');if(typeof v.fixed!=='boolean')fail('Check reservation timing.');v.sourceUrl=url(v.sourceUrl);}
  if(kind==='import'){v.sourceUrl=url(v.sourceUrl);v.sourceKey=sourceKey(v.sourceUrl);v.text=str(v.text,12000,'pasted text');v.imageId=id(v.imageId,true);v.extractionStatus=one(v.extractionStatus,['review','unavailable','confirmed','saved','discarded'],'import status');v.confidence=number(v.confidence,0,1,'confidence');v.candidateIds=list(v.candidateIds,30);if(v.visibility!=='private')fail('Import reviews stay private.');}
  if(kind==='memory'){v.bucketItemId=id(v.bucketItemId,true);v.tripId=id(v.tripId,true);v.localDate=date(v.localDate,false);v.location=str(v.location,240,'location');v.photoIds=list(v.photoIds,12);v.reflection=str(v.reflection,4000,'reflection');}
+ if(kind==='photo'){if(typeof v.data!=='string'||v.data.length>140000||!/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(v.data))fail('Choose a JPEG photo again.');}
  if(kind==='reaction'){v.itemId=id(v.itemId);v.uid=id(v.uid);if(v.uid!==who.uid)fail('You can change only your own interest or rating.');v.interest=one(v.interest,['interested','maybe','not-for-me'],'interest');v.rating=number(v.rating,0,5,'rating');if(!Number.isInteger(v.rating))fail('Choose a whole-star rating.');}
  return Object.fromEntries([...COMMON,...FIELDS[kind]].filter(k=>v[k]!==undefined).map(k=>[k,v[k]]));}
 function migrateLegacy(item,pairId){id(item.id);id(pairId);return {schemaVersion:VERSION,id:item.id,ownerUid:item.suggestedBy,visibility:'shared',pairId,title:item.title,kind:item.category==='Travel'?'place':'experience',category:item.category,description:item.notes||'',sourceUrl:'',sourceKey:'',extractionStatus:'manual',confidence:0,verifiedPlace:null,collectionIds:[],status:({Dreaming:'dreaming',Planning:'planning',Booked:'booked',Done:'done'})[item.state]||'dreaming',photoIds:[item.completedPhotoId||item.photoId].filter(Boolean),completedDate:item.completedDate||'',legacyId:item.id,revision:0,deleted:false,createdAt:item.createdAt,updatedAt:item.updatedAt,updatedBy:item.updatedBy,legacy:JSON.parse(JSON.stringify(item))};}
