@@ -509,6 +509,23 @@ def back_home(label):
     passed(label + "-no-double-navigation")
 
 
+
+def back_parent_home(label, parent):
+    """Back pops the submenu to its real hub; the following Back reaches Home."""
+    back(label + "-android-back-to-parent")
+    heading = {"Us": r"^The two of you$", "Life": r"^The practical side$"}[parent]
+    root = verify(label + "-returned-parent", heading, capture=False)
+    absent(root, label + "-parent-before-home", r"\bTogether for\b")
+    time.sleep(0.3)
+    root = dump(label + "-settled-parent")
+    if not any(ui.usable_bounds(node, root) and ui.matches(node, heading)
+               for node in root.iter("node")):
+        raise RuntimeError("Back skipped or did not settle on the parent menu: " + label)
+    passed(label + "-parent-no-double-navigation", parent_menu=parent)
+    # Keep the existing final Home/settled checks, now after the parent check.
+    back_home(label)
+
+
 def test_major_back_routes():
     for tab, heading in (("Today", r"^Daily check-in$"), ("Us", r"^The two of you$"),
                          ("Life", r"^The practical side$")):
@@ -530,15 +547,40 @@ def test_major_back_routes():
     )
     for label, parent, entry, heading in routes:
         section("back-" + label, parent, entry, heading)
-        back_home("back-" + label)
+        back_parent_home("back-" + label, parent)
     # The previous learning smoke leaves Script selected. Choosing Today gives
     # a meaningful main-section state, rather than masking a retained unit page.
     section("back-learn", "Us", r"\bLearn together\b.*Open offline lessons\s*→", r"^Learn Together$")
     tap("back-learn-main-today", r"^☀\s*Today$", allow_tabs=True)
     verify("back-learn-main-section", r"^Your daily practice$")
-    back_home("back-learn")
+    back_parent_home("back-learn", "Us")
     open_timeline("back-relationship-timeline")
-    back_home("back-relationship-timeline")
+    back_parent_home("back-relationship-timeline", "Us")
+
+
+
+def test_parent_navigation_history():
+    # This is a real cross-page user action, not an injected route. It catches
+    # a blanket canonical-parent implementation that loses the immediate page.
+    section("submenu-history", "Us", r"\bNeed Me\?.*Come sit with me\s*→",
+            r"A little space from Al, whenever you need it")
+    tap("submenu-history-choose-sad", r"^Sad$")
+    tap("submenu-history-show-memory", r"^Show memory$")
+    verify("submenu-history-real-memories", r"^Our memories$")
+    back("submenu-history-memory-back")
+    root = verify("submenu-history-returned-need-me", r"A little space from Al, whenever you need it")
+    absent(root, "submenu-history-does-not-skip-to-hub-or-home", r"^The two of you$|\bTogether for\b")
+    back_parent_home("submenu-history-need-me-back", "Us")
+
+    section("tab-reset", "Us", r"\bBucket List\b.*Our next little adventure\s*→",
+            r"Our someday starts here")
+    ui.click("tab-reset-switch-to-life", r"(?:^| )Life$", allow_nav=True)
+    verify("tab-reset-real-life", r"^The practical side$")
+    back_home("tab-reset-life-back")
+    # Selecting Us now must not resurrect either of the old submenus.
+    ui.click("tab-reset-reopen-us", r"(?:^| )Us$", allow_nav=True)
+    verify("tab-reset-fresh-us-hub", r"^The two of you$")
+    back_home("tab-reset-fresh-us-back")
 
 
 def test_overlays_and_nested_pages():
@@ -556,7 +598,7 @@ def test_overlays_and_nested_pages():
     back("note-overlay-first-back")
     root = verify("note-overlay-keeps-notes", r"^＋ Note$", capture=False)
     absent(root, "note-overlay-closed-before-route-change", r"^Leave a note\s*💌$|\bTogether for\b")
-    back_home("note-overlay-second-back")
+    back_parent_home("note-overlay-second-back", "Us")
 
     section("memory-overlay", "Us", r"\bMemories\b.*Trips, dates", r"^Our memories$")
     tap("memory-overlay-open", r"^＋ Memory$")
@@ -564,7 +606,7 @@ def test_overlays_and_nested_pages():
     back("memory-overlay-first-back")
     root = verify("memory-overlay-keeps-memories", r"^Our memories$", capture=False)
     absent(root, "memory-overlay-closed-before-route-change", r"^Add a memory$|\bTogether for\b")
-    back_home("memory-overlay-second-back")
+    back_parent_home("memory-overlay-second-back", "Us")
 
     section("bucket-nested", "Us", r"\bBucket List\b.*Our next little adventure\s*→", r"Our someday starts here")
     tap("bucket-nested-editor-open", r"Add a dream$")
@@ -572,7 +614,7 @@ def test_overlays_and_nested_pages():
     back("bucket-nested-first-back")
     root = verify("bucket-nested-keeps-bucket", r"Add a dream$", capture=False)
     absent(root, "bucket-nested-editor-closed-before-home", r"What shall we dream of|\bTogether for\b")
-    back_home("bucket-nested-second-back")
+    back_parent_home("bucket-nested-second-back", "Us")
 
     section("work-nested", "Life", r"\bWork Schedule\b.*See my shifts\s*→", r"^Your private work day$")
     tap("work-nested-instructions-open", r"^Microsoft setup instructions$")
@@ -580,7 +622,7 @@ def test_overlays_and_nested_pages():
     back("work-nested-first-back")
     root = verify("work-nested-keeps-work", r"^Your private work day$", capture=False)
     absent(root, "work-nested-instructions-closed-before-home", r"app\.usspace\.couple\.v012://oauth2redirect|\bTogether for\b")
-    back_home("work-nested-second-back")
+    back_parent_home("work-nested-second-back", "Life")
 
     section("learn-nested", "Us", r"\bLearn together\b.*Open offline lessons\s*→", r"^Learn Together$")
     tap("learn-nested-today", r"^☀\s*Today$", allow_tabs=True)
@@ -596,7 +638,7 @@ def test_overlays_and_nested_pages():
     root = verify("learn-nested-keeps-course-list", r"(?:Kannada|Malayalam) beginner course",
                   capture=False, direction=False)
     absent(root, "learn-nested-unit-closed-before-home", r"^← All units$|\bTogether for\b")
-    back_home("learn-nested-second-back")
+    back_parent_home("learn-nested-second-back", "Us")
 
 
 def test_home_exit():
@@ -646,7 +688,7 @@ def test_home_quick_actions():
 
     tap("home-quick-need-me", r"^(?:♡\s*)?Need Me\?$", class_name="android.widget.Button")
     verify("home-need-me-opens-comfort", r"A little space from Al, whenever you need it")
-    back_home("home-need-me-back")
+    back_parent_home("home-need-me-back", "Us")
 
     tap("home-quick-call", r"^(?:☎\s*)?Call$", class_name="android.widget.Button")
     verify("home-call-honest-contact-setup", r"Al’s phone number")
@@ -657,7 +699,7 @@ def test_home_quick_actions():
     if not component.startswith(ui.PACKAGE + "/"):
         raise RuntimeError("Call launched an external app without a configured real contact")
     passed("home-call-does-not-fake-contact-or-place-call", component=component)
-    back_home("home-call-back")
+    back_parent_home("home-call-back", "Us")
 
 
 def run():
@@ -669,7 +711,7 @@ def run():
     passed("together-card-prominent-near-top", bounds=bounds, viewport=[ui.width, ui.height])
     open_timeline("together-card-opens-timeline")
     verify("timeline-default-relationship-date", r"25 March 2023")
-    back_home("timeline-to-home")
+    back_parent_home("timeline-to-home", "Us")
 
     edit_date("relationship-edit", "24/03/2023")
     counter("edited-date-live-counter", start=dt.date(2023, 3, 24), check_breakdown=True)
@@ -702,12 +744,12 @@ def run():
     theme_pixels("together-light", False, r"\bTogether for\b")
     open_timeline("timeline-light-open")
     theme_pixels("timeline-light", False, r"^(?:Our relationship timeline|Relationship timeline)$")
-    back_home("timeline-light-back")
+    back_parent_home("timeline-light-back", "Us")
     choose_theme("relationship-dark", "Dark")
     theme_pixels("together-dark", True, r"\bTogether for\b")
     open_timeline("timeline-dark-open")
     theme_pixels("timeline-dark", True, r"^(?:Our relationship timeline|Relationship timeline)$")
-    back_home("timeline-dark-back")
+    back_parent_home("timeline-dark-back", "Us")
     restart("relationship-dark-and-date-restart")
     theme_pixels("together-dark-persists", True, r"\bTogether for\b")
     counter("official-date-and-dark-survive-restart", check_breakdown=True)
@@ -716,19 +758,20 @@ def run():
     theme_pixels("together-system-dark", True, r"\bTogether for\b")
     open_timeline("timeline-system-dark-open")
     theme_pixels("timeline-system-dark", True, r"^(?:Our relationship timeline|Relationship timeline)$")
-    back_home("timeline-system-dark-back")
+    back_parent_home("timeline-system-dark-back", "Us")
     set_system_night("relationship-system-light", False)
     theme_pixels("together-system-light", False, r"\bTogether for\b")
     open_timeline("timeline-system-light-open")
     theme_pixels("timeline-system-light", False, r"^(?:Our relationship timeline|Relationship timeline)$")
-    back_home("timeline-system-light-back")
+    back_parent_home("timeline-system-light-back", "Us")
 
     test_home_quick_actions()
     test_major_back_routes()
+    test_parent_navigation_history()
     test_overlays_and_nested_pages()
     test_home_exit()
     report["status"] = "passed"
-    print("ANDROID_V015_UI_TEST_PASSED: live relationship counter, real edits/restart, milestones, rendered themes, section/modal/nested Back and Home exit")
+    print("ANDROID_V015_UI_TEST_PASSED: live relationship counter, real edits/restart, milestones, rendered themes, submenu-parent-Home/modal/nested Back and Home exit")
 
 
 if __name__ == "__main__":

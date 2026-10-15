@@ -29,6 +29,7 @@ public class MainActivity extends Activity {
     private NotificationBridge notificationBridge;
     private WorkScheduleBridge workScheduleBridge;
     private RelationshipBridge relationshipBridge;
+    private TravelBridge travelBridge;
     private OnBackInvokedCallback backCallback;
     private boolean backNavigationInFlight;
     private ValueCallback<Uri[]> photoCallback;
@@ -103,6 +104,8 @@ public class MainActivity extends Activity {
                     if (notificationBridge != null) notificationBridge.onPageReady();
                     if (workScheduleBridge != null) workScheduleBridge.requestRender();
                     if (relationshipBridge != null) relationshipBridge.refresh();
+                    if (healthBridge != null) healthBridge.onPageReady();
+                    if (travelBridge != null) travelBridge.onPageReady();
                 }
             }
         });
@@ -116,6 +119,7 @@ public class MainActivity extends Activity {
         notificationBridge = new NotificationBridge(this, webView);
         workScheduleBridge = new WorkScheduleBridge(this, webView);
         relationshipBridge = new RelationshipBridge(this, webView);
+        travelBridge = new TravelBridge(this, webView);
         authBridge.setNotificationBridge(notificationBridge);
         webView.addJavascriptInterface(authBridge, "UsAuth");
         webView.addJavascriptInterface(syncBridge, "UsSync");
@@ -126,6 +130,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(notificationBridge, "UsNotifications");
         webView.addJavascriptInterface(workScheduleBridge, "AndroidWorkSchedule");
         webView.addJavascriptInterface(relationshipBridge, "AndroidRelationship");
+        webView.addJavascriptInterface(travelBridge, "AndroidTravel");
         notificationBridge.handleIntent(getIntent());
         if (Build.VERSION.SDK_INT >= 33) {
             backCallback = this::handleAppBack;
@@ -153,6 +158,14 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (healthBridge != null) healthBridge.onResume();
+        if (notificationBridge != null) notificationBridge.refresh();
+        if (travelBridge != null) travelBridge.refresh();
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -165,6 +178,8 @@ public class MainActivity extends Activity {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
             backCallback = null;
         }
+        if (healthBridge != null) healthBridge.close();
+        if (travelBridge != null) travelBridge.close();
         if (relationshipBridge != null) relationshipBridge.close();
         if (notificationBridge != null) notificationBridge.close();
         if (preferencesBridge != null) preferencesBridge.destroy();

@@ -117,4 +117,55 @@ test('explicit Light overrides native phone Dark and System responds to native c
   f.app.onNativeState(f.current()); assert.equal(f.attrs['data-theme'], 'light');
   f.callbacks.change(); assert.equal(f.attrs['data-theme'], 'light');
 });
+function settingsFixture() {
+  const handlers = {}, actions = [], mount = {innerHTML: '', contains() {return true;}, addEventListener(type, handler) {handlers[type] = handler;}};
+  const current = {uid: 'alice', signedIn: true, preferences: P.apply(P.defaults('UTC'), {'notifications.enabled': true}), syncState: 'synced'};
+  const app = P.create({notifications: {}, bridge: {status: () => JSON.stringify(current), refresh() {}}, document: {
+    documentElement: {setAttribute() {}, style: {}}, getElementById() {return mount;}, querySelector() {return null;},
+  }});
+  app.init({mount, onNotificationAction: action => actions.push(action)});
+  function click(action, disabled) {
+    const element = {disabled: !!disabled, getAttribute: () => action};
+    handlers.click({target: {closest: selector => selector === '[data-notification-action]' ? element : null}});
+  }
+  return {app, mount, actions, click};
+}
+test('settings provides explicit Android allow, settings, retry, and phone-test controls', () => {
+  const f = settingsFixture();
+  assert.match(f.mount.innerHTML, /data-notification-action="permission"/);
+  assert.match(f.mount.innerHTML, /data-notification-action="settings"/);
+  assert.match(f.mount.innerHTML, /data-notification-action="retry"/);
+  assert.match(f.mount.innerHTML, /data-notification-action="test" disabled/);
+  f.app.onPermissionState({uid: 'alice', permissionGranted: true});
+  assert.match(f.mount.innerHTML, /data-notification-action="test">Test on this phone/);
+  f.click('permission'); f.click('settings'); f.click('retry'); f.click('test'); f.click('test', true);
+  assert.deepEqual(f.actions, ['permission', 'settings', 'retry', 'test']);
+  assert.match(f.mount.innerHTML, /does not send a message to your partner/);
+});
+test('quiet hours and Android-blocked categories are explained and stale account diagnostics are discarded', () => {
+  const f = settingsFixture();
+  f.app.onPermissionState({uid: 'alice', permissionGranted: true, quietNow: true, blockedChannels: ['notes', 'health', '<script>']});
+  assert.match(f.mount.innerHTML, /Quiet hours are active/);
+  assert.match(f.mount.innerHTML, /Blocked in Android: Notes &amp; appreciation/);
+  assert.doesNotMatch(f.mount.innerHTML, /<script>/);
+  f.app.onPermissionState({uid: 'bob', permissionGranted: true, quietNow: true});
+  assert.doesNotMatch(f.mount.innerHTML, /Quiet hours are active/);
+  assert.match(f.mount.innerHTML, /data-notification-action="test" disabled/);
+});
+test('relay status distinguishes setup, capability checks, connection, and temporary failure', () => {
+  assert.match(P.relayStatus({configured: false}), /Awaiting secure/);
+  assert.match(P.relayStatus({configured: true, checking: true}), /Checking/);
+  assert.match(P.relayStatus({configured: true, ready: true, error: ''}), /Notification service connected/);
+  assert.match(P.relayStatus({configured: true, ready: true, error: 'index'}), /retries need attention/);
+  assert.match(P.relayStatus({configured: true, ready: false, error: 'network'}), /unavailable or awaiting secure setup/);
+  assert.match(P.relayStatus({configured: true, ready: false}), /Awaiting a verified connection/);
+});
+test('relay status never exposes raw server outcomes, receipts, tokens, or error details', () => {
+  const f = settingsFixture(), marker = 'PRIVATE_TOKEN_RECEIPT_SECRET';
+  for (const ready of [false, true]) {
+    f.app.onPermissionState({uid: 'alice', permissionGranted: true, relay: {configured: true, ready, error: marker, lastOutcome: marker, receiptId: marker, token: marker}});
+    assert.doesNotMatch(f.mount.innerHTML, new RegExp(marker));
+    assert.match(f.mount.innerHTML, /id="notificationRelayStatus"/);
+  }
+});
 console.log(JSON.stringify({ preferences_feature_tests: passed, passed: true }));

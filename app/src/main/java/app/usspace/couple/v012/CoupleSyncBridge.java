@@ -17,6 +17,7 @@ import com.google.firebase.firestore.MetadataChanges;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.SetOptions;
+import com.google.firebase.firestore.Source;
 import com.google.firebase.firestore.WriteBatch;
 
 import org.json.JSONArray;
@@ -350,15 +351,30 @@ public class CoupleSyncBridge {
     public void pushProfile(String profileJson) {
         FirebaseUser user = auth.getCurrentUser();
         if (user == null || currentCoupleId.isEmpty()) return;
+        final String account = user.getUid(), space = currentCoupleId;
         try {
             Map<String, Object> profile = SyncPatchReducer.projectProfile(jsonObjectToMap(new JSONObject(profileJson)));
             Map<String, Object> document = new HashMap<>();
-            document.put("payload", profile);
-            document.put("updatedBy", user.getUid());
-            document.put("updatedAt", FieldValue.serverTimestamp());
-            db.collection("couples").document(currentCoupleId).collection("profiles").document(user.getUid())
-                .set(document).addOnFailureListener(e -> postSyncState(true, true, currentCoupleId, "Profile sync failed — local copy kept", false));
-        } catch (Exception e) { postSyncState(true, true, currentCoupleId, "Could not prepare shared profile", false); }
+            document.put("payload", profile); document.put("updatedBy", account); document.put("updatedAt", FieldValue.serverTimestamp());
+            DocumentReference target = db.collection("couples").document(space).collection("profiles").document(account);
+            PushRelay.Event event = PushRelay.event(account, space, "profile", account, null);
+            PushRelay.run(event, includeOutbox -> {
+                if (!isCurrentUid(account) || !space.equals(currentCoupleId))
+                    return com.google.android.gms.tasks.Tasks.forException(new IllegalStateException("Pairing changed"));
+                if (!includeOutbox) return target.set(document);
+                // Profile writes previously queued offline. Preserve that behavior with an atomic batch;
+                // a missing/stale local before snapshot conservatively suppresses an initial notification.
+                return target.get(Source.CACHE).continueWithTask(cached -> {
+                    if (!isCurrentUid(account) || !space.equals(currentCoupleId)) throw new IllegalStateException("Pairing changed");
+                    DocumentSnapshot previous = cached.isSuccessful() ? cached.getResult() : null;
+                    WriteBatch batch = db.batch(); batch.set(target, document);
+                    PushRelay.write(batch, event, PushEventPolicy.categories("profile", previous != null && previous.exists() ? previous.getData() : null, document));
+                    return batch.commit();
+                });
+            }).addOnFailureListener(e -> {
+                if (isCurrentUid(account) && space.equals(currentCoupleId)) postSyncState(true, true, space, "Profile sync failed — local copy kept", false);
+            });
+        } catch (Exception e) { if (isCurrentUid(account) && space.equals(currentCoupleId)) postSyncState(true, true, space, "Could not prepare shared profile", false); }
     }
 
     @JavascriptInterface
@@ -380,7 +396,9 @@ public class CoupleSyncBridge {
             transactionPending = true;
             postSyncState(true, true, coupleId, "", false);
             DocumentReference commonRef = db.collection("couples").document(coupleId).collection("shared").document("common");
-            db.runTransaction(transaction -> {
+            PushRelay.Event event = PushRelay.event(user.getUid(), coupleId, "common", "common", null);
+            PushRelay.run(event, includeOutbox -> db.runTransaction(transaction -> {
+                if (!isCurrentUid(user.getUid()) || !coupleId.equals(currentCoupleId)) throw new IllegalStateException("Pairing changed");
                 DocumentSnapshot snapshot = transaction.get(commonRef);
                 Map<String, Object> previous = snapshot.exists() && snapshot.get("payload") instanceof Map
                     ? new HashMap<>((Map<String, Object>)snapshot.get("payload")) : new HashMap<>();
@@ -398,16 +416,17 @@ public class CoupleSyncBridge {
                 document.put("updatedBy", user.getUid());
                 document.put("updatedAt", FieldValue.serverTimestamp());
                 transaction.set(commonRef, document);
+                if (includeOutbox) PushRelay.write(transaction, event, PushEventPolicy.categories("common", snapshot.exists() ? snapshot.getData() : null, document));
                 return null;
-            }).addOnSuccessListener(v -> {
+            })).addOnSuccessListener(v -> {
                 synchronized (inFlightPatches) { inFlightPatches.remove(token); transactionPending = !inFlightPatches.isEmpty(); }
-                if (!coupleId.equals(currentCoupleId)) return;
+                if (!isCurrentUid(user.getUid()) || !coupleId.equals(currentCoupleId)) return;
                 syncError = "";
                 postPatchAck(clientId, sequence, true, "");
                 postSyncState(true, true, coupleId, "", false);
             }).addOnFailureListener(e -> {
                 synchronized (inFlightPatches) { inFlightPatches.remove(token); transactionPending = !inFlightPatches.isEmpty(); }
-                if (!coupleId.equals(currentCoupleId)) return;
+                if (!isCurrentUid(user.getUid()) || !coupleId.equals(currentCoupleId)) return;
                 syncError = "Waiting to sync — edits are saved on this phone";
                 postPatchAck(clientId, sequence, false, syncError);
                 postSyncState(true, true, coupleId, syncError, false);

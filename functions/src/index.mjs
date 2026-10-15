@@ -8,7 +8,7 @@ import {makeDispatcher} from './dispatch.mjs';
 
 initializeApp();
 setGlobalOptions({region: 'us-central1', maxInstances: 10, memory: '256MiB', timeoutSeconds: 60});
-const dispatcher = makeDispatcher({db: getFirestore(), messaging: getMessaging(), logger, serverTimestamp: () => FieldValue.serverTimestamp()});
+const dispatcher = makeDispatcher({db: getFirestore(), messaging: getMessaging(), logger, sendAttempts: 3, urgentCategories: ['pings', 'notes'], serverTimestamp: () => FieldValue.serverTimestamp()});
 const handler = kind => async event => {
   const before = event.data?.before?.exists ? event.data.before.data() : null;
   const after = event.data?.after?.exists ? event.data.after.data() : null;

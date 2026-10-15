@@ -16,9 +16,13 @@ mkdir -p artifacts
   node firebase-tests/preferences_feature_test.js
   node firebase-tests/work_schedule_feature_test.js
   node firebase-tests/v014_push_test.mjs
+  node functions/test/reliability.test.mjs
+  node functions/test/relay.test.mjs
   node firebase-tests/v014_integration_test.js
   node firebase-tests/relationship_feature_test.js
   node firebase-tests/navigation_feature_test.js
+  node firebase-tests/health_sync_feature_test.js
+  node firebase-tests/travel_models_test.js
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh
   native_test_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-sync-tests.XXXXXX")"
@@ -31,6 +35,10 @@ mkdir -p artifacts
   java -cp "$native_test_dir" app.usspace.couple.v012.NotificationPolicyTest
   javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/RelationshipPolicy.java firebase-tests/RelationshipPolicyTest.java
   java -cp "$native_test_dir" RelationshipPolicyTest
+  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/PushEventPolicy.java firebase-tests/PushEventPolicyTest.java
+  java -cp "$native_test_dir" app.usspace.couple.v012.PushEventPolicyTest
+  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/HealthSyncPolicy.java firebase-tests/HealthSyncPolicyTest.java
+  java -cp "$native_test_dir" HealthSyncPolicyTest
   npm --prefix firebase-tests ci --ignore-scripts --no-audit --no-fund
   (
     cd firebase-tests

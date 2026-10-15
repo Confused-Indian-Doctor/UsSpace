@@ -62,24 +62,32 @@ public final class NotificationBridge {
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
     private final FirebaseAuth.AuthStateListener authListener;
     private final BroadcastReceiver preferenceReceiver;
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private ListenerRegistration userListener, memberListener;
     private volatile String uid = "", coupleId = "", boundUid = "", boundToken = "";
-    private volatile long generation;
+    private volatile long generation, bindingOperation, openingOperation;
     private volatile boolean verified, closed, pageReady, binding, sendingPing, permissionRequest;
     private boolean deletingToken;
+    private boolean retryScheduled;
+    private boolean opening;
     private String error = "", lastAction = "";
     private Map<String, String> pendingOpen;
 
     public NotificationBridge(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
+        PushRelay.initialize(activity);
         createChannels(activity);
         preferenceReceiver = new BroadcastReceiver() {
             @Override public void onReceive(Context context, Intent intent) {
+                // Relay broadcasts only publish state. Calling refresh here would probe and
+                // rebroadcast recursively while service setup is still incomplete.
+                if (PushRelay.CHANGED.equals(intent.getAction())) { publishState(); return; }
                 if (uid.equals(intent.getStringExtra("uid"))) refresh();
             }
         };
         IntentFilter filter = new IntentFilter(CHANGED);
+        filter.addAction(PushRelay.CHANGED);
         if (Build.VERSION.SDK_INT >= 33) activity.registerReceiver(preferenceReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         else activity.registerReceiver(preferenceReceiver, filter);
         authListener = ignored -> activity.runOnUiThread(this::observeAuth);
@@ -92,7 +100,9 @@ public final class NotificationBridge {
             if (closed) return;
             observeAuth();
             reconcileBinding();
+            PushRelay.refresh();
             publishState();
+            if (pageReady) openPending();
         });
     }
 
@@ -124,6 +134,36 @@ public final class NotificationBridge {
         });
     }
 
+    /** Explicitly checks this phone's Android channel; it never sends a partner message. */
+    @JavascriptInterface public void testNotification() {
+        activity.runOnUiThread(() -> {
+            if (closed) return;
+            lastAction = "";
+            if (!current(uid) || !master(activity, uid)) error = "Sign in and turn on notifications before testing this phone.";
+            else if (!permission(activity)) error = "Allow UsSpace notifications in Android Settings, then test again.";
+            else if (!mayShow(activity, uid, "pings")) error = "Pings are off or quiet hours are active. Change those settings before testing.";
+            else {
+                createChannels(activity);
+                NotificationManager manager = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
+                NotificationChannel channel = manager == null ? null : manager.getNotificationChannel("usspace_pings");
+                if (channel == null || channel.getImportance() == NotificationManager.IMPORTANCE_NONE) error = "The Pings channel is blocked. Open Android notification settings to allow it.";
+                else {
+                    Intent intent = new Intent(activity, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            .setData(Uri.parse("usspace://notification/phone-test"));
+                    PendingIntent pending = PendingIntent.getActivity(activity, 1414, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                    Notification notification = new Notification.Builder(activity, "usspace_pings")
+                            .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("UsSpace phone test")
+                            .setContentText("This phone can show UsSpace notifications.")
+                            .setContentIntent(pending).setAutoCancel(true).setVisibility(Notification.VISIBILITY_PRIVATE).build();
+                    manager.notify("usspace:phone-test", 1414, notification);
+                    error = "";
+                    lastAction = "Test notification shown on this phone. No message was sent to your partner.";
+                }
+            }
+            publishState();
+        });
+    }
+
     public void onRequestPermissionsResult(int requestCode) {
         if (requestCode != PERMISSION_REQUEST) return;
         permissionRequest = false;
@@ -139,16 +179,17 @@ public final class NotificationBridge {
         if (uid.isEmpty() && !persisted.isEmpty() && !persisted.equals(next)) { cleanup(persisted); cancelAll(activity); }
         if (next.equals(uid) && (next.isEmpty() || userListener != null)) return;
         String previous = uid;
-        detach(); generation++; verified = false; binding = false; coupleId = "";
-        if (!previous.isEmpty()) pendingOpen = null;
+        detach(); generation++; bindingOperation++; verified = false; binding = false; coupleId = "";
+        if (!previous.isEmpty() && !previous.equals(next)) { pendingOpen = null; opening = false; openingOperation++; }
         uid = next; error = ""; lastAction = "";
-        if (!previous.isEmpty()) cleanup(previous);
-        if (uid.isEmpty()) { cancelAll(activity); publishState(); return; }
+        PushRelay.setScope(uid, "", false);
+        if (!previous.isEmpty() && !previous.equals(next)) cleanup(previous);
+        if (uid.isEmpty()) { FirebaseMessaging.getInstance().setAutoInitEnabled(false); cancelAll(activity); publishState(); return; }
         local(activity).edit().remove("blocked:" + uid).apply();
         String account = uid;
         userListener = db.collection("users").document(account).addSnapshotListener(MetadataChanges.INCLUDE, (snapshot, failure) -> {
             if (!current(account)) return;
-            if (failure != null) { verified = false; cleanup(account); error = "Notification pairing could not be checked. Try again when connected."; publishState(); return; }
+            if (failure != null) { pairingFailure(account, "Notification pairing could not be checked. Try again when connected."); return; }
             if (snapshot == null || snapshot.getMetadata().isFromCache()) return;
             String nextCouple = snapshot.exists() ? snapshot.getString("coupleId") : "";
             if (!NotificationPolicy.id(nextCouple)) nextCouple = "";
@@ -159,18 +200,20 @@ public final class NotificationBridge {
     }
 
     private void setCouple(String space) {
-        generation++; verified = false; binding = false;
+        generation++; bindingOperation++; verified = false; binding = false;
         if (memberListener != null) { memberListener.remove(); memberListener = null; }
         if (!coupleId.isEmpty() && !coupleId.equals(space)) { cleanup(uid); cancelAll(activity); }
         coupleId = space;
+        PushRelay.setScope(uid, space, false);
         if (space.isEmpty()) { cleanup(uid); publishState(); return; }
         String account = uid; long epoch = generation;
         memberListener = db.collection("couples").document(space).collection("members").document(account)
                 .addSnapshotListener(MetadataChanges.INCLUDE, (snapshot, failure) -> {
                     if (!scope(account, space, epoch)) return;
-                    if (failure != null) { verified = false; cleanup(account); cancelAll(activity); error = "Notification pairing could not be checked."; publishState(); return; }
+                    if (failure != null) { pairingFailure(account, "Notification pairing could not be checked. Try again when connected."); return; }
                     if (snapshot == null || snapshot.getMetadata().isFromCache()) return;
                     verified = snapshot.exists();
+                    PushRelay.setScope(account, space, verified);
                     if (!verified) { cleanup(account); cancelAll(activity); error = "Pair your phones to receive partner notifications."; }
                     else { error = ""; reconcileBinding(); }
                     publishState();
@@ -178,16 +221,21 @@ public final class NotificationBridge {
     }
 
     private void reconcileBinding() {
-        if (closed || uid.isEmpty()) return;
+        if (closed) return;
+        // The manifest defaults this to false. Enable token maintenance only after actual opt-in.
+        FirebaseMessaging.getInstance().setAutoInitEnabled(NotificationPolicy.autoInitAllowed(!uid.isEmpty(), master(activity, uid), permission(activity), local(activity).getBoolean("blocked:" + uid, false)));
+        if (uid.isEmpty()) return;
         if (!verified || !master(activity, uid) || !permission(activity)) {
             disableBinding(uid); boundUid = ""; boundToken = ""; publishState(); return;
         }
         if (binding || deletingToken) return;
         binding = true;
-        String account = uid, space = coupleId; long epoch = generation;
-        FirebaseMessaging.getInstance().getToken().addOnCompleteListener(activity, result -> {
-            if (!scope(account, space, epoch)) { binding = false; return; }
-            if (!result.isSuccessful() || result.getResult() == null) { binding = false; error = "Could not register this phone for push. Try again when connected."; publishState(); return; }
+        String account = uid, space = coupleId; long epoch = generation, operation = ++bindingOperation;
+        // Activity-scoped task callbacks are removed onStop; returning from Settings must not
+        // leave registration permanently stuck at binding=true.
+        FirebaseMessaging.getInstance().getToken().addOnCompleteListener(result -> {
+            if (!scope(account, space, epoch) || operation != bindingOperation) return;
+            if (!result.isSuccessful() || result.getResult() == null) { binding = false; error = "Could not register this phone for push. Try again when connected."; retry(account); publishState(); return; }
             String token = result.getResult();
             if (!validToken(token) || !master(activity, account) || !permission(activity) || !verified) { binding = false; return; }
             // The server transaction prevents a cached membership or a pairing race from binding a device.
@@ -204,17 +252,35 @@ public final class NotificationBridge {
                 device.put("platform", "android"); device.put("enabled", true); device.put("updatedAt", FieldValue.serverTimestamp());
                 transaction.set(db.collection("users").document(account).collection("devices").document(installation), device);
                 return null;
-            }).addOnCompleteListener(activity, saved -> {
-                if (!scope(account, space, epoch)) { binding = false; disableBinding(account); return; }
+            }).addOnCompleteListener(saved -> {
+                if (!scope(account, space, epoch) || operation != bindingOperation) return;
                 binding = false;
                 if (saved.isSuccessful() && master(activity, account) && permission(activity) && verified) {
                     boundUid = account; boundToken = token;
                     local(activity).edit().putString("boundUid", account).apply();
                     error = "";
-                } else { disableBinding(account); boundUid = ""; boundToken = ""; error = "Push registration is waiting for a connection."; }
+                } else { disableBinding(account); boundUid = ""; boundToken = ""; error = "Push registration is waiting for a connection."; retry(account); }
                 publishState();
             });
         });
+    }
+
+    /** Firestore listener failures are terminal. Drop them so refresh can attach after new rules. */
+    private void pairingFailure(String account, String message) {
+        if (!current(account)) return;
+        detach(); generation++; bindingOperation++; verified = false; binding = false;
+        PushRelay.setScope(account, coupleId, false);
+        disableBinding(account); boundUid = ""; boundToken = "";
+        cancelAll(activity); error = message; retry(account); publishState();
+    }
+
+    private void retry(String account) {
+        if (closed || retryScheduled) return;
+        retryScheduled = true;
+        handler.postDelayed(() -> {
+            retryScheduled = false;
+            if (current(account)) refresh();
+        }, 15000L);
     }
 
     /** Explicit shared action, independent of the legacy realtime love counter. */
@@ -224,18 +290,20 @@ public final class NotificationBridge {
             if (uid.isEmpty() || coupleId.isEmpty() || !verified) { error = "Sign in and pair your phones before sending a ping."; publishState(); return; }
             sendingPing = true; error = ""; lastAction = "";
             String account = uid, space = coupleId, id = UUID.randomUUID().toString(); long epoch = generation;
-            db.runTransaction(transaction -> {
+            PushRelay.Event event = PushRelay.event(account, space, "ping", id, null);
+            PushRelay.run(event, includeOutbox -> db.runTransaction(transaction -> {
                 if (!scope(account, space, epoch)) throw new IllegalStateException("Scope changed");
                 DocumentSnapshot profile = transaction.get(db.collection("users").document(account));
                 DocumentSnapshot member = transaction.get(db.collection("couples").document(space).collection("members").document(account));
                 if (!space.equals(profile.getString("coupleId")) || !member.exists()) throw new IllegalStateException("Pairing changed");
                 Map<String, Object> fields = new HashMap<>(); fields.put("id", id); fields.put("senderUid", account); fields.put("createdAt", FieldValue.serverTimestamp());
                 transaction.set(db.collection("couples").document(space).collection("usPings").document(id), fields);
+                if (includeOutbox) PushRelay.write(transaction, event, java.util.Collections.singletonList("pings"));
                 return null;
-            }).addOnCompleteListener(activity, task -> {
+            })).addOnCompleteListener(task -> {
                 sendingPing = false;
                 if (!scope(account, space, epoch)) return;
-                if (task.isSuccessful()) lastAction = "Ping sent. Your partner’s notification settings apply.";
+                if (task.isSuccessful()) lastAction = "Ping saved to your shared space. Your partner’s notification settings apply.";
                 else error = "Could not send the ping. Check your connection and try again.";
                 publishState();
             });
@@ -245,7 +313,10 @@ public final class NotificationBridge {
     /** Root should call before FirebaseAuth.signOut; deletion finishes before the account is cleared. */
     public void beforeSignOut(Runnable continuation) {
         activity.runOnUiThread(() -> {
-            String account = uid; generation++; verified = false; pendingOpen = null; cancelAll(activity);
+            String account = uid; generation++; verified = false; pendingOpen = null; opening = false; openingOperation++; cancelAll(activity);
+            PushRelay.revoke();
+            bindingOperation++; binding = false;
+            FirebaseMessaging.getInstance().setAutoInitEnabled(false);
             if (!account.isEmpty()) local(activity).edit().putBoolean("blocked:" + account, true).commit();
             AtomicBoolean finished = new AtomicBoolean(false);
             Runnable finish = () -> { if (finished.compareAndSet(false, true)) continuation.run(); };
@@ -253,7 +324,7 @@ public final class NotificationBridge {
             if (account.isEmpty()) { finish.run(); return; }
             disableBinding(account);
             deletingToken = true;
-            FirebaseMessaging.getInstance().deleteToken().addOnCompleteListener(activity, ignored -> {
+            FirebaseMessaging.getInstance().deleteToken().addOnCompleteListener(ignored -> {
                 deletingToken = false; boundUid = ""; boundToken = "";
                 local(activity).edit().remove("boundUid").apply();
                 finish.run();
@@ -286,7 +357,7 @@ public final class NotificationBridge {
             java.util.Iterator<String> keys = value.keys();
             while (keys.hasNext()) { String key = keys.next(); Object field = value.get(key); if (!(field instanceof String)) return; data.put(key, (String) field); }
             if (!NotificationPolicy.valid(data, System.currentTimeMillis())) return;
-            pendingOpen = data;
+            pendingOpen = data; opening = false; openingOperation++;
             if (pageReady) openPending();
         } catch (Exception ignored) { }
     }
@@ -295,19 +366,27 @@ public final class NotificationBridge {
 
     private void openPending() {
         Map<String, String> data = pendingOpen;
-        if (data == null || !pageReady || closed) return;
+        if (data == null || !pageReady || closed || opening) return;
+        if (!NotificationPolicy.valid(data, System.currentTimeMillis())) { pendingOpen = null; return; }
         FirebaseUser user = auth.getCurrentUser();
         if (user != null && uid.isEmpty()) return; // Initial Firebase auth callback has not reached the bridge yet.
-        pendingOpen = null;
-        if (user == null || !user.getUid().equals(data.get("recipientUid"))) return;
+        if (user == null || !user.getUid().equals(data.get("recipientUid"))) { pendingOpen = null; return; }
         String account = user.getUid(), space = data.get("coupleId");
-        db.collection("users").document(account).get(Source.SERVER).addOnSuccessListener(activity, profile -> {
-            if (closed || !current(account) || !space.equals(profile.getString("coupleId"))) return;
-            db.collection("couples").document(space).collection("members").document(account).get(Source.SERVER).addOnSuccessListener(activity, member -> {
-                if (closed || !current(account) || !member.exists()) return;
+        opening = true; long operation = ++openingOperation;
+        db.collection("users").document(account).get(Source.SERVER).addOnCompleteListener(profileTask -> {
+            if (!openingCurrent(account, data, operation)) return;
+            if (!profileTask.isSuccessful()) { retryOpen(account); return; }
+            if (!space.equals(profileTask.getResult().getString("coupleId"))) { opening = false; pendingOpen = null; return; }
+            db.collection("couples").document(space).collection("members").document(account).get(Source.SERVER).addOnCompleteListener(memberTask -> {
+                if (!openingCurrent(account, data, operation)) return;
+                if (!memberTask.isSuccessful()) { retryOpen(account); return; }
+                if (!memberTask.getResult().exists()) { opening = false; pendingOpen = null; return; }
                 // Check the profile once more before navigation if membership verification raced a re-pair.
-                db.collection("users").document(account).get(Source.SERVER).addOnSuccessListener(activity, latest -> {
-                    if (closed || !current(account) || !space.equals(latest.getString("coupleId"))) return;
+                db.collection("users").document(account).get(Source.SERVER).addOnCompleteListener(latestTask -> {
+                    if (!openingCurrent(account, data, operation)) return;
+                    if (!latestTask.isSuccessful()) { retryOpen(account); return; }
+                    opening = false; pendingOpen = null;
+                    if (!space.equals(latestTask.getResult().getString("coupleId"))) return;
                     JSONObject route = new JSONObject();
                     try { route.put("route", data.get("route")); route.put("category", data.get("category")); route.put("eventId", data.get("eventId")); route.put("recipientUid", account); route.put("coupleId", space); } catch (Exception ignored) { }
                     eval("window.onUsNotificationOpen&&window.onUsNotificationOpen(" + route + ");");
@@ -316,12 +395,32 @@ public final class NotificationBridge {
         });
     }
 
+    private boolean openingCurrent(String account, Map<String, String> data, long operation) {
+        return current(account) && pendingOpen == data && openingOperation == operation;
+    }
+
+    private void retryOpen(String account) {
+        opening = false;
+        retry(account);
+    }
+
     private JSONObject state() {
         JSONObject result = new JSONObject();
         try {
-            result.put("signedIn", !uid.isEmpty()); result.put("paired", verified); result.put("permissionGranted", permission(activity));
+            result.put("uid", uid); result.put("signedIn", !uid.isEmpty()); result.put("paired", verified); result.put("permissionGranted", permission(activity));
+            result.put("relay", PushRelay.status());
             result.put("enabled", !uid.isEmpty() && master(activity, uid)); result.put("registered", uid.equals(boundUid) && !boundToken.isEmpty());
             result.put("registering", binding); result.put("sendingPing", sendingPing); result.put("error", error); result.put("lastAction", lastAction);
+            JSONObject preferences = UserPreferencesBridge.readLocal(activity, uid).optJSONObject("notifications");
+            JSONObject quiet = preferences == null ? null : preferences.optJSONObject("quietHours");
+            result.put("quietNow", quiet != null && NotificationPolicy.quiet(quiet.optBoolean("enabled", false), quiet.optString("start"), quiet.optString("end"), quiet.optString("timeZone"), Instant.now()));
+            org.json.JSONArray blockedChannels = new org.json.JSONArray();
+            NotificationManager manager = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) for (String category : NotificationPolicy.CATEGORIES) {
+                NotificationChannel channel = manager.getNotificationChannel("usspace_" + category);
+                if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE) blockedChannels.put(category);
+            }
+            result.put("blockedChannels", blockedChannels);
         } catch (Exception ignored) { }
         return result;
     }
@@ -331,7 +430,14 @@ public final class NotificationBridge {
     private boolean current(String account) { FirebaseUser user = auth.getCurrentUser(); return !closed && user != null && account.equals(uid) && account.equals(user.getUid()); }
     private boolean scope(String account, String space, long epoch) { return current(account) && space.equals(coupleId) && epoch == generation; }
     private void detach() { if (userListener != null) userListener.remove(); if (memberListener != null) memberListener.remove(); userListener = memberListener = null; }
-    public void close() { closed = true; generation++; detach(); auth.removeAuthStateListener(authListener); activity.unregisterReceiver(preferenceReceiver); pendingOpen = null; }
+    public void close() {
+        // The relay owns application-context retries, not this Activity. Home → exit must
+        // keep committed sends alive; each worker verifies auth and server membership.
+        // Explicit sign-out and observed account/couple revocation clear the global scope.
+        closed = true; generation++; bindingOperation++; openingOperation++;
+        handler.removeCallbacksAndMessages(null); detach(); auth.removeAuthStateListener(authListener);
+        activity.unregisterReceiver(preferenceReceiver); pendingOpen = null;
+    }
 
     private static SharedPreferences local(Context context) { return context.getSharedPreferences(LOCAL, Context.MODE_PRIVATE); }
     private static String installation(Context context) {

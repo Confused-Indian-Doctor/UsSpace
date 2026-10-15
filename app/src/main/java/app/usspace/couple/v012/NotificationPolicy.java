@@ -66,6 +66,11 @@ public final class NotificationPolicy {
         return optedIn && categoryEnabled && androidPermission && !isQuiet && sameIdentity && membershipVerified;
     }
 
+    /** FCM automatic token maintenance also follows consent, including after a cold launch. */
+    public static boolean autoInitAllowed(boolean signedIn, boolean optedIn, boolean androidPermission, boolean blocked) {
+        return signedIn && optedIn && androidPermission && !blocked;
+    }
+
     public static int notificationId(String eventId) {
         if (eventId == null || !eventId.matches("[a-f0-9]{64}")) throw new IllegalArgumentException("Invalid event identifier");
         return (int) (Long.parseLong(eventId.substring(0, 8), 16) & 0x7fffffffL);

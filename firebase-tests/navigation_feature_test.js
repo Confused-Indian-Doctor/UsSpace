@@ -23,20 +23,31 @@ function fixture(route = 'home', options = {}) {
     node.close = () => { node.open = false; closed.push(id); };
     overlays.push(node); return node;
   }
+  let controller;
   const deps = {document: doc, getStyle: node => node.style,
-    navigate(id) { navigated.push(id); active = id; },
+    navigate(id) { controller?.onNavigate(id); navigated.push(id); active = id; },
     closeModal(id) { doc.getElementById(id).shown = false; closed.push(id); }, ...options};
-  const controller = navigation.createController(deps);
-  return {controller, deps, doc, overlay, navigated, closed, route: () => active, setRoute: value => { active = value; }};
+  controller = navigation.createController(deps);
+  return {controller, deps, doc, overlay, navigated, closed, route: () => active, navigate: deps.navigate, setRoute: value => { active = value; }};
 }
 
-for (const route of ['checkin', 'us', 'life', 'comfort', 'bucket', 'jar', 'letters', 'goals', 'notes', 'memories', 'calendar', 'health', 'cycle', 'learn', 'work-schedule', 'relationship-timeline']) {
-  test(`Android Back from the ${route} section returns Home, then lets Android exit`, () => {
+const sectionParents = {
+  checkin: 'home', us: 'home', life: 'home', comfort: 'us', bucket: 'us', jar: 'us',
+  letters: 'us', goals: 'us', notes: 'us', memories: 'us', learn: 'us',
+  'relationship-timeline': 'us', calendar: 'life', health: 'life', cycle: 'life',
+  'work-schedule': 'life'
+};
+for (const [route, parent] of Object.entries(sectionParents)) {
+  test(`Android Back from ${route} returns ${parent}, then Home, then lets Android exit`, () => {
     const f = fixture(route);
     assert.equal(f.controller.handleBack(), true);
-    assert.equal(f.route(), 'home'); assert.deepEqual(f.navigated, ['home']);
+    assert.equal(f.route(), parent); assert.deepEqual(f.navigated, [parent]);
+    if (parent !== 'home') {
+      assert.equal(f.controller.handleBack(), true);
+      assert.equal(f.route(), 'home'); assert.deepEqual(f.navigated, [parent, 'home']);
+    }
     assert.equal(f.controller.handleBack(), false);
-    assert.deepEqual(f.navigated, ['home'], 'Home Back must not navigate Home again');
+    assert.equal(f.navigated.filter(route => route === 'home').length, 1, 'Home Back must not navigate Home again');
   });
 }
 test('Home Back allows normal Android exit without calling navigate', () => {
@@ -74,7 +85,7 @@ test('a stale modal hidden by CSS does not close instead of the visible modal', 
   f.overlay('staleModal', 100).style.display = 'none';
   f.overlay('staleDrawer', 100).style.visibility = 'hidden';
   f.controller.handleBack(); assert.deepEqual(f.closed, ['memoryModal']); assert.equal(f.route(), 'memories');
-  f.controller.handleBack(); assert.equal(f.route(), 'home');
+  f.controller.handleBack(); assert.equal(f.route(), 'us');
 });
 test('a registered nested page pops first and unregistering cannot remove a newer handler', () => {
   const f = fixture('relationship-timeline'); let first = 0, second = 0;
@@ -82,7 +93,7 @@ test('a registered nested page pops first and unregistering cannot remove a newe
   const removeNew = f.controller.registerBackHandler('relationship-timeline', () => { second++; return true; });
   removeOld(); assert.equal(f.controller.handleBack(), true); assert.equal(first, 0); assert.equal(second, 1);
   assert.equal(f.route(), 'relationship-timeline'); removeNew();
-  f.controller.handleBack(); assert.equal(f.route(), 'home');
+  f.controller.handleBack(); assert.equal(f.route(), 'us');
 });
 test('modal closing takes priority over an internal page stack', () => {
   let popped = 0; const f = fixture('letters', {nestedBack() { popped++; return true; }});
@@ -95,11 +106,11 @@ test('a reentrant callback consumes no second layer or navigation', () => {
   assert.equal(f.controller.handleBack(), true); assert.equal(calls, 1); assert.deepEqual(f.navigated, []);
 });
 test('route changes are read from the active screen rather than an old navigation cache', () => {
-  const f = fixture(); f.setRoute('work-schedule'); f.controller.handleBack(); assert.equal(f.route(), 'home');
-  f.setRoute('comfort'); f.controller.handleBack(); assert.deepEqual(f.navigated, ['home', 'home']);
+  const f = fixture(); f.setRoute('work-schedule'); f.controller.handleBack(); assert.equal(f.route(), 'life');
+  f.setRoute('comfort'); f.controller.handleBack(); assert.deepEqual(f.navigated, ['life', 'us']);
 });
 test('only a strict true from a nested handler consumes Back', () => {
-  const f = fixture('letters', {nestedBack: () => 'true'}); f.controller.handleBack(); assert.equal(f.route(), 'home');
+  const f = fixture('letters', {nestedBack: () => 'true'}); f.controller.handleBack(); assert.equal(f.route(), 'us');
 });
 test('mounted navigation invokes only the current section’s explicit nested API', () => {
   const f = fixture('letters'); const calls = [];
@@ -111,8 +122,93 @@ test('mounted navigation invokes only the current section’s explicit nested AP
   const mounted = navigation.mount(root); assert.equal(root.UsNavigation, mounted);
   for (const route of ['letters', 'bucket', 'work-schedule', 'learn']) { f.setRoute(route); assert.equal(mounted.handleBack(), true); assert.equal(f.route(), route); }
   assert.deepEqual(calls, ['letters', 'bucket', 'work', 'learn']);
-  f.setRoute('comfort'); mounted.handleBack(); assert.equal(f.route(), 'home');
+  f.setRoute('comfort'); mounted.handleBack(); assert.equal(f.route(), 'us');
   assert.deepEqual(calls, ['letters', 'bucket', 'work', 'learn']);
+});
+
+
+test('same-hub nested routes return to the immediate previous submenu without a loop', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'memories', 'notes']) f.navigate(route);
+  for (const expected of ['memories', 'bucket', 'us', 'home']) {
+    assert.equal(f.controller.handleBack(), true); assert.equal(f.route(), expected);
+  }
+  assert.equal(f.controller.handleBack(), false);
+});
+test('reopening a submenu already in the trail discards later pages', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'memories', 'notes', 'bucket']) f.navigate(route);
+  f.controller.handleBack(); assert.equal(f.route(), 'us');
+  f.controller.handleBack(); assert.equal(f.route(), 'home');
+  assert.equal(f.controller.handleBack(), false);
+});
+test('main tab switches discard every prior submenu branch', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'memories', 'life', 'health', 'checkin']) f.navigate(route);
+  f.controller.handleBack(); assert.equal(f.route(), 'home');
+  f.navigate('us'); f.controller.handleBack(); assert.equal(f.route(), 'home');
+  assert.equal(f.controller.handleBack(), false);
+});
+test('selecting the same main tab resets stale history without adding an exit step', () => {
+  const f = fixture();
+  for (const route of ['life', 'work-schedule', 'health', 'life', 'life']) f.navigate(route);
+  f.controller.handleBack(); assert.equal(f.route(), 'home');
+  assert.equal(f.controller.handleBack(), false);
+});
+test('repeated renders of the current submenu do not create duplicate Back steps', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'bucket', 'bucket']) f.navigate(route);
+  f.controller.handleBack(); assert.equal(f.route(), 'us');
+  f.controller.handleBack(); assert.equal(f.route(), 'home');
+  assert.equal(f.controller.handleBack(), false);
+});
+test('a cross-hub shortcut returns to its own hub instead of the old submenu', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'health']) f.navigate(route);
+  f.controller.handleBack(); assert.equal(f.route(), 'life');
+  f.controller.handleBack(); assert.equal(f.route(), 'home');
+});
+for (const [route, parent] of [['comfort', 'us'], ['relationship-timeline', 'us'], ['health', 'life']]) {
+  test(`Home shortcut to ${route} preserves the ${parent} parent menu`, () => {
+    const f = fixture(); f.navigate(route); f.controller.handleBack(); assert.equal(f.route(), parent);
+    f.controller.handleBack(); assert.equal(f.route(), 'home'); assert.equal(f.controller.handleBack(), false);
+  });
+}
+test('nested editor Back and modal Back preserve the complete parent trail', () => {
+  let insideEditor = true;
+  const f = fixture('home', {nestedBack() { if (insideEditor) { insideEditor = false; return true; } return false; }});
+  for (const route of ['us', 'bucket', 'memories']) f.navigate(route);
+  f.overlay('memoryModal'); f.controller.handleBack(); assert.equal(f.route(), 'memories'); assert.equal(insideEditor, true);
+  f.controller.handleBack(); assert.equal(f.route(), 'memories'); assert.equal(insideEditor, false);
+  f.controller.handleBack(); assert.equal(f.route(), 'bucket');
+  f.controller.handleBack(); assert.equal(f.route(), 'us');
+  f.controller.handleBack(); assert.equal(f.route(), 'home'); assert.equal(f.controller.handleBack(), false);
+});
+test('unexpected direct screen mutation drops another submenu history', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'memories']) f.navigate(route);
+  f.setRoute('work-schedule'); f.controller.handleBack(); assert.equal(f.route(), 'life');
+  f.controller.handleBack(); assert.equal(f.route(), 'home');
+});
+test('opening a new submenu after Back replaces the discarded forward branch', () => {
+  const f = fixture();
+  for (const route of ['us', 'bucket', 'memories']) f.navigate(route);
+  f.controller.handleBack(); assert.equal(f.route(), 'bucket');
+  f.navigate('notes');
+  for (const route of ['bucket', 'us', 'home']) {
+    f.controller.handleBack(); assert.equal(f.route(), route);
+  }
+  assert.equal(f.controller.handleBack(), false);
+});
+test('mounted route notifications preserve immediate menus through the real go integration contract', () => {
+  const f = fixture();
+  const root = {document: f.doc, go(id) { root.UsNavigation.onNavigate(id); f.setRoute(id); }};
+  const mounted = navigation.mount(root);
+  for (const route of ['us', 'comfort', 'memories']) root.go(route);
+  for (const route of ['comfort', 'us', 'home']) {
+    assert.equal(mounted.handleBack(), true); assert.equal(f.route(), route);
+  }
+  assert.equal(mounted.handleBack(), false);
 });
 
 function letterFixture(extra = {}) {

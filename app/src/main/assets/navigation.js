@@ -1,18 +1,58 @@
 /* Android Back follows app sections, rather than WebView URL history. */
 (function (root, factory) {
   'use strict';
+
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root && root.document) api.mount(root);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  const MAIN_SECTIONS = new Set(['home', 'checkin', 'us', 'life']);
+  const PARENTS = Object.freeze({
+    comfort: 'us', letters: 'us', jar: 'us', bucket: 'us', goals: 'us',
+    notes: 'us', memories: 'us', learn: 'us', 'relationship-timeline': 'us',
+    calendar: 'life', health: 'life', cycle: 'life', 'work-schedule': 'life'
+  });
+
   function createController(deps) {
     const doc = deps.document, handlers = new Map();
-    let handling = false;
+    let handling = false, backTarget = null, trail = [];
     function activeScreen() {
       const active = doc.querySelector('.screen.active');
       return active && active.id ? active.id : 'home';
+    }
+    let observedRoute = activeScreen();
+    function parentOf(screen) { return PARENTS[screen] || 'home'; }
+    function onNavigate(destination) {
+      if (typeof destination !== 'string' || !destination) return;
+      const source = activeScreen();
+      if (backTarget === destination) { observedRoute = destination; return; }
+      // Switching any bottom-nav tab is a fresh branch, even when the same tab
+      // is tapped again. A stale submenu must never reappear on the next Back.
+      if (MAIN_SECTIONS.has(destination)) { trail = []; observedRoute = destination; return; }
+      if (destination === source) { observedRoute = destination; return; }
+      const parent = parentOf(destination);
+      if (observedRoute !== source || parentOf(source) !== parent || MAIN_SECTIONS.has(source)) {
+        // A Home shortcut opens the same submenu as its hub: Need Me → Us,
+        // Health → Life. Cross-hub links start a new branch as well.
+        trail = parent === 'home' ? [] : [parent];
+      } else {
+        const ancestor = trail.indexOf(destination);
+        if (ancestor !== -1) trail = trail.slice(0, ancestor);
+        else if (source !== destination && trail[trail.length - 1] !== source) trail.push(source);
+      }
+      observedRoute = destination;
+    }
+    function returnToParent(screen) {
+      // Deep links and legacy modules that change the active screen directly
+      // still have a deterministic parent; never trust another route's trail.
+      if (observedRoute !== screen) trail = [];
+      let destination = trail.pop() || parentOf(screen);
+      if (destination === screen) destination = parentOf(screen);
+      backTarget = destination;
+      try { deps.navigate(destination); observedRoute = destination; }
+      finally { backTarget = null; }
     }
     function topOverlay() {
       const candidates = Array.from(doc.querySelectorAll('.modal.show, dialog[open]'))
@@ -47,7 +87,7 @@
         const handler = handlers.get(screen);
         if (handler && handler() === true) return true;
         if (deps.nestedBack && deps.nestedBack(screen) === true) return true;
-        deps.navigate('home');
+        returnToParent(screen);
         return true;
       } finally { handling = false; }
     }
@@ -56,7 +96,7 @@
       handlers.set(screen, handler);
       return () => { if (handlers.get(screen) === handler) handlers.delete(screen); };
     }
-    return {handleBack, activeScreen, registerBackHandler};
+    return {handleBack, activeScreen, registerBackHandler, onNavigate};
   }
   function mount(root) {
     root.UsNavigation = createController({

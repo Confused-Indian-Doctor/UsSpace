@@ -79,6 +79,17 @@
     const n = normalize(raw).notifications;
     return categories.includes(category) && n.enabled && n.categories[category] && !quietNow(raw, date);
   }
+  function relayStatus(raw) {
+    // Only capability flags select fixed copy. Never display event IDs, receipts, server
+    // outcomes, Firebase tokens, or an arbitrary response body in account settings.
+    if (!raw || typeof raw !== 'object') return 'Notification service status will appear when this phone connects.';
+    if (!raw.configured) return 'Awaiting secure notification service setup. Shared edits still sync normally.';
+    if (raw.checking) return 'Checking the private notification service…';
+    if (raw.ready && !raw.error) return 'Notification service connected. Delivery still follows each phone’s permissions, category settings, and quiet hours.';
+    if (raw.ready) return 'Notification service connected, but background retries need attention. Shared edits still sync normally.';
+    if (raw.error) return 'Notification service is unavailable or awaiting secure setup. Check your connection and retry registration. Shared edits still sync normally.';
+    return 'Awaiting a verified connection to the private notification service. Shared edits still sync normally.';
+  }
   function create(options) {
     options = options || {};
     const win = options.window || {}, doc = options.document || win.document;
@@ -176,6 +187,16 @@
       const all = [...new Set([current, deviceZone(), 'UTC', 'Europe/London', 'Asia/Kolkata', 'America/New_York', 'Australia/Sydney', ...zones])].filter(validZone);
       return all.map(z => `<option value="${esc(z)}"${z === current ? ' selected' : ''}>${esc(z.replace(/_/g, ' '))}</option>`).join('');
     }
+    function notificationControls() {
+      const enabled = signedIn && settings.notifications.enabled;
+      const native = !!(win.UsNotifications || options.notifications);
+      const control = (action, title, allowed) => `<button type="button" class="btn" data-notification-action="${action}"${allowed && native ? '' : ' disabled'}>${title}</button>`;
+      const hints = [];
+      if (enabled && permission?.quietNow) hints.push('Quiet hours are active. Shared notifications stay silent until they end.');
+      const blocked = Array.isArray(permission?.blockedChannels) ? permission.blockedChannels.filter(key => categories.includes(key)) : [];
+      if (enabled && blocked.length) hints.push('Blocked in Android: ' + blocked.map(key => labels[key]).join(', ') + '. Use Android notification settings to allow these categories.');
+      return `<div class="preferences-notification-actions" role="group" aria-label="Notification setup">${control('permission', 'Allow on this phone', enabled)}${control('settings', 'Android notification settings', true)}${control('retry', 'Retry registration', enabled)}${control('test', 'Test on this phone', enabled && permission?.permissionGranted === true)}</div><p class="small preferences-phone-test">The phone test checks Android only; it does not send a message to your partner.</p><p id="notificationRelayStatus" class="small preferences-relay-status" role="status" aria-live="polite">${esc(relayStatus(permission?.relay))}</p>${hints.map(hint => `<p class="preferences-warning">${esc(hint)}</p>`).join('')}`;
+    }
     function render() {
       if (!mounted && doc) mounted = typeof config.mount === 'string' ? doc.querySelector(config.mount) : config.mount || doc.getElementById('preferencesSettings');
       if (!mounted) return;
@@ -183,7 +204,7 @@
       const saved = !signedIn ? 'Appearance stays on this phone. Sign in to save settings with your account.' : syncState === 'synced' ? 'Saved to your account.' : syncState === 'pending' ? 'Saved on this phone · syncing with your account.' : 'Saved on this phone.';
       let permissionHint = '';
       if (permission && n.enabled && permission.permissionGranted === false) permissionHint = '<p class="preferences-warning">Notifications are switched on here, but Android permission is off. Allow UsSpace notifications in your phone settings.</p>';
-      mounted.innerHTML = `<section class="preferences-section" aria-labelledby="appearanceTitle"><h3 id="appearanceTitle">Appearance</h3><p class="sub">A little space that feels right, day or night.</p><div class="preferences-theme" role="group" aria-label="Theme">${Object.keys(themeNames).map(theme => `<button type="button" class="preferences-theme-choice" data-theme-choice="${theme}" aria-pressed="${settings.theme === theme}">${themeNames[theme]}</button>`).join('')}</div><p class="small">System follows your phone’s appearance.</p></section><section class="preferences-section" aria-labelledby="notificationsTitle"><h3 id="notificationsTitle">Notifications</h3><p class="sub">Choose which shared moments can reach you.</p><label class="preferences-switch"><span><strong>Allow notifications</strong><small>Off until you choose to turn them on.</small></span><input type="checkbox" data-pref="notifications.enabled"${n.enabled ? ' checked' : ''}${signedIn ? '' : ' disabled'}></label>${!signedIn ? '<p class="small">Sign in first to receive updates from your paired space.</p>' : ''}${permissionHint}<div class="preferences-categories">${categories.map(key => `<label class="preferences-switch"><span>${esc(labels[key])}</span><input type="checkbox" data-pref="notifications.categories.${key}"${n.categories[key] ? ' checked' : ''}></label>`).join('')}</div><div class="preferences-quiet"><label class="preferences-switch"><span><strong>Quiet hours</strong><small>Keep notifications silent during these hours.</small></span><input type="checkbox" data-pref="notifications.quietHours.enabled"${q.enabled ? ' checked' : ''}></label><div class="preferences-times"><label>From<input type="time" class="field" data-pref="notifications.quietHours.start" value="${esc(q.start)}"></label><label>Until<input type="time" class="field" data-pref="notifications.quietHours.end" value="${esc(q.end)}"></label></div><label class="preferences-zone">Time zone<select class="field" data-pref="notifications.quietHours.timeZone">${zoneOptions(q.timeZone)}</select></label><p class="small">Quiet hours can run overnight. Matching start and end times keep the whole day quiet.</p></div><p class="preferences-privacy small">Health, Cycle, private goals, and private comfort moods never generate partner notifications. Notification text keeps the details inside UsSpace.</p></section><p class="preferences-save small" role="status" aria-live="polite">${esc(error || saved)}</p>`;
+      mounted.innerHTML = `<section class="preferences-section" aria-labelledby="appearanceTitle"><h3 id="appearanceTitle">Appearance</h3><p class="sub">A little space that feels right, day or night.</p><div class="preferences-theme" role="group" aria-label="Theme">${Object.keys(themeNames).map(theme => `<button type="button" class="preferences-theme-choice" data-theme-choice="${theme}" aria-pressed="${settings.theme === theme}">${themeNames[theme]}</button>`).join('')}</div><p class="small">System follows your phone’s appearance.</p></section><section class="preferences-section" aria-labelledby="notificationsTitle"><h3 id="notificationsTitle">Notifications</h3><p class="sub">Choose which shared moments can reach you.</p><label class="preferences-switch"><span><strong>Allow notifications</strong><small>Off until you choose to turn them on.</small></span><input type="checkbox" data-pref="notifications.enabled"${n.enabled ? ' checked' : ''}${signedIn ? '' : ' disabled'}></label>${!signedIn ? '<p class="small">Sign in first to receive updates from your paired space.</p>' : ''}${permissionHint}${notificationControls()}<div class="preferences-categories">${categories.map(key => `<label class="preferences-switch"><span>${esc(labels[key])}</span><input type="checkbox" data-pref="notifications.categories.${key}"${n.categories[key] ? ' checked' : ''}></label>`).join('')}</div><div class="preferences-quiet"><label class="preferences-switch"><span><strong>Quiet hours</strong><small>Keep notifications silent during these hours.</small></span><input type="checkbox" data-pref="notifications.quietHours.enabled"${q.enabled ? ' checked' : ''}></label><div class="preferences-times"><label>From<input type="time" class="field" data-pref="notifications.quietHours.start" value="${esc(q.start)}"></label><label>Until<input type="time" class="field" data-pref="notifications.quietHours.end" value="${esc(q.end)}"></label></div><label class="preferences-zone">Time zone<select class="field" data-pref="notifications.quietHours.timeZone">${zoneOptions(q.timeZone)}</select></label><p class="small">Quiet hours can run overnight. Matching start and end times keep the whole day quiet.</p></div><p class="preferences-privacy small">Health, Cycle, private goals, and private comfort moods never generate partner notifications. Notification text keeps the details inside UsSpace.</p></section><p class="preferences-save small" role="status" aria-live="polite">${esc(error || saved)}</p>`;
     }
     function init(opts) {
       config = Object.assign({}, config, opts || {});
@@ -194,6 +215,8 @@
         mounted.addEventListener('click', event => {
           const button = event.target.closest?.('[data-theme-choice]');
           if (button && mounted.contains(button)) update({ theme: button.getAttribute('data-theme-choice') });
+          const action = event.target.closest?.('[data-notification-action]');
+          if (action && mounted.contains(action) && !action.disabled && typeof config.onNotificationAction === 'function') config.onNotificationAction(action.getAttribute('data-notification-action'));
         });
         mounted.addEventListener('change', event => {
           const element = event.target, key = element?.getAttribute?.('data-pref');
@@ -204,9 +227,9 @@
       try { bridge()?.refresh(); } catch (_) { }
       return api;
     }
-    function onPermissionState(value) { permission = value && typeof value === 'object' ? clone(value) : null; render(); }
-    const api = { init, render, bootstrap, applyTheme, onIdentity, onNativeState, onPermissionState, update, get: () => ({ uid, signedIn, preferences: clone(settings), syncState, error, systemDark: nativeSystemDark }) };
+    function onPermissionState(value) { permission = value && typeof value === 'object' && (value.uid === undefined || value.uid === uid) ? clone(value) : null; render(); }
+    const api = { init, render, bootstrap, applyTheme, onIdentity, onNativeState, onPermissionState, relayStatus, update, get: () => ({ uid, signedIn, preferences: clone(settings), syncState, error, systemDark: nativeSystemDark }) };
     return api;
   }
-  return { categories, defaults, normalize, validatePatch, apply, resolvedTheme, quietNow, allows, validTime, validZone, create };
+  return { categories, defaults, normalize, validatePatch, apply, resolvedTheme, quietNow, allows, relayStatus, validTime, validZone, create };
 });

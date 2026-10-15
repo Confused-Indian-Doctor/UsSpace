@@ -1,6 +1,6 @@
 {
   "name": "usspace-private-push",
-  "version": "0.14.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
   "main": "src/index.mjs",
@@ -8,8 +8,8 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node --test ../firebase-tests/v014_push_test.mjs",
-    "check": "node --check src/index.mjs && node --check src/policy.mjs && node --check src/dispatch.mjs && node --check worker.js && node --check src/worker-policy.mjs",
+    "test": "node ../firebase-tests/v014_push_test.mjs && node test/reliability.test.mjs && node test/relay.test.mjs",
+    "check": "node --check src/index.mjs && node --check src/policy.mjs && node --check src/dispatch.mjs && node --check worker.js && node --check src/worker-policy.mjs && node --check src/delivery-retry.mjs && node --check src/worker-handler.mjs && node --check src/outbox-policy.mjs && node --check src/relay.mjs",
     "start:worker": "node worker.js"
   },
   "dependencies": {

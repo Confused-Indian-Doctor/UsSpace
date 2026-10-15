@@ -79,6 +79,12 @@ public final class NotificationPolicyTest {
         check(!NotificationPolicy.allowed(true, true, true, true, true, true), "Quiet hours bypassed");
         check(!NotificationPolicy.allowed(true, true, true, false, false, true), "Account identity bypassed");
         check(!NotificationPolicy.allowed(true, true, true, false, true, false), "Server membership verification bypassed");
+        for (int bits = 0; bits < 16; bits++) {
+            boolean signedIn = (bits & 1) != 0, optedIn = (bits & 2) != 0;
+            boolean granted = (bits & 4) != 0, blocked = (bits & 8) != 0;
+            check(NotificationPolicy.autoInitAllowed(signedIn, optedIn, granted, blocked) == (bits == 7),
+                    "FCM automatic token maintenance bypassed explicit consent or sign-out: " + bits);
+        }
         int first = NotificationPolicy.notificationId(data.get("eventId"));
         check(first == NotificationPolicy.notificationId(data.get("eventId")), "Retry changed Android notification identity");
         check(first >= 0, "Notification identity not representable as positive request code");

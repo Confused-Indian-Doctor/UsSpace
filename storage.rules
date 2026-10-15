@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function paired(pairId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/couples/$(pairId)/members/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.coupleId == pairId
+        && firestore.get(/databases/(default)/documents/couples/$(pairId)).data.memberCount == 2;
+    }
+    function photo() {
+      return request.resource.size > 0 && request.resource.size <= 12 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+    match /travel/private/{uid}/{photoId} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create,update: if signedIn() && request.auth.uid == uid && photo();
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+    match /travel/pairs/{pairId}/{uid}/{photoId} {
+      allow read: if paired(pairId);
+      allow create,update: if paired(pairId) && request.auth.uid == uid && photo();
+      allow delete: if paired(pairId) && request.auth.uid == uid;
+    }
+  }
+}

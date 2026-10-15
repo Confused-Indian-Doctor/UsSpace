@@ -7,23 +7,24 @@ const source = fs.readFileSync(path.join(__dirname, '../app/src/main/assets/v014
 function fixture() {
   const nativeAuth = {signedIn: true, uid: 'al'};
   const state = {sync: {signedIn: true, uid: 'al', paired: false, coupleId: ''}};
-  const navigated = [], identities = [], timers = new Map(); let timerId = 0, settingsOpened = 0;
+  const navigated = [], identities = [], timers = new Map(), notifications = [], permissionStates = [], toasts = [];
+  let timerId = 0, settingsOpened = 0, preferenceConfig = {};
   const notice = {textContent: ''};
   const context = {
     state, NAV_GROUP: {}, document: {getElementById: id => id === 'notificationDeviceStatus' ? notice : null},
     UsAuth: {status: () => JSON.stringify(nativeAuth)},
-    UsPreferences: {init() {}, onIdentity: value => identities.push(value), render() {}},
+    UsPreferences: {init(value) {preferenceConfig = value;}, onIdentity: value => identities.push(value), render() {}, onPermissionState: value => permissionStates.push(value)},
     UsWorkSchedule: {init() {}, onIdentity() {}},
-    UsNotifications: {refresh() {}, status: () => JSON.stringify({signedIn: true, enabled: false})},
+    UsNotifications: {refresh() {notifications.push('retry');}, requestPermission() {notifications.push('permission');}, openAndroidSettings() {notifications.push('settings');}, testNotification() {notifications.push('test');}, status: () => JSON.stringify({signedIn: true, enabled: false})},
     onUsAuthState: value => { state.sync = Object.assign({}, state.sync, value); if (!value.signedIn) {state.sync.paired = false; state.sync.coupleId = ''; } },
     onUsSyncState: value => {state.sync = Object.assign({}, state.sync, value);},
-    go: route => navigated.push(route), openSettings: () => {settingsOpened++;}, toast() {},
+    go: route => navigated.push(route), openSettings: () => {settingsOpened++;}, toast: value => toasts.push(value),
     setTimeout: callback => {const id = ++timerId; timers.set(id, callback); return id;},
     clearTimeout: id => timers.delete(id),
   };
   context.window = context; vm.createContext(context); vm.runInContext(source, context);
   const open = (overrides = {}) => context.onUsNotificationOpen(Object.assign({route: 'notes', recipientUid: 'al', coupleId: 'our-space', category: 'notes', eventId: 'e'.repeat(64)}, overrides));
-  return {context, nativeAuth, state, navigated, identities, timers, notice, open, settingsOpened: () => settingsOpened};
+  return {context, nativeAuth, state, navigated, identities, timers, notice, open, notifications, permissionStates, toasts, preferenceConfig: () => preferenceConfig, settingsOpened: () => settingsOpened};
 }
 let checks = 0;
 function check(name, run) { run(); checks++; console.log('PASS ' + name); }
@@ -60,5 +61,34 @@ check('existing Settings behaviour is retained and push status makes server setu
   const f = fixture(); f.context.openSettings(); assert.equal(f.settingsOpened(), 1);
   f.context.onUsNotificationState({signedIn: true, enabled: true, permissionGranted: true, paired: true, registered: true});
   assert.match(f.notice.textContent, /private notification server/); assert.equal(f.context.NAV_GROUP['work-schedule'], 'life');
+});
+check('explicit setup actions call the matching native operation without sending a partner ping', () => {
+  const f = fixture(); f.notifications.length = 0;
+  for (const action of ['permission', 'settings', 'retry', 'test', 'unknown']) f.preferenceConfig().onNotificationAction(action);
+  assert.deepEqual(f.notifications, ['permission', 'settings', 'retry', 'test']);
+  assert.deepEqual(f.navigated, []);
+});
+check('registration and Android channel diagnostics reach settings without claiming delivery', () => {
+  const f = fixture(), value = {uid: 'al', signedIn: true, enabled: true, permissionGranted: true, paired: true, registered: true, quietNow: true, blockedChannels: ['notes']};
+  f.context.onUsNotificationState(value);
+  assert.equal(f.permissionStates.at(-1), value);
+  assert.match(f.notice.textContent, /registration alone does not confirm delivery/);
+});
+check('stale native notification callbacks cannot replace another account’s diagnostics', () => {
+  const f = fixture(); f.context.onUsNotificationState({uid: 'al', signedIn: true, enabled: false});
+  const before = f.notice.textContent, count = f.permissionStates.length;
+  f.context.onUsNotificationState({uid: 'previous-user', signedIn: true, error: 'STALE'});
+  assert.equal(f.notice.textContent, before); assert.equal(f.permissionStates.length, count);
+});
+check('a local phone-test confirmation appears once and is never treated as a partner delivery', () => {
+  const f = fixture(), value = {uid: 'al', signedIn: true, enabled: true, permissionGranted: true, paired: true, lastAction: 'Test notification shown on this phone. No message was sent to your partner.'};
+  f.context.onUsNotificationState(value); f.context.onUsNotificationState(value);
+  assert.deepEqual(f.toasts, [value.lastAction]); assert.deepEqual(f.navigated, []);
+});
+check('a verified connected relay updates registration copy without claiming partner delivery', () => {
+  const f = fixture();
+  f.context.onUsNotificationState({uid: 'al', signedIn: true, enabled: true, permissionGranted: true, paired: true, registered: true, relay: {configured: true, ready: true}});
+  assert.match(f.notice.textContent, /registered with the notification service/);
+  assert.match(f.notice.textContent, /registration alone does not confirm delivery/);
 });
 console.log(JSON.stringify({v014_integration_checks: checks, status: 'passed'}));

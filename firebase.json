@@ -26,5 +26,8 @@
         ".env*"
       ]
     }
-  ]
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
 }

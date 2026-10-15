@@ -340,5 +340,143 @@ service cloud.firestore {
         allow write: if isMember(coupleId) && request.auth.uid == uid && safeProfile() && actorMatchesIfPresent();
       }
     }
+    // Versioned travel documents are separate from all Health/Cycle/profile data.
+    function travelBase(d, id, visibility, pairId) {
+      return d.keys().hasAll(['schemaVersion','id','ownerUid','visibility','pairId','revision','deleted','createdAt','updatedAt','updatedBy'])
+        && d.schemaVersion == 1 && d.id == id && itemId(id) && itemId(d.ownerUid)
+        && d.visibility == visibility && d.pairId == pairId
+        && d.revision is int && d.revision >= 1 && d.revision <= 1000000000
+        && d.deleted is bool && d.createdAt is timestamp && d.updatedAt == request.time
+        && d.updatedBy == request.auth.uid;
+    }
+    function travelRefs(v, maximum) {
+      return v is list && v.size() <= maximum && v.toSet().size() == v.size()
+        && (v.size() < 1 || itemId(v[0])) && (v.size() < 2 || itemId(v[1]))
+        && (v.size() < 3 || itemId(v[2])) && (v.size() < 4 || itemId(v[3]))
+        && (v.size() < 5 || itemId(v[4])) && (v.size() < 6 || itemId(v[5]))
+        && (v.size() < 7 || itemId(v[6])) && (v.size() < 8 || itemId(v[7]))
+        && (v.size() < 9 || itemId(v[8])) && (v.size() < 10 || itemId(v[9]))
+        && (v.size() < 11 || itemId(v[10])) && (v.size() < 12 || itemId(v[11]))
+        && (v.size() < 13 || itemId(v[12])) && (v.size() < 14 || itemId(v[13]))
+        && (v.size() < 15 || itemId(v[14])) && (v.size() < 16 || itemId(v[15]))
+        && (v.size() < 17 || itemId(v[16])) && (v.size() < 18 || itemId(v[17]))
+        && (v.size() < 19 || itemId(v[18])) && (v.size() < 20 || itemId(v[19]));
+    }
+    function travelUrl(v) { return v == '' || (shortText(v, 2048) && v.matches('https://[^ @]+')); }
+    function travelPlace(p) {
+      return p == null || (p is map && p.keys().hasAll(['provider','placeId','name','latitude','longitude','sourceUrl','confirmedAt'])
+        && p.keys().hasOnly(['provider','placeId','name','latitude','longitude','sourceUrl','confirmedAt'])
+        && p.provider == 'user-confirmed' && shortText(p.placeId,240) && p.placeId.size()>0
+        && shortText(p.name,240) && p.name.size()>0 && p.latitude is number && p.latitude>=-90 && p.latitude<=90
+        && p.longitude is number && p.longitude>=-180 && p.longitude<=180
+        && travelUrl(p.sourceUrl) && isoTime(p.confirmedAt));
+    }
+    function travelFields(d, kind) {
+      let base = ['schemaVersion','id','ownerUid','visibility','pairId','revision','deleted','createdAt','updatedAt','updatedBy'];
+      return (kind == 'travelItems'
+        && d.keys().hasOnly(base.concat(['title','kind','category','description','sourceUrl','sourceKey','extractionStatus','confidence','verifiedPlace','collectionIds','status','photoIds','completedDate','legacyId']))
+        && shortText(d.title,160) && d.title.size()>0 && d.kind in ['place','experience','goal']
+        && d.category in ['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home']
+        && shortText(d.description,4000) && travelUrl(d.sourceUrl) && shortText(d.sourceKey,2048)
+        && d.extractionStatus in ['manual','review','unavailable','confirmed']
+        && d.confidence is number && d.confidence>=0 && d.confidence<=1 && travelPlace(d.verifiedPlace)
+        && travelRefs(d.collectionIds,20) && travelRefs(d.photoIds,12)
+        && d.status in ['dreaming','planning','booked','done'] && optionalDate(d.completedDate)
+        && (d.legacyId == '' || itemId(d.legacyId)))
+      || (kind == 'travelCollections'
+        && d.keys().hasOnly(base.concat(['title','description','color']))
+        && shortText(d.title,160) && d.title.size()>0 && shortText(d.description,4000)
+        && d.color in ['rose','peach','amber','navy','sage'])
+      || (kind == 'travelTrips'
+        && d.keys().hasOnly(base.concat(['title','destination','startDate','endDate','timezone','currency','budget','travelMode','pace','status']))
+        && shortText(d.title,160) && d.title.size()>0 && shortText(d.destination,240)
+        && optionalDate(d.startDate) && optionalDate(d.endDate)
+        && (d.startDate == '' || d.endDate == '' || d.endDate >= d.startDate)
+        && validTimeZone(d.timezone) && d.currency is string && d.currency.matches('[A-Z]{3}')
+        && (d.budget == null || (d.budget is number && d.budget>=0 && d.budget<=10000000))
+        && d.travelMode in ['walk','cycle','drive','transit'] && d.pace in ['relaxed','balanced','busy']
+        && d.status in ['draft','planning','booked','done'])
+      || (kind == 'travelStops'
+        && d.keys().hasOnly(base.concat(['tripId','bucketItemId','title','localDate','orderKey','startTime','durationMinutes','travelMode','estimatedCost','notes','kind','fixed','sourceUrl']))
+        && itemId(d.tripId) && (d.bucketItemId == '' || itemId(d.bucketItemId))
+        && shortText(d.title,160) && d.title.size()>0 && optionalDate(d.localDate) && d.localDate!=''
+        && d.orderKey is number && d.orderKey>=-1000000000000 && d.orderKey<=1000000000000
+        && (d.startTime=='' || validClock(d.startTime))
+        && d.durationMinutes is int && d.durationMinutes>=0 && d.durationMinutes<=1440
+        && d.travelMode in ['walk','cycle','drive','transit']
+        && (d.estimatedCost==null || (d.estimatedCost is number && d.estimatedCost>=0 && d.estimatedCost<=10000000))
+        && shortText(d.notes,4000) && d.kind in ['place','accommodation','meal','rest','reservation','free']
+        && d.fixed is bool && travelUrl(d.sourceUrl))
+      || (kind == 'travelImports' && d.visibility=='private'
+        && d.keys().hasOnly(base.concat(['sourceUrl','sourceKey','text','imageId','extractionStatus','confidence','candidateIds']))
+        && travelUrl(d.sourceUrl) && shortText(d.sourceKey,2048) && shortText(d.text,12000)
+        && (d.imageId=='' || itemId(d.imageId)) && d.extractionStatus in ['review','unavailable','confirmed','saved','discarded']
+        && d.confidence is number && d.confidence>=0 && d.confidence<=1 && travelRefs(d.candidateIds,20))
+      || (kind == 'travelPhotos' && d.keys().hasOnly(base.concat(['data']))
+        && shortText(d.data,140000) && d.data.matches('data:image/jpeg;base64,/9j/[A-Za-z0-9+/]*={0,2}'))
+      || (kind == 'travelMemories'
+        && d.keys().hasOnly(base.concat(['bucketItemId','tripId','title','localDate','location','photoIds','reflection']))
+        && (d.bucketItemId=='' || itemId(d.bucketItemId)) && (d.tripId=='' || itemId(d.tripId))
+        && shortText(d.title,160) && d.title.size()>0 && optionalDate(d.localDate) && d.localDate!=''
+        && shortText(d.location,240) && travelRefs(d.photoIds,12) && shortText(d.reflection,4000));
+    }
+    function travelCreate(d) { return d.ownerUid==request.auth.uid && d.revision==1 && d.deleted==false && d.createdAt==request.time; }
+    function travelUpdate(d) {
+      return resource.data.deleted==false && d.ownerUid==resource.data.ownerUid
+        && d.visibility==resource.data.visibility && d.pairId==resource.data.pairId
+        && d.createdAt==resource.data.createdAt && d.revision==resource.data.revision+1;
+    }
+    function travelParent(d, scope, scopeId) {
+      return d.tripId is string
+        && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.deleted==false
+        && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.updatedAt==request.time
+        && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision
+          == get(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision+1;
+    }
+    match /users/{uid}/{travelKind}/{id} {
+      allow read: if travelKind in ['travelItems','travelCollections','travelTrips','travelStops','travelImports','travelMemories','travelPhotos'] && signedIn() && request.auth.uid==uid;
+      allow create: if signedIn() && request.auth.uid==uid && travelBase(request.resource.data,id,'private','')
+        && travelFields(request.resource.data,travelKind) && travelCreate(request.resource.data)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'users',uid));
+      allow update: if signedIn() && request.auth.uid==uid && travelBase(request.resource.data,id,'private','')
+        && travelFields(request.resource.data,travelKind) && travelUpdate(request.resource.data)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'users',uid));
+      allow delete: if false;
+    }
+    match /couples/{pairId}/{travelKind}/{id} {
+      allow read: if travelKind in ['travelItems','travelCollections','travelTrips','travelStops','travelMemories','travelPhotos'] && currentPair(pairId);
+      allow create: if currentPair(pairId) && travelBase(request.resource.data,id,'shared',pairId)
+        && travelFields(request.resource.data,travelKind) && travelCreate(request.resource.data)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'couples',pairId));
+      allow update: if currentPair(pairId) && travelBase(request.resource.data,id,'shared',pairId)
+        && travelFields(request.resource.data,travelKind) && travelUpdate(request.resource.data)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'couples',pairId));
+      allow delete: if false;
+    }
+    match /users/{uid}/travelReceipts/{id} {
+      allow read: if signedIn() && request.auth.uid==uid;
+      allow create: if signedIn() && request.auth.uid==uid && itemId(id)
+        && request.resource.data.keys().hasOnly(['uid','at'])
+        && request.resource.data.uid==uid && request.resource.data.at==request.time;
+      allow update,delete: if false;
+    }
+    function travelReaction(d, uid) {
+      return d.keys().hasOnly(['schemaVersion','uid','interest','rating','updatedAt']) && d.schemaVersion==1
+        && d.uid==uid && d.interest in ['interested','maybe','not-for-me']
+        && d.rating is int && d.rating>=0 && d.rating<=5 && d.updatedAt==request.time;
+    }
+    match /users/{owner}/travelItems/{id}/reactions/{uid} {
+      allow read: if signedIn() && request.auth.uid==owner;
+      allow create,update: if signedIn() && request.auth.uid==owner && uid==owner
+        && travelReaction(request.resource.data,uid)
+        && get(/databases/$(database)/documents/users/$(owner)/travelItems/$(id)).data.deleted==false;
+      allow delete: if false;
+    }
+    match /couples/{pairId}/travelItems/{id}/reactions/{uid} {
+      allow read: if currentPair(pairId);
+      allow create,update: if currentPair(pairId) && request.auth.uid==uid && travelReaction(request.resource.data,uid)
+        && get(/databases/$(database)/documents/couples/$(pairId)/travelItems/$(id)).data.deleted==false;
+      allow delete: if false;
+    }
   }
 }

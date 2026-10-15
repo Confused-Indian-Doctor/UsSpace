@@ -1,6 +1,6 @@
 // Worker startup is a baseline, not a replay of historical personal data.
 export function timestampVersion(timestamp) {
-  if (!timestamp || !Number.isInteger(timestamp.seconds) || !Number.isInteger(timestamp.nanoseconds)) return '';
+  if (!timestamp || !Number.isSafeInteger(timestamp.seconds) || !Number.isInteger(timestamp.nanoseconds) || timestamp.nanoseconds < 0 || timestamp.nanoseconds >= 1000000000) return '';
   return `${timestamp.seconds}:${String(timestamp.nanoseconds).padStart(9, '0')}`;
 }
 function compare(a, b) {

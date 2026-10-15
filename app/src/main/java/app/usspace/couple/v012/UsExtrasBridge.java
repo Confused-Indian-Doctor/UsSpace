@@ -298,7 +298,8 @@ public final class UsExtrasBridge {
             String inFlightKey = account + ":" + receiptKey;
             if (!inFlight.add(inFlightKey)) return;
             String op = operationId;
-            db.runTransaction(transaction -> {
+            PushRelay.Event event = PushRelay.event(account, space, kind, id, receiptKey);
+            PushRelay.run(event, includeOutbox -> db.runTransaction(transaction -> {
                 if (!liveScope(account, space, epoch)) throw new IllegalStateException("Sign-in or pairing changed");
                 DocumentReference couple = db.collection("couples").document(space);
                 DocumentSnapshot currentUser = transaction.get(db.collection("users").document(account));
@@ -310,14 +311,14 @@ public final class UsExtrasBridge {
                 if (transaction.get(receipt).exists()) return null;
                 String now = Instant.now().toString();
                 String actorName = safeText(currentMember.get("name"), 160);
-                applyMutation(transaction, couple, currentCouple, account, space, kind, id, fields, now, actorName);
+                applyMutation(transaction, couple, currentCouple, account, space, kind, id, fields, now, actorName, includeOutbox ? event : null);
                 if (!liveScope(account, space, epoch)) throw new IllegalStateException("Sign-in or pairing changed");
                 Map<String, Object> receiptData = new LinkedHashMap<>();
                 receiptData.put("operationId", op); receiptData.put("coupleId", space); receiptData.put("kind", kind);
                 receiptData.put("itemId", id); receiptData.put("at", FieldValue.serverTimestamp());
                 transaction.set(receipt, receiptData);
                 return null;
-            }).addOnSuccessListener(result -> {
+            })).addOnSuccessListener(result -> {
                 if (!currentScope(account, space, epoch)) return;
                 inFlight.remove(inFlightKey);
                 if (liveScope(account, space, epoch)) ack(account, space, op, true, "", epoch);
@@ -333,7 +334,7 @@ public final class UsExtrasBridge {
 
     private void applyMutation(Transaction transaction, DocumentReference couple, DocumentSnapshot coupleData,
                                String account, String space, String kind, String id, Map<String, Object> fields,
-                               String now, String actorName) throws FirebaseFirestoreException {
+                               String now, String actorName, PushRelay.Event event) throws FirebaseFirestoreException {
         DocumentReference target;
         DocumentSnapshot previous;
         Map<String, Object> update = new LinkedHashMap<>();
@@ -426,16 +427,22 @@ public final class UsExtrasBridge {
                     throw new IllegalStateException("Set Al and Yashika's paired accounts before sending a letter");
                 target = couple.collection("usLetters").document(category);
                 // Reading the existing letter is authorized only for its author/recipient.
-                transaction.get(target);
+                previous = transaction.get(target);
                 update.put("id", category); update.put("category", category);
                 update.put("title", UsExtrasPolicy.text(fields, "title", 200, true)); update.put("body", UsExtrasPolicy.text(fields, "body", 12000, true));
                 update.put("authorUid", account); update.put("recipientUid", recipient); update.put("publishedAt", now);
                 transaction.set(target, update);
+                PushRelay.write(transaction, event, PushEventPolicy.categories("letter", previous.exists() ? previous.getData() : null, update));
                 return;
             }
             default: throw new IllegalArgumentException("Unknown Us update");
         }
         transaction.set(target, update, SetOptions.merge());
+        if (event != null) {
+            Map<String,Object> after = previous.exists() ? new LinkedHashMap<>(previous.getData()) : new LinkedHashMap<>();
+            after.putAll(update);
+            PushRelay.write(transaction, event, PushEventPolicy.categories(kind, previous.exists() ? previous.getData() : null, after));
+        }
     }
 
     @JavascriptInterface

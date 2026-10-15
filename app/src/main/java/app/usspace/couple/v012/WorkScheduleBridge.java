@@ -287,13 +287,18 @@ public final class WorkScheduleBridge {
         String key = summaryKey(new JSONObject(projection)); if (key.equals(ownSummaryKey) || key.equals(publishingKey)) return;
         publishingKey = key;
         projection.put("updatedAt", FieldValue.serverTimestamp());
-        db.runTransaction(transaction -> {
+        PushRelay.Event event = PushRelay.event(account, space, "work", account, null);
+        PushRelay.run(event, includeOutbox -> db.runTransaction(transaction -> {
             DocumentSnapshot user = transaction.get(db.collection("users").document(account));
             DocumentSnapshot member = transaction.get(db.collection("couples").document(space).collection("members").document(account));
             if (!scope(account, space, generation) || !sharing || !space.equals(sharingCouple) || !space.equals(user.getString("coupleId")) || !member.exists()) throw new IllegalStateException("The paired account changed.");
-            transaction.set(db.collection("couples").document(space).collection("workSummaries").document(account), projection); return null;
-        }).addOnSuccessListener(activity, ignored -> { if (account(account, generation)) { if (key.equals(publishingKey)) publishingKey = ""; if (scope(account, space, generation) && sharing && space.equals(sharingCouple)) { ownSummaryKey = key; sharingError = ""; post(); } else deleteSummary(account, space, generation); } })
-          .addOnFailureListener(activity, ignored -> { if (account(account, generation)) { if (key.equals(publishingKey)) publishingKey = ""; if (sharing) sharingError = "The work summary has not synced. Check your connection and the v0.14 Firestore rules."; post(); } });
+            com.google.firebase.firestore.DocumentReference target = db.collection("couples").document(space).collection("workSummaries").document(account);
+            DocumentSnapshot previous = transaction.get(target);
+            transaction.set(target, projection);
+            if (includeOutbox) PushRelay.write(transaction, event, PushEventPolicy.categories("work", previous.exists() ? previous.getData() : null, projection));
+            return null;
+        })).addOnSuccessListener( ignored -> { if (account(account, generation)) { if (key.equals(publishingKey)) publishingKey = ""; if (scope(account, space, generation) && sharing && space.equals(sharingCouple)) { ownSummaryKey = key; sharingError = ""; post(); } else deleteSummary(account, space, generation); } })
+          .addOnFailureListener(ignored -> { if (account(account, generation)) { if (key.equals(publishingKey)) publishingKey = ""; if (sharing) sharingError = "The work summary has not synced. Check your connection and the v0.14 Firestore rules."; post(); } });
     }
     private void deleteSummary(String account, String space, long generation) {
         if (!account(account, generation) || space.isEmpty()) return;
