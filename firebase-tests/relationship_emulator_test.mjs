@@ -46,18 +46,26 @@ async function leave(db, uid) {
   }));
 }
 
-function awaitDate(db, startDate) {
-  let unsubscribe = () => {};
-  let timeout;
-  const promise = new Promise((resolve, reject) => {
-    timeout = setTimeout(() => { unsubscribe(); reject(new Error(`No acknowledged partner date ${startDate}`)); }, 10000);
-    unsubscribe = onSnapshot(ref(db), {includeMetadataChanges: true}, snapshot => {
-      if (snapshot.exists() && snapshot.data().startDate === startDate && !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
-        clearTimeout(timeout); unsubscribe(); resolve(snapshot.data());
-      }
-    }, failure => { clearTimeout(timeout); unsubscribe(); reject(failure); });
-  });
-  return promise;
+function watchDate(db, baseline, expected) {
+  let unsubscribe = () => {}, timer, readyResolve, changeResolve, readyReject, changeReject;
+  let listening = false;
+  const ready = new Promise((resolve, reject) => {readyResolve = resolve; readyReject = reject;});
+  const changed = new Promise((resolve, reject) => {changeResolve = resolve; changeReject = reject;});
+  // Attach handlers immediately so setup/write failures cannot leave an unhandled promise.
+  ready.catch(() => {}); changed.catch(() => {});
+  const fail = error => {clearTimeout(timer); unsubscribe(); readyReject(error); changeReject(error);};
+  timer = setTimeout(() => fail(new Error(`No server listener baseline ${baseline}`)), 10000);
+  unsubscribe = onSnapshot(ref(db), {includeMetadataChanges: true}, snapshot => {
+    if (!snapshot.exists() || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;
+    const value = snapshot.data();
+    if (!listening && value.startDate === baseline) {
+      listening = true; clearTimeout(timer); readyResolve(value);
+      timer = setTimeout(() => fail(new Error(`No acknowledged partner date ${expected}`)), 10000);
+    } else if (listening && value.startDate === expected) {
+      clearTimeout(timer); unsubscribe(); changeResolve(value);
+    }
+  }, fail);
+  return {ready, changed, close(){clearTimeout(timer); unsubscribe();}};
 }
 
 test('missing relationship document is readable and remains absent until an explicit save', async () => {
@@ -71,12 +79,18 @@ test('missing relationship document is readable and remains absent until an expl
 test('either current partner can edit the date and the other receives a server-acknowledged realtime update', async () => {
   const {al, yashika} = await pair();
   await assertSucceeds(setDoc(ref(al), profile()));
-  const observed = awaitDate(yashika, '2024-02-29');
-  await assertSucceeds(setDoc(ref(al), profile('al', '2024-02-29')));
-  assert.equal((await observed).updatedBy, 'al');
-  const reverse = awaitDate(al, '2022-12-31');
-  await assertSucceeds(setDoc(ref(yashika), profile('yashika', '2022-12-31')));
-  assert.equal((await reverse).updatedBy, 'yashika');
+  const observed = watchDate(yashika, '2023-03-25', '2024-02-29');
+  try {
+    await observed.ready;
+    await assertSucceeds(setDoc(ref(al), profile('al', '2024-02-29')));
+    assert.equal((await observed.changed).updatedBy, 'al');
+  } finally {observed.close();}
+  const reverse = watchDate(al, '2024-02-29', '2022-12-31');
+  try {
+    await reverse.ready;
+    await assertSucceeds(setDoc(ref(yashika), profile('yashika', '2022-12-31')));
+    assert.equal((await reverse.changed).updatedBy, 'yashika');
+  } finally {reverse.close();}
 });
 
 test('relationship date cannot be read or changed by guests, third accounts, or another couple', async () => {
