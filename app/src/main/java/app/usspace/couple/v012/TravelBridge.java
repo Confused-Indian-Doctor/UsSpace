@@ -35,7 +35,7 @@ public final class TravelBridge {
     private static final String[] COLLECTIONS={"travelItems","travelCollections","travelTrips","travelStops","travelImports","travelMemories","travelPhotos"};
     private static final String[] BASE={"schemaVersion","id","ownerUid","visibility","pairId","revision","deleted","createdAt","updatedAt","updatedBy"};
     private static final String[][] FIELDS={
-      {"title","kind","category","description","sourceUrl","sourceKey","extractionStatus","confidence","verifiedPlace","collectionIds","status","photoIds","completedDate","legacyId"},
+      {"title","kind","category","location","targetDate","priority","description","sourceUrl","sourceKey","extractionStatus","confidence","verifiedPlace","collectionIds","status","photoIds","completedDate","legacyId"},
       {"title","description","color"},
       {"title","destination","startDate","endDate","timezone","currency","budget","travelMode","pace","status"},
       {"tripId","bucketItemId","title","localDate","orderKey","startTime","durationMinutes","travelMode","estimatedCost","notes","kind","fixed","sourceUrl"},
@@ -116,8 +116,8 @@ public final class TravelBridge {
         if(snapshot!=null&&failure==null)for(DocumentSnapshot doc:snapshot.getDocuments()){Map<String,Object> data=new HashMap<>(doc.getData());data.put("itemId",itemId);data.put("visibility",shared?"shared":"private");reactions.put(key+":"+doc.getId(),data);}post();
       });(shared?sharedListeners:privateListeners).add(listener);}
     private JSONArray queue(){try{return new JSONArray(prefs.getString("queue:"+uid,"[]"));}catch(Exception ignored){return new JSONArray();}}
-    private void store(JSONArray queue){prefs.edit().putString("queue:"+uid,queue.toString()).commit();}
-    private void purgeShared(String old){if(uid.isEmpty()||old.isEmpty())return;JSONArray q=queue(),keep=new JSONArray();for(int i=0;i<q.length();i++){JSONObject op=q.optJSONObject(i);if(op==null)continue;boolean remove=false;JSONArray changes=op.optJSONArray("changes");if(changes!=null)for(int n=0;n<changes.length();n++){JSONObject c=changes.optJSONObject(n);if(c!=null&&old.equals(c.optString("pairId")))remove=true;}if(!remove)keep.put(op);}store(keep);}
+    private boolean store(JSONArray queue){return prefs.edit().putString("queue:"+uid,queue.toString()).commit();}
+    private synchronized void purgeShared(String old){if(uid.isEmpty()||old.isEmpty())return;JSONArray q=queue(),keep=new JSONArray();for(int i=0;i<q.length();i++){JSONObject op=q.optJSONObject(i);if(op==null)continue;boolean remove=false;JSONArray changes=op.optJSONArray("changes");if(changes!=null)for(int n=0;n<changes.length();n++){JSONObject c=changes.optJSONObject(n);if(c!=null&&old.equals(c.optString("pairId")))remove=true;}if(!remove)keep.put(op);}store(keep);}
     @JavascriptInterface public boolean apply(String source){
       if(source==null||source.length()>210000)return false;
       final JSONObject operation;final String account=uid;
@@ -129,10 +129,15 @@ public final class TravelBridge {
         }
       }catch(Exception invalid){return false;}
       if(account.isEmpty())return false;
-      activity.runOnUiThread(()->{if(!account.equals(uid)||closed)return;JSONArray q=queue();if(q.length()>=60||q.toString().length()+source.length()>2500000){error="Your offline saves are full. Reconnect or review pending changes first.";post();return;}
-        for(int i=0;i<q.length();i++)if(operation.optString("operationId").equals(q.optJSONObject(i).optString("operationId")))return;
-        q.put(operation);store(q);error="";post();drain();});return true;
+      synchronized(this){if(!account.equals(uid)||closed||auth.getCurrentUser()==null||!account.equals(auth.getCurrentUser().getUid()))return false;
+        JSONArray q=queue();if(q.length()>=60||q.toString().length()+source.length()>2500000)return false;
+        for(int i=0;i<q.length();i++)if(operation.optString("operationId").equals(q.optJSONObject(i).optString("operationId")))return true;
+        q.put(operation);if(!store(q))return false;
+      }
+      activity.runOnUiThread(()->{if(!account.equals(uid)||closed)return;error="";post();drain();});return true;
     }
+    private synchronized void removeOperation(String operationId){JSONArray q=queue(),keep=new JSONArray();for(int i=0;i<q.length();i++)if(!operationId.equals(q.optJSONObject(i).optString("operationId")))keep.put(q.optJSONObject(i));store(keep);}
+
     private static List<String> keys(JSONObject o){List<String> result=new ArrayList<>();java.util.Iterator<String> it=o.keys();while(it.hasNext())result.add(it.next());return result;}
     private static Object unpack(Object value)throws Exception{if(value==JSONObject.NULL)return null;if(value instanceof JSONObject){Map<String,Object> result=new HashMap<>();JSONObject object=(JSONObject)value;for(String k:keys(object))result.put(k,unpack(object.get(k)));return result;}if(value instanceof JSONArray){List<Object> result=new ArrayList<>();JSONArray a=(JSONArray)value;for(int i=0;i<a.length();i++)result.add(unpack(a.get(i)));return result;}return value;}
     private void drain(){if(closed||sending||uid.isEmpty())return;JSONArray pending=queue();JSONObject op=pending.optJSONObject(0);if(op==null)return;
@@ -156,7 +161,7 @@ public final class TravelBridge {
         Map<String,Object> proof=new HashMap<>();proof.put("uid",account);proof.put("at",FieldValue.serverTimestamp());tx.set(receipt,proof);return null;
         } catch(Exception invalid) { throw new FirebaseFirestoreException(invalid.getMessage()==null?"Travel edit failed":invalid.getMessage(),FirebaseFirestoreException.Code.FAILED_PRECONDITION); }
       }).addOnCompleteListener(task->{if(!account(account,token))return;sending=false;
-        if(task.isSuccessful()){JSONArray q=queue(),keep=new JSONArray();for(int i=0;i<q.length();i++)if(!op.optString("operationId").equals(q.optJSONObject(i).optString("operationId")))keep.put(q.optJSONObject(i));store(keep);error="";post();drain();}
+        if(task.isSuccessful()){removeOperation(op.optString("operationId"));error="";post();drain();}
         else{Throwable cause=task.getException();boolean conflict=false;for(Throwable t=cause;t!=null;t=t.getCause())if(t.getMessage()!=null&&t.getMessage().contains("TRAVEL_CONFLICT"))conflict=true;
           error=conflict?"A plan changed on the other phone. Your pending edit is kept; review or discard it before retrying.":"Saved on this phone, waiting to sync. Check your connection and travel permissions.";post();if(!conflict)handler.postDelayed(this::drain,15000);}
       });}
@@ -165,8 +170,8 @@ public final class TravelBridge {
       Map<String,Object> data=new HashMap<>();data.put("schemaVersion",1);data.put("uid",uid);data.put("interest",interest);data.put("rating",rating);data.put("updatedAt",FieldValue.serverTimestamp());
       root("shared".equals(visibility),uid,pair).collection("travelItems").document(itemId).collection("reactions").document(uid).set(data).addOnFailureListener(f->{error="Your interest could not sync. Please retry.";post();});
     });}
-    @JavascriptInterface public void discardPending(String operationId){activity.runOnUiThread(()->{if(sending)return;JSONArray q=queue(),keep=new JSONArray();for(int i=0;i<q.length();i++)if(!operationId.equals(q.optJSONObject(i).optString("operationId")))keep.put(q.optJSONObject(i));store(keep);error="";post();drain();});}
-    @JavascriptInterface public String photo(String photoId,String visibility){FirebaseUser user=auth.getCurrentUser();if(!id(photoId)||uid.isEmpty()||user==null||!uid.equals(user.getUid())||!Arrays.asList("private","shared").contains(visibility)||"shared".equals(visibility)&&!ready)return "";Map<String,Object> photo=records.get(visibility+":photo:"+photoId);if(photo!=null&&photo.get("data") instanceof String&&("private".equals(visibility)?uid.equals(photo.get("ownerUid")):pair.equals(photo.get("pairId"))))return (String)photo.get("data");return "";}
+    @JavascriptInterface public void discardPending(String operationId){activity.runOnUiThread(()->{if(sending)return;removeOperation(operationId);error="";post();drain();});}
+    @JavascriptInterface public String photo(String photoId,String visibility){FirebaseUser user=auth.getCurrentUser();if(!id(photoId)||uid.isEmpty()||user==null||!uid.equals(user.getUid())||!Arrays.asList("private","shared").contains(visibility)||"shared".equals(visibility)&&!ready)return "";Map<String,Object> photo=records.get(visibility+":photo:"+photoId);if(photo!=null&&photo.get("data") instanceof String&&("private".equals(visibility)?uid.equals(photo.get("ownerUid")):pair.equals(photo.get("pairId"))))return (String)photo.get("data");try{JSONArray q=queue();for(int i=0;i<q.length();i++){JSONArray changes=q.getJSONObject(i).getJSONArray("changes");for(int n=0;n<changes.length();n++){JSONObject c=changes.getJSONObject(n);if("photo".equals(c.optString("kind"))&&photoId.equals(c.optString("id"))&&visibility.equals(c.optString("visibility"))&&(!"shared".equals(visibility)||pair.equals(c.optString("pairId"))))return c.getJSONObject("fields").optString("data");}}}catch(Exception ignored){}return "";}
     @JavascriptInterface public void refresh(){activity.runOnUiThread(()->{observeAuth();error="";post();drain();});}
     public void onPageReady(){pageReady=true;refresh();}
     private static Object json(Object value)throws Exception{if(value==null)return JSONObject.NULL;if(value instanceof Timestamp)return ((Timestamp)value).toDate().toInstant().toString();if(value instanceof Map){JSONObject o=new JSONObject();for(Map.Entry<?,?>e:((Map<?,?>)value).entrySet())o.put(String.valueOf(e.getKey()),json(e.getValue()));return o;}if(value instanceof List){JSONArray a=new JSONArray();for(Object x:(List<?>)value)a.put(json(x));return a;}return value;}

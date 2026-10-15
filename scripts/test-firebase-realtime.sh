@@ -24,6 +24,7 @@ mkdir -p artifacts
   node firebase-tests/health_sync_feature_test.js
   node firebase-tests/travel_models_test.js
   node firebase-tests/travel_store_test.js
+  node firebase-tests/travel_ui_test.js
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh
   native_test_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-sync-tests.XXXXXX")"

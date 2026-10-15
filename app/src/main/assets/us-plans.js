@@ -201,6 +201,7 @@
         <div class="plans-actions"><button type="button" class="btn soft" data-action="edit" data-id="${html(item.id)}">Edit</button>${item.state === 'Dreaming' ? `<button type="button" class="btn" data-action="planning" data-id="${html(item.id)}">Start planning</button>` : ''}${item.state !== 'Done' ? `<button type="button" class="btn" data-action="done" data-id="${html(item.id)}">Mark Done</button>` : `<button type="button" class="btn soft" data-action="memory" data-id="${html(item.id)}">Turn this into a Memory</button>`}</div></article>`;
     }
     function renderBucket(v) {
+      if(root.UsTravel && !v.editor){root.UsTravel.renderBucket(v);return;}
       const section = element('bucket'); if (!section) return;
       section.innerHTML = header('Our Bucket List', 'Little dreams. Bigger adventures. All the things we want to do together.') + sharing(v) + status(v)
         + (v.editor ? form(v.editor) : '<button type="button" class="btn primary full" data-action="new">＋ Add a dream</button>')
@@ -273,7 +274,7 @@
       ['bucket', 'jar'].forEach(id => { const section = element(id); if (!section) return; section.addEventListener('click', onClick); section.addEventListener('input', onInput); section.addEventListener('change', onChange); section.addEventListener('submit', onSubmit); });
       root.UsExtras.subscribe(render); render();
     }
-    root.UsPlans = {init, render, handleBack() { if (!controller || !controller.handleBack()) return false; render(); return true; }};
+    root.UsPlans = {init, render, openBucket(id) {if(controller){controller.openBucket(id);render();}}, handleBack() { if(root.UsTravel?.handleBack())return true; if (!controller || !controller.handleBack()) return false; render(); return true; }};
   }
   return {CATEGORIES, STATES, PRIORITIES, MAX_PHOTO, MAX_SOURCE, normalize, changes, filterItems, attribution, chooseOld, photoData, createController, mount};
 });

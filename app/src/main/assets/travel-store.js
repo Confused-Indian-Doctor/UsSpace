@@ -5,7 +5,7 @@ const empty=()=>({uid:'',pairId:'',sharedReady:false,error:'',records:[],reactio
 function create(deps){let state=empty(),legacy=[],generation=0;const listeners=new Set();
  const publish=()=>listeners.forEach(fn=>fn(view()));
  function receive(snapshot){if(!snapshot||typeof snapshot.uid!=='string')return;const nextPair=snapshot.sharedReady===true&&typeof snapshot.pairId==='string'?snapshot.pairId:'';
-  if(snapshot.uid!==state.uid||nextPair!==state.pairId){generation++;legacy=[];if(deps.onScopeChange)deps.onScopeChange();}
+  if(snapshot.uid!==state.uid||nextPair!==state.pairId){generation++;legacy=[];if(deps.onScopeChange)deps.onScopeChange({fromUid:state.uid,toUid:snapshot.uid,fromPairId:state.pairId,toPairId:nextPair});}
   const visible=x=>x&&x.schemaVersion===1&&(x.visibility==='private'?x.ownerUid===snapshot.uid:x.visibility==='shared'&&nextPair!==''&&x.pairId===nextPair);
   state={uid:snapshot.uid,pairId:nextPair,sharedReady:!!nextPair,error:typeof snapshot.error==='string'?snapshot.error:'',records:(snapshot.records||[]).filter(visible),reactions:(snapshot.reactions||[]).filter(x=>x.visibility==='private'?x.uid===snapshot.uid:!!nextPair&&x.visibility==='shared'),pending:(snapshot.pending||[]).filter(op=>Array.isArray(op.changes)&&op.changes.every(c=>c.visibility==='private'||c.visibility==='shared'&&!!nextPair&&c.pairId===nextPair))};if(!state.uid)state=empty();publish();}
  function setLegacy(items,pairId){if(!state.uid||!state.sharedReady||pairId!==state.pairId){legacy=[];return;}legacy=(items||[]).map(x=>M.migrateLegacy(x,pairId));publish();}
