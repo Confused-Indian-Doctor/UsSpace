@@ -83,10 +83,6 @@ jobs:
               "java": 17,
           }
           (root / "signing-inputs-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-          total = sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
-          if total >= 32 * 1024 * 1024 - 4096:
-              raise SystemExit(f"Signing inputs exceed the 32 MiB transfer limit: {total} bytes")
-          print(f"Signing inputs size: {total} bytes")
           PY
           (
             cd "$inputs"
@@ -97,11 +93,53 @@ jobs:
               android-sdk/build-tools/35.0.0/aapt \
               android-sdk/build-tools/35.0.0/lib64/libc++.so > SHA256SUMS
           )
+          python3 scripts/split-signing-inputs.py "$inputs"
+          (cd "$inputs" && sha256sum APK-PARTS.json >> SHA256SUMS)
       - name: Upload inputs for original-key local signing
         uses: actions/upload-artifact@v4
         with:
           name: UsSpace-v0.16-signing-inputs
-          path: artifact-stage/
+          path: artifact-stage/signing-inputs/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unsigned APK part 0
+        if: hashFiles('artifact-stage/apk-parts/part-000.bin') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.16-unsigned-apk-part-000
+          path: artifact-stage/apk-parts/part-000.bin
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unsigned APK part 1
+        if: hashFiles('artifact-stage/apk-parts/part-001.bin') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.16-unsigned-apk-part-001
+          path: artifact-stage/apk-parts/part-001.bin
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unsigned APK part 2
+        if: hashFiles('artifact-stage/apk-parts/part-002.bin') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.16-unsigned-apk-part-002
+          path: artifact-stage/apk-parts/part-002.bin
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unsigned APK part 3
+        if: hashFiles('artifact-stage/apk-parts/part-003.bin') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.16-unsigned-apk-part-003
+          path: artifact-stage/apk-parts/part-003.bin
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unsigned APK part 4
+        if: hashFiles('artifact-stage/apk-parts/part-004.bin') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.16-unsigned-apk-part-004
+          path: artifact-stage/apk-parts/part-004.bin
           if-no-files-found: error
           retention-days: 7
 
