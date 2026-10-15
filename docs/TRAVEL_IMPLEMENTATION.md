@@ -53,5 +53,21 @@ weather/opening hours or straight-line road-route claims.
 
 ## Verification status
 
-Architecture inspection and plan recorded. Travel implementation and Android
-verification are pending; existing v0.15 remains the last verified release.
+Models, strict private/shared rules, durable native CRUD, Dreams, collections,
+reactions, text/image import review, bundled on-device OCR, confirmed map pins and
+manual trip editing have passed the branch CI build and Firebase rule emulator
+suite (run 38796955645). This is source/build verification, not Android runtime
+verification.
+
+The working tree additionally includes deterministic itinerary drafts, explicit
+preview/apply/undo, authenticated backend adapters, safe public-page metadata
+fetching, provider quotas, and Memories completion/photos/reflections/individual
+ratings. The planner and backend have local automated coverage. Memories has six
+local behavioral tests, including private/shared scope, account switching, invalid
+dates, cancellation and independently writable ratings. These newer changes still
+need branch CI and Android runtime verification.
+
+Remaining: exploring/audio/offline reading UX, production provider configuration
+and deployment, complete regression/security checks, signed APK assembly with the
+original certificate, exact upgrade-install/runtime tests and screenshots.
+Existing v0.15 remains the last verified release. No new APK is claimed verified.

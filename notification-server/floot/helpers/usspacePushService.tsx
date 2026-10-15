@@ -33,6 +33,7 @@ async function google(app: any, url: string, init: RequestInit = {}) {
     Authorization: 'Bearer ' + token.access_token, 'Content-Type': 'application/json', ...init.headers}});
 }
 async function rulesReady(app: any) {
+  if (usspacePushRules.sha256 === usspacePushRules.previousSha256 || !usspacePushRules.source.includes("match /pushOutbox/")) return false;
   const base = 'https://firebaserules.googleapis.com/v1/', releasePath = `projects/${PROJECT}/releases/cloud.firestore`;
   const releaseResponse = await google(app, base + releasePath);
   if (!releaseResponse.ok) return false;
@@ -108,3 +109,6 @@ async function handle(request: Request) {
   return relay.handle({method: 'POST', authorization: ingress.authorization, body: ingress.body});
 }
 export const usspacePushService = {capabilities, handle};
+
+// Server imports only. No credential value is returned by any endpoint.
+export const usspaceFirebaseAdmin=configuration;

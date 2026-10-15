@@ -1,0 +1,1 @@
+import {z} from 'zod';export const schema=z.object({itemId:z.string().max(140),visibility:z.enum(['private','shared']),pairId:z.string().max(140),timezone:z.string().min(1).max(80)}).strict();export type OutputType={provider?:string;retrievedAt?:string;sourceUrl?:string;hours?:unknown[];error?:string};

@@ -26,7 +26,15 @@ mkdir -p artifacts
   node firebase-tests/travel_store_test.js
   node firebase-tests/travel_ui_test.js
   node firebase-tests/travel_map_test.js
+  node firebase-tests/travel_places_test.js
+  node firebase-tests/travel_memories_test.js
   node firebase-tests/travel_trips_test.js
+  node firebase-tests/travel_planner_test.js
+  node firebase-tests/travel_planner_ui_test.js
+  node functions/test/travel-fetch.test.mjs
+  node functions/test/travel-service.test.mjs
+  node functions/test/travel-providers.test.mjs
+  python3 scripts/prepare-travel-server.py --check
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh
   native_test_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-sync-tests.XXXXXX")"

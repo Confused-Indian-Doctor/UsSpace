@@ -1,0 +1,1 @@
+import {z} from 'zod';export const schema=z.object({itemId:z.string().max(140),visibility:z.enum(['private','shared']),pairId:z.string().max(140)}).strict();export type OutputType={candidates?:unknown[];attribution?:string;retrievedAt?:string;error?:string};
