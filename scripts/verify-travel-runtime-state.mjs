@@ -1,0 +1,9 @@
+import {createRequire} from 'node:module';
+const require=createRequire(new URL('../functions/package.json',import.meta.url));const {initializeApp}=require('firebase-admin/app'),{getFirestore}=require('firebase-admin/firestore');
+if(process.env.GCLOUD_PROJECT!=='demo-usspace'||process.env.FIRESTORE_EMULATOR_HOST!=='127.0.0.1:8080')throw Error('Only local demo data is allowed');
+const db=getFirestore(initializeApp({projectId:'demo-usspace'})),trip=await db.doc('couples/travel_qa_pair/travelTrips/qa_trip').get();
+if(trip.data()?.revision<3)throw Error('Native preview/apply/undo did not reach the server');
+const stops=await db.collection('couples/travel_qa_pair/travelStops').where('tripId','==','qa_trip').get();
+if(stops.docs.filter(x=>!x.data().deleted).length!==1||!stops.docs.some(x=>x.data().deleted))throw Error('Native undo did not preserve tombstones and restore one stop');
+const batch=db.batch();batch.delete(db.doc('couples/travel_qa_pair/members/travel_qa_partner'));batch.update(db.doc('couples/travel_qa_pair'),{memberCount:1});batch.update(db.doc('users/travel_qa_partner'),{coupleId:''});await batch.commit();
+console.log('TRAVEL_NATIVE_SERVER_WRITES_VERIFIED_AND_PAIR_REVOKED');

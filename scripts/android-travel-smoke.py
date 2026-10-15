@@ -29,12 +29,18 @@ def run():
         if 'READY_AUTH_FIRESTORE_EMULATORS' in ui.adb('logcat','-d','-s','UsSpaceTravelQA:I'):break
         time.sleep(1)
     else:raise RuntimeError('Native Firebase emulator setup did not become ready')
+    verify('pending-import-after-signin',r'example\.com');tap('discard-retained-import',r'^Discard$')
     bucket();verify('dreams',r'QA · Garden walk');screenshot('Dreams')
     tap('map-tab',r'^Map$');verify('map-heading',r'A map of our someday');screenshot('Map')
     tap('place-details',r'^Details$');verify('source-notes',r'Take a slow walk')
     h.back('travel-details-back');verify('map-after-back',r'A map of our someday')
     tap('trips-tab',r'^Trips$');tap('open-trip',r'^Open trip$');verify('timeline',r'Our little weekend');screenshot('Trip-timeline')
     verify('stop-notes',r'Bring a book')
+    tap('remove-preview',r'^Remove$');verify('remove-not-applied',r'A proposal, not a changed plan')
+    screenshot('Itinerary-preview');tap('discard-removal',r'^Discard proposal$');verify('discard-keeps-stop',r'Bring a book')
+    tap('remove-reviewed',r'^Remove$');tap('apply-removal',r'^Apply changes$')
+    verify('removal-applied',r'Room for a little adventure')
+    tap('undo-removal',r'^Undo last applied edit$');verify('undo-restores-stop',r'Bring a book')
     tap('save-offline',r'^Save itinerary for offline reading$');verify('offline-confirmed',r'Itinerary and notes saved on this phone')
     h.back('travel-trip-parent');verify('trips-parent',r'New trip')
     tap('read-offline',r'^Read saved copy$');verify('offline-notes',r'Read-only notes');screenshot('Offline-notes')
@@ -52,7 +58,7 @@ def run():
     # private item and downloaded shared copy; inspect real accessibility text.
     root=h.dump('travel-partner-scope');text=h.visible_text(root,safe=False)
     if 'Private coffee idea' in text or 'Ready for a quiet signal' in text:raise RuntimeError('Prior account private data survived account switch')
-    screenshot('Partner-scope');report['status']='passed'
+    screenshot('Partner-scope');tap('partner-trips',r'^Trips$');tap('partner-open-trip',r'^Open trip$');tap('partner-offline-copy',r'^Save itinerary for offline reading$');verify('partner-copy-saved',r'Itinerary and notes saved on this phone');report['status']='passed'
     print('ANDROID_TRAVEL_UI_TEST_PASSED')
 if __name__=='__main__':
     try:run()

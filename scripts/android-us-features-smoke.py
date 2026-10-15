@@ -401,9 +401,9 @@ def run():
     ui.steps.append({"assertion": "letters-no-anonymous-editor", "status": "passed"})
 
     open_from_us("bucket", r"\bBucket List\b.*Our next little adventure\s*→")
-    verify("bucket-pairing-guidance", r"Pair your two phones to add and share here")
+    verify("bucket-pairing-guidance", r"Sign in to keep private ideas|Pair your two phones to add and share here")
     verify("bucket-real-empty-state", r"Our someday starts here")
-    ui.click("bucket-editor", r"Add a dream$")
+    ui.click("bucket-editor", r"Add a dream(?: · original shared list)?$")
     verify("bucket-new-form", r"What shall we dream of")
     verify("bucket-state-category-fields", r"Category")
     verify("bucket-date-location-fields", r"Location")
@@ -413,7 +413,7 @@ def run():
     ui.click("bucket-cancel-local-form", r"^Cancel$")
 
     open_from_us("jar", r"\bAppreciation Jar\b.*Open our jar\s*→")
-    verify("jar-pairing-guidance", r"Pair your two phones to add and share here")
+    verify("jar-pairing-guidance", r"Sign in to keep private ideas|Pair your two phones to add and share here")
     verify("jar-editor", r"Leave a little appreciation")
     verify("jar-add-action", r"Add to our jar")
     verify("jar-real-empty-state", r"A jar for our little joys")
