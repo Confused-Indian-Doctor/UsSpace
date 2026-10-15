@@ -63,7 +63,7 @@ function click(event){const b=event.target.closest('[data-travel-action]');if(!b
  if(action==='react')store.react(findItem(id),b.dataset.interest,ownReaction(findItem(id))?.rating||0);
  if(action==='review-import'){const job=imports.jobs.find(x=>x.id===id);if(job){root.AndroidTravelImports?.claim(id);reviewText(job.text,job);}}
  if(action==='discard-review'){if(review?.jobId)root.AndroidTravelImports?.acknowledge(review.jobId);review=null;}
- if(action==='complete'){const item=findItem(id);if(root.UsTravelTrips)root.UsTravelTrips.complete(item);else if(item?._legacy)root.UsPlans.openBucket(item.legacyId);else {store.save('item',{...item,status:'done',completedDate:item.completedDate||localDay()});notice='Completed. You can keep this day in Memories.';}}
+ if(action==='complete'){const item=findItem(id);if(root.UsTravelMemories?.complete)root.UsTravelMemories.complete(item);else if(item?._legacy)root.UsPlans.markDone(item.legacyId);else {store.save('item',{...item,status:'done',completedDate:item.completedDate||localDay()});notice='Completed. You can keep this day in Memories.';}}
  if(action==='review-pending'){const op=get().pending.find(o=>o.operationId===id);if(op)editor={type:'conflict',operation:op,value:{}};}
  if(action==='reedit-pending'){const op=editor.operation,latest=get().syncedRecords.find(x=>x._kind==='item'&&x.id===id);if(!latest)throw Error('This idea has no saved version yet. Keep its pending edit or discard it.');store.discard(op.operationId);openItem(latest);}
  if(action==='discard-pending'){store.discard(id);if(editor?.type==='conflict')editor=null;}

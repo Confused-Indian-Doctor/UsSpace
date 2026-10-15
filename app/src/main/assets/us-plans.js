@@ -274,7 +274,7 @@
       ['bucket', 'jar'].forEach(id => { const section = element(id); if (!section) return; section.addEventListener('click', onClick); section.addEventListener('input', onInput); section.addEventListener('change', onChange); section.addEventListener('submit', onSubmit); });
       root.UsExtras.subscribe(render); render();
     }
-    root.UsPlans = {init, render, openBucket(id) {if(controller){controller.openBucket(id);render();}}, handleBack() { if(root.UsTravel?.handleBack())return true; if (!controller || !controller.handleBack()) return false; render(); return true; }};
+    root.UsPlans = {init, render, markDone(id) {if(controller){controller.changeState(id,'Done');render();}}, openBucket(id) {if(controller){controller.openBucket(id);render();}}, handleBack() { if(root.UsTravel?.handleBack())return true; if (!controller || !controller.handleBack()) return false; render(); return true; }};
   }
   return {CATEGORIES, STATES, PRIORITIES, MAX_PHOTO, MAX_SOURCE, normalize, changes, filterItems, attribution, chooseOld, photoData, createController, mount};
 });
