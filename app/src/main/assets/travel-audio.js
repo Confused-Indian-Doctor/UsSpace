@@ -1,0 +1,10 @@
+/* Reads only the selected saved travel text with an offline Android voice. */
+(function(root){'use strict';const T=root.UsTravel;if(!T)return;let selected='',transcript='',state='stopped',message='';
+function stop(){selected='';transcript='';state='stopped';message='';root.AndroidTravelAudio?.stop();}
+function open(id){const item=T.findItem(id);if(!item)return;stop();selected=id;transcript=(item.title+'. '+(item.location?item.location+'. ':'')+(item.description||'No description has been saved for this place.')).slice(0,3500);state='ready';}
+function panel(item){if(selected!==T.key(item))return '';return '<section class="card" aria-label="Travel audio transcript"><h3>Listen to your saved notes</h3><p class="small">Android offline voice · your saved text, not a live guide</p><p class="travel-body">'+T.esc(transcript)+'</p>'+(item.sourceUrl?T.button('map-source','Open saved source ↗',T.key(item)):'<p class="small">Source: your saved title, location and notes.</p>')+'<div class="plans-actions">'+T.button('audio-play',state==='paused'?'Resume':'Play transcript')+T.button('audio-pause','Pause','', 'btn soft',state!=='playing')+T.button('audio-stop','Stop')+'</div><p class="small" role="status">'+T.esc(message||state)+'</p>'+T.button('audio-close','Close transcript')+'</section>';}
+function click(action,id){if(action==='audio-open')open(id);if(action==='audio-close')stop();if(action==='audio-stop'){root.AndroidTravelAudio?.stop();state='stopped';}if(action==='audio-pause')root.AndroidTravelAudio?.pause();if(action==='audio-play'){if(!root.AndroidTravelAudio){message='Offline audio needs the installed Android app. You can read the transcript here.';return;}if(state==='paused')root.AndroidTravelAudio.resume();else root.AndroidTravelAudio.play(transcript);}}
+root.onUsTravelAudio=value=>{if(!selected)return;state=value?.state||'stopped';message=value?.message||'';T.render();};
+root.UsTravelAudio={panel,click,stop};
+root.document.addEventListener?.('visibilitychange',()=>{if(root.document.hidden)stop();});
+})(globalThis);

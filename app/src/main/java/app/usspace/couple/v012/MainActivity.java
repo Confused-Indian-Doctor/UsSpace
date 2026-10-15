@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
     private AuthBridge authBridge;
     private CoupleSyncBridge syncBridge;
     private SpeechBridge speechBridge;
+    private TravelAudioBridge travelAudioBridge;
     private UsExtrasBridge extrasBridge;
     private UserPreferencesBridge preferencesBridge;
     private NotificationBridge notificationBridge;
@@ -117,6 +118,7 @@ public class MainActivity extends Activity {
         authBridge = new AuthBridge(this, webView, syncBridge);
         healthBridge = new HealthBridge(this, webView);
         speechBridge = new SpeechBridge(this, webView);
+        travelAudioBridge = new TravelAudioBridge(this, webView);
         extrasBridge = new UsExtrasBridge(this, webView);
         preferencesBridge = new UserPreferencesBridge(this, webView);
         notificationBridge = new NotificationBridge(this, webView);
@@ -129,6 +131,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(syncBridge, "UsSync");
         webView.addJavascriptInterface(healthBridge, "UsHealth");
         webView.addJavascriptInterface(speechBridge, "UsSpeech");
+        webView.addJavascriptInterface(travelAudioBridge, "AndroidTravelAudio");
         webView.addJavascriptInterface(extrasBridge, "UsSpaceExtras");
         webView.addJavascriptInterface(preferencesBridge, "AndroidPreferences");
         webView.addJavascriptInterface(notificationBridge, "UsNotifications");
@@ -180,6 +183,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        if (travelAudioBridge != null) travelAudioBridge.stop();
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         if (Build.VERSION.SDK_INT >= 33 && backCallback != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
@@ -194,6 +203,7 @@ public class MainActivity extends Activity {
         if (workScheduleBridge != null) workScheduleBridge.close();
         if (syncBridge != null) syncBridge.close();
         if (speechBridge != null) speechBridge.close();
+        if (travelAudioBridge != null) travelAudioBridge.close();
         if (extrasBridge != null) extrasBridge.close();
         if (photoCallback != null) { photoCallback.onReceiveValue(null); photoCallback = null; }
         if (webView != null) webView.destroy();

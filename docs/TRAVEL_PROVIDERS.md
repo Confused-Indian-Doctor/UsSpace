@@ -68,3 +68,57 @@ the phone unless an actual permitted storage provider is configured.
 These are reviewed provider decisions, not a declaration that maps, OCR, AI,
 weather or nearby search have already shipped. See TRAVEL_IMPLEMENTATION.md and
 the actual release evidence before reporting any provider as working.
+
+## Optional backend configuration (new travel service)
+
+The committed adapters do not activate a live service by themselves. Deploy the
+`notification-server/floot/endpoints/usspace-travel` routes with their matching
+helpers, or host `functions/src/travel-service.mjs` behind an HTTPS adapter with
+Firebase Admin authentication. Android currently uses
+`https://usspace-notify-cb2f5cbc.floot.app/_api/usspace-travel/`.
+The public capabilities endpoint must report protocol 1 and project
+`usspace-c859e`, and must pass the real Firebase Admin permission probe. Do not
+report ready from environment-variable presence alone.
+
+Configure secrets through the hosting provider's secret manager, never GitHub
+source, APK assets or chat:
+
+- `USSPACE_FIREBASE_ADMIN_JSON`: complete Firebase Admin service-account
+  JSON for `usspace-c859e` (the existing notification backend configuration).
+- `USSPACE_TRAVEL_GEOAPIFY_KEY`: Geoapify server API key. Used for place search,
+  nearby cafés and real walking/cycling/driving route estimates. Transit returns
+  unavailable. Apply provider account quotas and key restrictions appropriate to
+  your hosting egress; this key is never returned to the mobile app.
+- `USSPACE_TRAVEL_WEATHER_ENABLED=true`: opt into Open-Meteo requests for an
+  explicitly selected saved place. Check eligibility for its non-commercial free
+  service or use an appropriate subscription before deployment. Weather is a
+  timestamped forecast with source attribution, never a reservation guarantee.
+- `USSPACE_TRAVEL_AI_PROVIDER=openai` or `gemini`,
+  `USSPACE_TRAVEL_AI_KEY`, and `USSPACE_TRAVEL_AI_MODEL`: optional server-only AI
+  configuration. Choose a currently supported model for the account. The adapter
+  accepts only a validated ordering of selected place references. It cannot invent
+  new places, prices or opening hours. Missing keys or malformed output leave the
+  deterministic draft available.
+
+The service enforces canonical pair membership, selected-record authorization,
+revision checks, per-user daily and minute quotas, a project AI quota, and a
+project-wide paid-provider budget (default 100 calls/day). These application limits
+supplement the provider's own billing limits; they do not make paid APIs free.
+Firestore quota documents are server-only. Re-check membership after external
+calls so a revoked pairing cannot receive a late response.
+
+Documentation checked for the implemented REST adapters:
+
+- https://apidocs.geoapify.com/docs/geocoding/forward-geocoding/
+- https://apidocs.geoapify.com/docs/places/
+- https://apidocs.geoapify.com/docs/routing/
+- https://open-meteo.com/en/docs
+- https://platform.openai.com/docs/api-reference/chat
+- https://ai.google.dev/api/generate-content
+
+Geoapify/OSM attribution accompanies results; weather attribution accompanies
+forecasts. An explicitly chosen area result is labelled an area centre, rather
+than presented as the exact location of a venue. The current deterministic mobile
+planner groups by geographic proximity and labels travel times unknown; the
+optional route endpoint is separate until route estimates are integrated into
+reviewed drafts. No offline map-download feature is implemented.
