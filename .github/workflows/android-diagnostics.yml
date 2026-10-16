@@ -1,0 +1,35 @@
+name: Inspect Android runtime diagnostics
+on:
+  push:
+    branches: ['android-diagnostics/**']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: UsSpace-v0.17-runtime-diagnostics
+          run-id: 38869206488
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: diagnostics
+      - name: Inspect upgrade UI evidence
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, xml.etree.ElementTree as E
+          root = Path("diagnostics")
+          print("Evidence files:", sorted(p.name for p in root.iterdir()))
+          for p in sorted(root.glob("*.xml")):
+              if "upgrade" not in p.name: continue
+              tree = E.fromstring(p.read_bytes())
+              texts = [(n.get("text"), n.get("bounds"), n.get("class")) for n in tree.iter("node") if n.get("text")]
+              print(p.name, json.dumps(texts[:65], ensure_ascii=False))
+          for p in sorted(root.glob("upgrade-*.json")):
+              print(p.name, p.read_text())
+          for p in sorted(root.glob("*install*.txt")):
+              print(p.name, p.read_text())
+          PY
