@@ -345,6 +345,25 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Summarize failed Android UI evidence
+        if: failure()
+        run: |
+          python3 - <<'PYFAIL'
+          from pathlib import Path
+          import json, xml.etree.ElementTree as E
+          root = Path("artifacts")
+          for p in sorted(root.glob("*.xml"), key=lambda p:p.stat().st_mtime)[-12:]:
+              try:
+                  nodes = E.fromstring(p.read_bytes()).iter("node")
+                  values = [(n.get("text"), n.get("bounds"), n.get("class")) for n in nodes if n.get("text") and n.get("bounds") != "[0,0][0,0]"]
+                  print("UI_EVIDENCE",p.name,json.dumps(values[:45],ensure_ascii=False))
+              except Exception as e: print("UI_EVIDENCE_PARSE_ERROR",p.name,str(e))
+          for p in root.glob("*result.json"):
+              try:
+                  value=json.loads(p.read_text())
+                  print("UI_RESULT",p.name,json.dumps({k:v for k,v in value.items() if k in ("status","error","scope")}))
+              except Exception: pass
+          PYFAIL
       - name: Upload Android runtime diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

@@ -8,9 +8,10 @@ try:
         h.verify('upgrade-baseline-home-ready',r'\bTogether for\b',capture=True)
         h.edit_date('upgrade-before','26/03/2023')
     elif stage=='after':
-        h.verify('upgrade-persisted-date',r'Since 26 March 2023',capture=True)
+        h.verify('upgrade-new-home-ready',r'\bTogether for\b',capture=True)
+        h.verify('upgrade-persisted-date',r'Since 26 March 2023',capture=True,direction=False)
         h.edit_date('upgrade-restore','25/03/2023')
-        h.verify('upgrade-restored-official-date',r'Since 25 March 2023',capture=True)
+        h.verify('upgrade-restored-official-date',r'Since 25 March 2023',capture=True,direction=False)
     else:raise ValueError('Unknown upgrade phase')
     report['status']='passed'
 finally:(h.output/('upgrade-'+stage+'.json')).write_text(json.dumps(report,indent=2)+'\n')
