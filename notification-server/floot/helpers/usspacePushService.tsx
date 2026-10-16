@@ -1,6 +1,6 @@
 import {cert, getApps, initializeApp} from 'firebase-admin/app';
 import {getAuth} from 'firebase-admin/auth';
-import {FieldValue, getFirestore} from 'firebase-admin/firestore';
+import {FieldValue, Firestore} from '@google-cloud/firestore';
 import {getMessaging} from 'firebase-admin/messaging';
 import {createHash, createPrivateKey} from 'node:crypto';
 import {usspacePushRelayCore} from './usspacePushRelayCore';
@@ -12,6 +12,7 @@ const PROJECT = 'usspace-c859e';
 const APPLY_VERIFIED_RULES = false;
 let cached: {at: number; result: any} | undefined;
 let checking: Promise<any> | undefined;
+const databases = new Map<string, Firestore>();
 function hash(source: string) {return createHash('sha256').update(source.replace(/\r\n/g, '\n').trim()).digest('hex');}
 function configuration() {
   try {
@@ -24,7 +25,9 @@ function configuration() {
     const name = 'usspace-push-' + createHash('sha256').update(raw.client_email + raw.private_key).digest('hex').slice(0, 12);
     const app = getApps().find(x => x.name === name) || initializeApp({projectId: PROJECT,
       credential: cert({projectId: PROJECT, clientEmail: raw.client_email, privateKey: raw.private_key})}, name);
-    return {app, db: getFirestore(app), auth: getAuth(app), messaging: getMessaging(app)};
+    let db = databases.get(name);
+    if (!db) {db = new Firestore({projectId: PROJECT, credentials: {client_email: raw.client_email, private_key: raw.private_key}}); databases.set(name, db);}
+    return {app, db, auth: getAuth(app), messaging: getMessaging(app)};
   } catch (_) {return null;} // Never log private-key/parser errors or the supplied value.
 }
 async function google(app: any, url: string, init: RequestInit = {}) {

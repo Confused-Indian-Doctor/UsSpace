@@ -71,7 +71,8 @@ the actual release evidence before reporting any provider as working.
 
 ## Optional backend configuration (new travel service)
 
-The committed adapters do not activate a live service by themselves. Deploy the
+The backend is deployed at `https://usspace-notify-cb2f5cbc.floot.app`. For a
+replacement deployment, deploy the
 `notification-server/floot/endpoints/usspace-travel` routes with their matching
 helpers, or host `functions/src/travel-service.mjs` behind an HTTPS adapter with
 Firebase Admin authentication. Android currently uses
@@ -89,7 +90,8 @@ source, APK assets or chat:
   nearby cafés and real walking/cycling/driving route estimates. Transit returns
   unavailable. Apply provider account quotas and key restrictions appropriate to
   your hosting egress; this key is never returned to the mobile app.
-- `USSPACE_TRAVEL_WEATHER_ENABLED=true`: opt into Open-Meteo requests for an
+- `USSPACE_TRAVEL_WEATHER_ENABLED=false`: disable Open-Meteo requests. The
+  personal, non-commercial backend enables the free weather adapter by default for an
   explicitly selected saved place. Check eligibility for its non-commercial free
   service or use an appropriate subscription before deployment. Weather is a
   timestamped forecast with source attribution, never a reservation guarantee.
