@@ -209,6 +209,7 @@ jobs:
               ":(exclude)scripts/android-v015-smoke.py",
               ":(exclude)scripts/android-v016-smoke.py",
               ":(exclude)scripts/android-travel-smoke.py",
+              ":(exclude)scripts/android-upgrade-probe.py",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)
@@ -266,7 +267,12 @@ jobs:
               "v015_ui_harness_sha256": hashlib.sha256(v015_harness.read_bytes()).hexdigest(),
               "v016_ui_harness_file": str(v016_harness),
               "v016_ui_harness_sha256": hashlib.sha256(v016_harness.read_bytes()).hexdigest(),
-              "protected_source": "Application, Android build inputs, Firestore rules, unit/protocol tests and all other scripts match the APK compilation commit",
+              "travel_runtime_harnesses": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in [
+                  pathlib.Path("scripts/android-upgrade-probe.py"), pathlib.Path("scripts/android-travel-smoke.py"),
+                  pathlib.Path("scripts/android-travel-cold-import.py"), pathlib.Path("scripts/android-travel-unpair.py"),
+                  pathlib.Path("scripts/run-travel-runtime.sh"), pathlib.Path("scripts/seed-travel-runtime.mjs"),
+                  pathlib.Path("scripts/verify-travel-runtime-state.mjs")]},
+              "protected_source": "Application, Android build inputs, Firestore rules, unit/protocol tests and implementation scripts match the APK compilation commit; separately hashed Android UI automation may advance",
           }, indent=2) + "\n")
           print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
           PY
