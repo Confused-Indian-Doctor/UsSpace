@@ -25,6 +25,7 @@ mkdir -p artifacts
   node firebase-tests/travel_models_test.js
   node firebase-tests/travel_store_test.js
   node firebase-tests/travel_ui_test.js
+  node firebase-tests/travel_dom_structure_test.js
   node firebase-tests/travel_map_test.js
   node firebase-tests/travel_places_test.js
   node firebase-tests/travel_offline_test.js

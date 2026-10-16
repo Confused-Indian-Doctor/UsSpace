@@ -1,0 +1,68 @@
+name: Publish verified UsSpace Android APK
+on:
+  push:
+    branches: ['android-release/**']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require successful source and exact-APK verification runs
+        id: verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, urllib.request
+          from pathlib import Path
+          p=json.loads(Path('.ci-artifacts/release-verification.json').read_text())
+          repo=os.environ['GITHUB_REPOSITORY']
+          for name in ['android','main']:
+              run=p[name]
+              if not isinstance(run['id'],int) or not re.fullmatch('[a-f0-9]{40}',run['head_sha']): raise SystemExit('Invalid verification reference')
+              request=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{run["id"]}',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(request,timeout=30) as response: actual=json.load(response)
+              if actual['conclusion']!='success' or actual['status']!='completed' or actual['head_sha']!=run['head_sha']: raise SystemExit('Verification run is not the approved successful run')
+          if p['main']['head_sha']!=p['release_target_commit']: raise SystemExit('Release must target the verified main commit')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('run_id='+str(p['android']['id'])+'\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: UsSpace-v0.17-verified-apk
+          run-id: ${{ steps.verified.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: release-inputs
+      - name: Validate exact signed APK, UI results and screenshot deliverables
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,zipfile
+          from pathlib import Path
+          p=json.loads(Path('.ci-artifacts/release-verification.json').read_text());root=Path('release-inputs');apk=root/'UsSpace-v0.17.apk'
+          sha=hashlib.sha256(apk.read_bytes()).hexdigest()
+          signature=json.loads((root/'apk-verification.json').read_text())
+          if sha!=p['apk_sha256'] or signature.get('apk_sha256')!=sha or signature.get('status')!='verified': raise SystemExit('APK digest/signature verification mismatch')
+          if signature.get('signing_sha1')!='67eafa2c1f58fe0c4bf3ea2470f6628072157310' or signature.get('signing_sha256')!='b5edfcc256feb46edc9fa4f2c4e95aeae3a8572b248ef234ba2a61b4eaefc308': raise SystemExit('Original signing identity changed')
+          if signature.get('package')!='app.usspace.couple.v012' or signature.get('version_code')!=19 or signature.get('version_name')!='0.17.0': raise SystemExit('Unexpected application identity')
+          results=['smoke-result.json','learning-ui-result.json','signin-ui-result.json','travel-ui-result.json','travel-unpair-result.json','travel-cold-import-result.json','upgrade-before.json','upgrade-after.json','v015-ui-result.json','v016-ui-result.json','us-features-ui-result.json','v014-ui-result.json']
+          for name in results:
+              if json.loads((root/name).read_text()).get('status')!='passed': raise SystemExit('Runtime verification missing or failed: '+name)
+          screenshots=['Dreams','Import-review','Map','Trip-timeline','Memories']
+          for name in screenshots:
+              if not (root/f'UsSpace-travel-{name}.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):raise SystemExit('Required screenshot missing: '+name)
+          dest=Path('release-files');dest.mkdir(exist_ok=True);(dest/'UsSpace-v0.17.0.apk').write_bytes(apk.read_bytes());(dest/'UsSpace-v0.17.0.apk.sha256').write_text(sha+'  UsSpace-v0.17.0.apk\n')
+          with zipfile.ZipFile(dest/'UsSpace-v0.17.0-verification.zip','w',zipfile.ZIP_DEFLATED) as archive:
+              for name in results+['apk-verification.json','apk-source.json','automation-provenance.json']+[f'UsSpace-travel-{n}.png' for n in screenshots]:archive.write(root/name,name)
+          notes='UsSpace v0.17.0 continues the existing Android app with Dreams, reviewed imports, Map, editable Trips and Memories.\n\nThe exact APK passed installation, in-place upgrade, Android UI and Firebase privacy/realtime verification. The original signing identity is unchanged.\n\nAI and live place/routing search require optional provider keys; manual planning and local drafts remain available. Real Samsung Health export and production two-phone FCM delivery were not verified by these emulator tests.\n\nAPK SHA-256: '+sha+'\nCompilation source: '+p['source_commit']+'\nAndroid verification run: '+str(p['android']['id'])+'\n'
+          (dest/'release-notes.md').write_text(notes)
+          PY
+      - name: Publish the verified installable APK and evidence
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          target=$(python3 -c 'import json;print(json.load(open(".ci-artifacts/release-verification.json"))["release_target_commit"])')
+          gh release create v0.17.0 --draft --target "$target" --title "UsSpace v0.17.0" --notes-file release-files/release-notes.md release-files/UsSpace-v0.17.0.apk release-files/UsSpace-v0.17.0.apk.sha256 release-files/UsSpace-v0.17.0-verification.zip
+          gh release edit v0.17.0 --draft=false --latest

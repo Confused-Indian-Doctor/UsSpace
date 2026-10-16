@@ -7,7 +7,7 @@ on:
       - 'android-apk-verification/**'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-local-signing-${{ github.ref }}
@@ -98,6 +98,10 @@ jobs:
           )
           python3 scripts/split-signing-inputs.py "$inputs"
           (cd "$inputs" && sha256sum APK-PARTS.json >> SHA256SUMS)
+      - name: Export checked compiler inputs for the original-key signing workspace
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/export-signing-inputs-git.py
       - name: Upload inputs for original-key local signing
         uses: actions/upload-artifact@v4
         with:
