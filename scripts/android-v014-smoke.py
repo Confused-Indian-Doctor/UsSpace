@@ -51,6 +51,24 @@ def dump(label, prefix="v014"):
 
 ui.dump = dump
 
+# A foreground Settings sheet can overlap the app's sticky header and footer.
+# Use its actual accessibility ancestor bounds, as the v0.15 harness already does.
+original_safe_region = ui.safe_region
+def safe_region(root, allow_tabs=False):
+    parents = {child: parent for parent in root.iter() for child in parent}
+    for title in root.iter("node"):
+        if not ui.matches(title, r"^Our space$"):continue
+        parent = parents.get(title)
+        while parent is not None:
+            bounds = ui.visible_bounds(parent)
+            if (bounds and parent.get("class") == "android.view.View"
+                    and bounds[2] - bounds[0] >= ui.width * .9
+                    and ui.height * .15 < bounds[3] - bounds[1] < ui.height * .97):
+                return bounds[1] + 8, bounds[3] - 8
+            parent = parents.get(parent)
+    return original_safe_region(root, allow_tabs=allow_tabs)
+ui.safe_region = safe_region
+
 
 def visible_text(root, safe=True):
     return "\n".join(ui.text_of(node) for node in root.iter("node")
