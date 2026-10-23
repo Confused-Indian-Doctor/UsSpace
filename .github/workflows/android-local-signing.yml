@@ -290,7 +290,7 @@ jobs:
                   pathlib.Path("scripts/android-travel-cold-import.py"), pathlib.Path("scripts/android-travel-unpair.py"),
                   pathlib.Path("scripts/run-travel-runtime.sh"), pathlib.Path("scripts/seed-travel-runtime.mjs"),
                   pathlib.Path("scripts/verify-travel-runtime-state.mjs")]},
-              "protected_source": "Application, Android build inputs, Firestore rules, unit/protocol tests and implementation scripts match the APK compilation commit; separately hashed Android UI automation may advance",
+              "protected_source": "Release application, Android build inputs, Firestore rules and implementation match the release compilation commit; instrumentation has its own pinned source and UI automation is separately hashed",
           }, indent=2) + "\n")
           print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
           PY
