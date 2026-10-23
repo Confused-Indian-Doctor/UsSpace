@@ -216,6 +216,8 @@ jobs:
               ":(exclude)scripts/android-travel-smoke.py",
               ":(exclude)scripts/android-upgrade-probe.py",
               ":(exclude)scripts/run-travel-runtime.sh",
+              ":(exclude)scripts/android-travel-unpair.py",
+              ":(exclude)scripts/verify-travel-runtime-state.mjs",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)

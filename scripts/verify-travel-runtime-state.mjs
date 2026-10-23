@@ -5,5 +5,8 @@ const db=getFirestore(initializeApp({projectId:'demo-usspace'})),trip=await db.d
 if(trip.data()?.revision<3)throw Error('Native preview/apply/undo did not reach the server');
 const stops=await db.collection('couples/travel_qa_pair/travelStops').where('tripId','==','qa_trip').get();
 if(stops.docs.filter(x=>!x.data().deleted).length!==1||!stops.docs.some(x=>x.data().deleted))throw Error('Native undo did not preserve tombstones and restore one stop');
+const imported=await db.collection('users/travel_qa_al/travelItems').where('title','==','QA-offline-save').get();
+if(imported.size!==1||imported.docs[0].data().ownerUid!=='travel_qa_al'||imported.docs[0].data().visibility!=='private'||imported.docs[0].data().pairId!=='')throw Error('Reviewed offline import did not reconnect once to the owner-private server path');
+console.log('TRAVEL_NATIVE_OFFLINE_PRIVATE_SAVE_RECONNECT_VERIFIED');
 const batch=db.batch();batch.delete(db.doc('couples/travel_qa_pair/members/travel_qa_partner'));batch.update(db.doc('couples/travel_qa_pair'),{memberCount:1});batch.update(db.doc('users/travel_qa_partner'),{coupleId:''});await batch.commit();
 console.log('TRAVEL_NATIVE_SERVER_WRITES_VERIFIED_AND_PAIR_REVOKED');
