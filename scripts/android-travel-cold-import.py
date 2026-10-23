@@ -6,7 +6,13 @@ report={'status':'failed','action_send':'cold-process','saved_automatically':Fal
 try:
  h.ui.adb('shell','am','force-stop',h.ui.PACKAGE)
  h.ui.adb('shell','am','start','-W','-n',h.ui.PACKAGE+'/.MainActivity','-a','android.intent.action.SEND','-t','text/plain','--es','android.intent.extra.TEXT','https://example.com/first-idea')
- h.verify('cold-import-review',r'Is this the dream you meant',capture=True)
+ # Keep startup at the top while the WebView delivers its pending cold intent.
+ h.verify('cold-import-review',r'Is this the dream you meant',capture=True,direction=False)
  h.verify('cold-import-source',r'example\.com',capture=True)
  report['status']='passed'
+except Exception as error:
+ report['error']=str(error)
+ try:h.screenshot('cold-import-failure')
+ except Exception:pass
+ raise
 finally:(h.output/'travel-cold-import-result.json').write_text(json.dumps(report,indent=2)+'\n')
