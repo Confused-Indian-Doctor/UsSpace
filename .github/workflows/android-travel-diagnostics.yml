@@ -161,7 +161,15 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android SDK and Google APIs emulator
-        run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
+        run: |
+          set -euo pipefail
+          for usspace_sdk_attempt in 1 2 3; do
+            if sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"; then break; fi
+            if [ "$usspace_sdk_attempt" = 3 ]; then exit 1; fi
+            : "${ANDROID_HOME:?Android SDK directory must be configured}"
+            rm -rf -- "$ANDROID_HOME/.temp"
+            sleep 3
+          done
       - name: Verify the original-key APK and Firebase OAuth identity
         run: |
           "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 artifacts/UsSpace-v0.17.apk
