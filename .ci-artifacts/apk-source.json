@@ -1,8 +1,8 @@
 {
-  "url": "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/UsSpace-v0.17.0.apk",
-  "sha256": "0880ddac9160808ae09e44090f93af5609d6ce079afda0a0b6c842cd265f0d37",
+  "url": "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/UsSpace-v0.17.0-7aded51b.apk",
+  "sha256": "7aded51bb32c14a74bfe306afecab96af497ddf2d4a469492dc23bbaded698ee",
   "bytes": 51648174,
-  "source_commit": "87a07b57dffac47c77662b33a876385cc062ef7c",
+  "source_commit": "dcbd617ddd8abe4fea458349c4ba04bc2a0257ba",
   "instrumentation_url": "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/UsSpace-v0.17.0-runtime-test.apk",
   "instrumentation_sha256": "507b8d6cd19d3878a3ea68396a9943ccea60d9c416636546373aa45cbff0fa8f",
   "transport_encoding": "gzip",

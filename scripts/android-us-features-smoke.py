@@ -403,7 +403,9 @@ def run():
     open_from_us("bucket", r"\bBucket List\b.*Our next little adventure\s*→")
     verify("bucket-pairing-guidance", r"Sign in to keep private ideas|Pair your two phones to add and share here")
     verify("bucket-real-empty-state", r"Our someday starts here")
-    ui.click("bucket-editor", r"Add a dream(?: · original shared list)?$")
+    # Empty-state verification has scrolled below the original-list action.
+    # Scroll back up to the real control; never tap behind the fixed navigation.
+    ui.click("bucket-editor", r"Add a dream(?: · original shared list)?$", direction=False)
     verify("bucket-new-form", r"What shall we dream of")
     verify("bucket-state-category-fields", r"Category")
     verify("bucket-date-location-fields", r"Location")

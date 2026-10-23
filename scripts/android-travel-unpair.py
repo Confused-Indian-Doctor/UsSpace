@@ -8,6 +8,7 @@ try:
  h.verify('unpair-empty-dreams',r'Our someday starts here',capture=True)
  text=h.visible_text(h.dump('unpair-no-shared-records'),safe=False)
  if 'QA · Garden walk' in text:raise RuntimeError('Shared travel records remained visible after unpair')
+ h.verify('unpair-return-to-tabs',r'Our Bucket List',capture=False,direction=False)
  h.tap('unpair-trips',r'^Trips$')
  text=h.visible_text(h.dump('unpair-no-offline-copy'),safe=False)
  if 'Ready for a quiet signal' in text or 'Our little weekend' in text:raise RuntimeError('Revoked pair offline copy survived')

@@ -200,7 +200,8 @@ jobs:
                   require_https(newurl)
                   return super().redirect_request(req, fp, code, msg, headers, newurl)
           subprocess.run(["git", "cat-file", "-e", source_commit + "^{commit}"], check=True)
-          # The Android UI harness is not embedded in the APK. It may advance
+          # The Android UI harness and test-only emulator orchestration are not
+          # embedded in the APK. They may advance
           # independently when correcting real-device selectors or scrolling.
           # Keep every application/build input, rule, unit/protocol test and
           # other script identical to the APK's recorded compilation commit.
@@ -214,6 +215,9 @@ jobs:
               ":(exclude)scripts/android-v016-smoke.py",
               ":(exclude)scripts/android-travel-smoke.py",
               ":(exclude)scripts/android-upgrade-probe.py",
+              ":(exclude)scripts/run-travel-runtime.sh",
+              ":(exclude)scripts/android-travel-unpair.py",
+              ":(exclude)scripts/verify-travel-runtime-state.mjs",
           ], check=True)
           output = pathlib.Path("artifacts")
           output.mkdir(exist_ok=True)

@@ -13,6 +13,7 @@ mkdir -p artifacts
   node firebase-tests/comfort_feature_test.js
   node firebase-tests/letters_feature_test.js
   node firebase-tests/plans_feature_test.js
+  node firebase-tests/file_picker_test.js
   node firebase-tests/preferences_feature_test.js
   node firebase-tests/work_schedule_feature_test.js
   node firebase-tests/v014_push_test.mjs

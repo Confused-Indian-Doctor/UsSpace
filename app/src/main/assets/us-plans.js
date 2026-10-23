@@ -225,8 +225,11 @@
     }
     function render() {
       if (!controller) return;
+      // Read scope first so revoked/account-switched content is never deferred.
+      const v = controller.view();
+      if (root.UsFilePicker?.defer(render)) return;
       const focus = doc.activeElement, focusId = focus && focus.id, start = focus && focus.selectionStart, end = focus && focus.selectionEnd;
-      const v = controller.view(); renderBucket(v); renderJar(v);
+      renderBucket(v); renderJar(v);
       const next = focusId && element(focusId);
       if (next && typeof next.focus === 'function') {
         next.focus({preventScroll: true});

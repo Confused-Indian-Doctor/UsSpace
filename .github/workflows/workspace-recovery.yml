@@ -16,7 +16,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir recovery
-          git bundle create recovery/usspace-history.bundle dcbd617ddd8abe4fea458349c4ba04bc2a0257ba refs/remotes/origin/main
+          git bundle create recovery/usspace-history.bundle 243850a8a6f53f0588def0eaa0ebc17d24ebde75 refs/remotes/origin/main
           git bundle verify recovery/usspace-history.bundle
           sha256sum recovery/usspace-history.bundle > recovery/SHA256SUMS
           du -h recovery/usspace-history.bundle
@@ -36,7 +36,7 @@ jobs:
               req=urllib.request.Request('https://api.github.com/repos/'+repository+path,data=json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['GITHUB_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='POST')
               with urllib.request.urlopen(req,timeout=45) as response:return json.load(response)
           data=gzip.compress(pathlib.Path('recovery/usspace-history.bundle').read_bytes(),mtime=0)
-          manifest={'source_commit':'dcbd617ddd8abe4fea458349c4ba04bc2a0257ba','bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'chunks':[]}
+          manifest={'source_commit':'243850a8a6f53f0588def0eaa0ebc17d24ebde75','bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'chunks':[]}
           elements=[]
           for i,offset in enumerate(range(0,len(data),524288)):
               raw=data[offset:offset+524288];path=f'history/{i:03d}.b64'

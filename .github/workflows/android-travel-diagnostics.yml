@@ -1,0 +1,258 @@
+name: Focused native UsSpace travel diagnostics
+on:
+  push:
+    branches: ['android-travel-diagnostics/**']
+permissions:
+  contents: read
+concurrency:
+  group: focused-travel-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-apk:
+    name: Exercise native travel on the exact original-key APK
+    if: startsWith(github.ref, 'refs/heads/android-travel-diagnostics/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      ANDROID_API: '35'
+      ANDROID_BUILD_TOOLS: '35.0.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Firebase and private sync payloads
+        run: |
+          test -s .ci-artifacts/apk-source.json
+          python3 scripts/validate-firebase-config.py
+          node firebase-tests/privacy_payload_test.js
+      - name: Verify authenticated realtime delivery, concurrent learning and Firestore privacy rules
+        timeout-minutes: 12
+        run: bash scripts/test-firebase-realtime.sh
+      - name: Download the locally signed APK and verify its source and checksum
+        timeout-minutes: 3
+        run: |
+          python3 - <<'PY'
+          import gzip, hashlib, json, os, pathlib, re, subprocess, time, urllib.parse, urllib.request
+          pointer = json.loads(pathlib.Path(".ci-artifacts/apk-source.json").read_text())
+          url = pointer["url"]
+          expected_sha = pointer["sha256"]
+          source_commit = pointer["source_commit"]
+          if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+              raise SystemExit("Invalid APK SHA-256 in apk-source.json")
+          if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
+              raise SystemExit("Invalid source commit in apk-source.json")
+          def require_https(value):
+              parsed = urllib.parse.urlsplit(value)
+              if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
+                  raise SystemExit("APK download and redirects must use HTTPS without URL credentials")
+          require_https(url)
+          class HTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  require_https(newurl)
+                  return super().redirect_request(req, fp, code, msg, headers, newurl)
+          subprocess.run(["git", "cat-file", "-e", source_commit + "^{commit}"], check=True)
+          # The Android UI harness and test-only emulator orchestration are not
+          # embedded in the APK. They may advance
+          # independently when correcting real-device selectors or scrolling.
+          # Keep every application/build input, rule, unit/protocol test and
+          # other script identical to the APK's recorded compilation commit.
+          subprocess.run([
+              "git", "diff", "--exit-code", source_commit, "HEAD", "--",
+              "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
+              "scripts/", "firebase-tests/", "functions/", "firestore.rules", "firestore.indexes.json", "firebase.json",
+              ":(exclude)scripts/android-us-features-smoke.py",
+              ":(exclude)scripts/android-v014-smoke.py",
+              ":(exclude)scripts/android-v015-smoke.py",
+              ":(exclude)scripts/android-v016-smoke.py",
+              ":(exclude)scripts/android-travel-smoke.py",
+              ":(exclude)scripts/android-upgrade-probe.py",
+              ":(exclude)scripts/run-travel-runtime.sh",
+              ":(exclude)scripts/android-travel-unpair.py",
+              ":(exclude)scripts/verify-travel-runtime-state.mjs",
+          ], check=True)
+          output = pathlib.Path("artifacts")
+          output.mkdir(exist_ok=True)
+          apk = output / "UsSpace-v0.17.apk"
+          digest = hashlib.sha256()
+          size = 0
+          deadline = time.monotonic() + 120
+          opener = urllib.request.build_opener(HTTPSRedirectHandler())
+          with opener.open(url, timeout=30) as response, apk.open("wb") as dest:
+              require_https(response.geturl())
+              encoding = response.headers.get("Content-Encoding", "identity").strip().lower()
+              if encoding not in ("identity", "gzip"):
+                  raise SystemExit("Unsupported APK transport encoding")
+              apk_stream = gzip.GzipFile(fileobj=response) if encoding == "gzip" else response
+              while True:
+                  if time.monotonic() >= deadline:
+                      raise SystemExit("APK download exceeded 120 seconds")
+                  chunk = apk_stream.read(1024 * 1024)
+                  if not chunk:
+                      break
+                  size += len(chunk)
+                  if size > 64 * 1024 * 1024:
+                      raise SystemExit("APK download exceeded 64 MiB")
+                  digest.update(chunk)
+                  dest.write(chunk)
+          if size == 0 or digest.hexdigest() != expected_sha:
+              apk.unlink(missing_ok=True)
+              raise SystemExit("Downloaded APK checksum does not match apk-source.json")
+          qa_url = pointer["instrumentation_url"]
+          qa_sha = pointer["instrumentation_sha256"]
+          require_https(qa_url)
+          if not re.fullmatch(r"[0-9a-f]{64}", qa_sha):
+              raise SystemExit("Invalid signed instrumentation checksum")
+          with opener.open(qa_url, timeout=30) as response:
+              require_https(response.geturl())
+              qa_bytes = response.read(32 * 1024 * 1024 + 1)
+          if not qa_bytes or len(qa_bytes) > 32 * 1024 * 1024 or hashlib.sha256(qa_bytes).hexdigest() != qa_sha:
+              raise SystemExit("Signed instrumentation checksum/size mismatch")
+          (output / "travel-runtime-test.apk").write_bytes(qa_bytes)
+          (output / "apk-source.json").write_text(json.dumps(pointer, indent=2) + "\n")
+          (output / "SOURCE_COMMIT.txt").write_text(source_commit + "\n")
+          (output / "VERIFICATION_COMMIT.txt").write_text(os.environ["GITHUB_SHA"] + "\n")
+          harness = pathlib.Path("scripts/android-us-features-smoke.py")
+          v014_harness = pathlib.Path("scripts/android-v014-smoke.py")
+          v015_harness = pathlib.Path("scripts/android-v015-smoke.py")
+          v016_harness = pathlib.Path("scripts/android-v016-smoke.py")
+          (output / "automation-provenance.json").write_text(json.dumps({
+              "apk_source_commit": source_commit,
+              "automation_commit": os.environ["GITHUB_SHA"],
+              "ui_harness_file": str(harness),
+              "ui_harness_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(),
+              "v014_ui_harness_file": str(v014_harness),
+              "v014_ui_harness_sha256": hashlib.sha256(v014_harness.read_bytes()).hexdigest(),
+              "v015_ui_harness_file": str(v015_harness),
+              "v015_ui_harness_sha256": hashlib.sha256(v015_harness.read_bytes()).hexdigest(),
+              "v016_ui_harness_file": str(v016_harness),
+              "v016_ui_harness_sha256": hashlib.sha256(v016_harness.read_bytes()).hexdigest(),
+              "travel_runtime_harnesses": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in [
+                  pathlib.Path("scripts/android-upgrade-probe.py"), pathlib.Path("scripts/android-travel-smoke.py"),
+                  pathlib.Path("scripts/android-travel-cold-import.py"), pathlib.Path("scripts/android-travel-unpair.py"),
+                  pathlib.Path("scripts/run-travel-runtime.sh"), pathlib.Path("scripts/seed-travel-runtime.mjs"),
+                  pathlib.Path("scripts/verify-travel-runtime-state.mjs")]},
+              "protected_source": "Application, Android build inputs, Firestore rules, unit/protocol tests and implementation scripts match the APK compilation commit; separately hashed Android UI automation may advance",
+          }, indent=2) + "\n")
+          print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
+          PY
+      - name: Validate notification server dependencies and entry points
+        run: |
+          npm --prefix functions install --ignore-scripts --no-audit --no-fund
+          npm --prefix functions run check
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK and Google APIs emulator
+        run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
+      - name: Verify the original-key APK and Firebase OAuth identity
+        run: |
+          "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 artifacts/UsSpace-v0.17.apk
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.17.apk --report artifacts/apk-verification.json
+          (cd artifacts && sha256sum UsSpace-v0.17.apk > UsSpace-v0.17.apk.sha256)
+          python3 - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path("artifacts/apk-verification.json")
+          report = json.loads(path.read_text())
+          report["source_commit"] = pathlib.Path("artifacts/SOURCE_COMMIT.txt").read_text().strip()
+          report["verification_commit"] = os.environ["GITHUB_SHA"]
+          path.write_text(json.dumps(report, indent=2) + "\n")
+          PY
+      - name: Enable KVM for the Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo modprobe kvm
+          sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          ls -l /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Download the verified original-key upgrade baseline
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, pathlib, urllib.request
+          url = "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/a9986d44-129f-4426-aee2-b90b1e9d15f5-UsSpace-v0.15.0.apk"
+          content = urllib.request.urlopen(url, timeout=30).read(12 * 1024 * 1024)
+          if hashlib.sha256(content).hexdigest() != "c341cd382fcd89c50fc94913fdbc1b28c3763c1079b7d7466a162c9753c4a8dd":
+              raise SystemExit("Upgrade baseline checksum mismatch")
+          pathlib.Path("artifacts/UsSpace-v0.15-baseline.apk").write_bytes(content)
+          PYCODE
+      - name: Boot Android 35, install and launch the signed APK
+        timeout-minutes: 60
+        env:
+          ANDROID_EMULATOR_ACCEL: 'on'
+          BOOT_TIMEOUT_SECONDS: '300'
+          CRASH_OBSERVE_SECONDS: '20'
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/usspace-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd -n usspace-ci -k "system-images;android-$ANDROID_API;google_apis;x86_64" --force --path "$ANDROID_AVD_HOME/usspace-ci.avd" <<< no
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fxq usspace-ci
+          "$ANDROID_HOME/emulator/emulator" -avd usspace-ci -port 5554 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel on -no-snapshot -wipe-data > artifacts/emulator.log 2>&1 &
+          travel_emulator_pid=$!
+          trap 'adb -s emulator-5554 logcat -b all -d > artifacts/logcat.txt 2>&1 || true; adb -s emulator-5554 emu kill >/dev/null 2>&1 || true; kill "$travel_emulator_pid" 2>/dev/null || true' EXIT
+          timeout 300 adb -s emulator-5554 wait-for-device
+          for attempt in $(seq 1 150); do
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then break; fi
+            sleep 2
+          done
+          test "$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')" = 1
+          adb -s emulator-5554 shell input keyevent 82
+          adb -s emulator-5554 install -r artifacts/UsSpace-v0.17.apk | tee artifacts/install.txt
+          grep -qx Success artifacts/install.txt
+          adb -s emulator-5554 shell am start -W -n app.usspace.couple.v012/.MainActivity | tee artifacts/launch.txt
+          npx --yes firebase-tools@14.12.1 emulators:exec --config firebase.json --only auth,firestore --project demo-usspace "bash scripts/run-travel-runtime.sh"
+      - name: Upload focused travel evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.17-focused-travel-evidence
+          path: |
+            artifacts/
+            !artifacts/UsSpace-v0.15-baseline.apk
+            !artifacts/travel-runtime-test.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize failed Android UI evidence
+        if: failure()
+        run: |
+          python3 - <<'PYFAIL'
+          from pathlib import Path
+          import json, xml.etree.ElementTree as E
+          root = Path("artifacts")
+          for p in sorted(root.glob("*.xml"), key=lambda p:p.stat().st_mtime)[-12:]:
+              try:
+                  nodes = E.fromstring(p.read_bytes()).iter("node")
+                  values = [(n.get("text"), n.get("bounds"), n.get("class")) for n in nodes if n.get("text") and n.get("bounds") != "[0,0][0,0]"]
+                  print("UI_EVIDENCE",p.name,json.dumps(values[:45],ensure_ascii=False))
+              except Exception as e: print("UI_EVIDENCE_PARSE_ERROR",p.name,str(e))
+          for p in root.glob("*result.json"):
+              try:
+                  value=json.loads(p.read_text())
+                  print("UI_RESULT",p.name,json.dumps({k:v for k,v in value.items() if k in ("status","error","scope")}))
+              except Exception: pass
+          PYFAIL
+      - name: Upload Android runtime diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.17-runtime-diagnostics
+          path: |
+            artifacts/*.png
+            artifacts/*.xml
+            artifacts/*.txt
+            artifacts/*.log
+            artifacts/*result.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -7,9 +7,35 @@ import importlib.util,json,pathlib,time,re
 spec=importlib.util.spec_from_file_location('travel_helpers',pathlib.Path(__file__).with_name('android-v015-smoke.py'))
 h=importlib.util.module_from_spec(spec);spec.loader.exec_module(h)
 ui=h.ui;output=ui.output
+# Swipe the page gutter: a gesture over Leaflet deliberately pans the map and
+# cannot reveal the caption or controls beneath it. Visibility checks stay intact.
+original_adb=ui.adb
+def travel_adb(*arguments,binary=False):
+    values=list(arguments)
+    if values[:3]==['shell','input','swipe']:
+        values[3]=values[5]=str(max(8,int(ui.width*0.04)))
+    return original_adb(*values,binary=binary)
+ui.adb=travel_adb
 report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
-def tap(label,pattern): h.tap('travel-'+label,pattern)
-def verify(label,pattern): return h.verify('travel-'+label,pattern,capture=False,direction=True)
+def tap(label,pattern):
+    direction=pattern not in (r'^Map$',r'^Trips$',r'^Memories$')
+    for attempt in range(2):
+        try:
+            root,node=h.find('travel-'+label,pattern,interactive=True,enabled=True,direction=direction)
+            left,top,right,bottom=ui.usable_bounds(node,root)
+            ui.adb('shell','input','tap',str((left+right)//2),str((top+bottom)//2))
+            ui.steps.append({'action':'travel-'+label,'matched':ui.text_of(node),'bounds':[left,top,right,bottom]})
+            time.sleep(0.45)
+            return
+        except RuntimeError as error:
+            if attempt or 'actual visible element not found' not in str(error):raise
+            direction=not direction
+def verify(label,pattern):
+    direction=pattern not in (r'Our Bucket List',r'A map of our someday')
+    try:return h.verify('travel-'+label,pattern,capture=False,direction=direction)
+    except RuntimeError as error:
+        if 'actual visible element not found' not in str(error):raise
+        return h.verify('travel-'+label,pattern,capture=False,direction=not direction)
 def screenshot(label):
     value=ui.adb('exec-out','screencap','-p',binary=True)
     if not value.startswith(b'\x89PNG\r\n\x1a\n'):raise RuntimeError('Invalid screenshot')
@@ -31,11 +57,17 @@ def run():
     else:raise RuntimeError('Native Firebase emulator setup did not become ready')
     verify('pending-import-after-signin',r'example\.com');tap('discard-retained-import',r'^Discard$')
     bucket();verify('dreams',r'QA · Garden walk');screenshot('Dreams')
-    tap('map-tab',r'^Map$');verify('map-heading',r'A map of our someday');screenshot('Map')
+    tap('map-tab',r'^Map$');verify('map-heading',r'A map of our someday')
+    tap('load-confirmed-map',r'^Load online map$')
+    verify('map-renderer-ready',r'Confirmed places only|Tiles are unavailable')
+    screenshot('Map')
     tap('place-details',r'^Details$');verify('source-notes',r'Take a slow walk')
     h.back('travel-details-back');verify('map-after-back',r'A map of our someday')
     tap('trips-tab',r'^Trips$');tap('open-trip',r'^Open trip$');verify('timeline',r'Our little weekend');screenshot('Trip-timeline')
     verify('stop-notes',r'Bring a book')
+    tap('numbered-day-map',r'^Load numbered map$')
+    verify('numbered-map-ready',r'Confirmed places only|Tiles are unavailable')
+    screenshot('Trip-numbered-map')
     tap('remove-preview',r'^Remove$');verify('remove-not-applied',r'A proposal, not a changed plan')
     screenshot('Itinerary-preview');tap('discard-removal',r'^Discard proposal$');verify('discard-keeps-stop',r'Bring a book')
     tap('remove-reviewed',r'^Remove$');tap('apply-removal',r'^Apply changes$')
@@ -51,13 +83,21 @@ def run():
     command('share-text');verify('import-review',r'Is this the dream you meant');verify('import-private',r'Private review|Private · only me');screenshot('Import-review')
     tap('discard-url',r'^Discard$');command('share-image');verify('image-review',r'Is this the dream you meant')
     verify('ocr-text',r'Glasgow Botanic Gardens');screenshot('OCR-review');tap('discard-image',r'^Discard$')
-    command('offline');tap('trips-offline-tab',r'^Trips$');tap('offline-read-again',r'^Read saved copy$');verify('offline-read',r'Bring a book')
+    command('offline')
+    ui.adb('shell','am','start','-W','-n',ui.PACKAGE+'/.MainActivity','-a','android.intent.action.SEND','-t','text/plain','--es','android.intent.extra.TEXT','QA-offline-save')
+    verify('offline-import-review',r'Is this the dream you meant')
+    verify('offline-import-private',r'Private · only me')
+    tap('save-private-offline-idea',r'^Save selected ideas$')
+    verify('offline-idea-retained',r'QA-offline-save')
+    verify('offline-save-pending',r'Saved on this phone, waiting to sync')
+    screenshot('Offline-save')
+    tap('trips-offline-tab',r'^Trips$');tap('offline-read-again',r'^Read saved copy$');verify('offline-read',r'Bring a book')
     h.back('travel-close-offline');command('online');command('partner');bucket()
     verify('partner-shared-dream',r'QA · Garden walk')
     # Native scoped listeners and offline getter must clear the prior account's
     # private item and downloaded shared copy; inspect real accessibility text.
     root=h.dump('travel-partner-scope');text=h.visible_text(root,safe=False)
-    if 'Private coffee idea' in text or 'Ready for a quiet signal' in text:raise RuntimeError('Prior account private data survived account switch')
+    if 'Private coffee idea' in text or 'QA-offline-save' in text or 'Ready for a quiet signal' in text:raise RuntimeError('Prior account private data survived account switch')
     screenshot('Partner-scope');tap('partner-trips',r'^Trips$');tap('partner-open-trip',r'^Open trip$');tap('partner-offline-copy',r'^Save itinerary for offline reading$');verify('partner-copy-saved',r'Itinerary and notes saved on this phone');report['status']='passed'
     print('ANDROID_TRAVEL_UI_TEST_PASSED')
 if __name__=='__main__':
