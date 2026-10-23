@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
                 catch (ActivityNotFoundException | SecurityException failure) {
                     photoCallback = null;
                     callback.onReceiveValue(null);
+                    publishPhotoPickerResult(false);
                     showPickerError("No photo picker is available. You can add a photo later.");
                 }
                 return true;
@@ -242,11 +243,17 @@ public class MainActivity extends Activity {
             }
         }
         callback.onReceiveValue(selected == null ? null : new Uri[]{selected});
+        publishPhotoPickerResult(selected != null);
         if (resultCode == RESULT_OK && selected == null) showPickerError("Choose a JPEG, PNG or WebP photo.");
     }
 
     private static boolean isBundledPage(String target) {
         return target != null && (BUNDLED_PAGE.equals(target) || target.startsWith(BUNDLED_PAGE + "#"));
+    }
+
+    private void publishPhotoPickerResult(boolean selected) {
+        if (webView != null) webView.evaluateJavascript(
+                "window.UsFilePicker&&window.UsFilePicker.result(" + selected + ");", null);
     }
 
     private void showPickerError(String message) {

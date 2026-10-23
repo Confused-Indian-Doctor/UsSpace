@@ -7,6 +7,15 @@ import importlib.util,json,pathlib,time,re
 spec=importlib.util.spec_from_file_location('travel_helpers',pathlib.Path(__file__).with_name('android-v015-smoke.py'))
 h=importlib.util.module_from_spec(spec);spec.loader.exec_module(h)
 ui=h.ui;output=ui.output
+# Swipe the page gutter: a gesture over Leaflet deliberately pans the map and
+# cannot reveal the caption or controls beneath it. Visibility checks stay intact.
+original_adb=ui.adb
+def travel_adb(*arguments,binary=False):
+    values=list(arguments)
+    if values[:3]==['shell','input','swipe']:
+        values[3]=values[5]=str(max(8,int(ui.width*0.04)))
+    return original_adb(*values,binary=binary)
+ui.adb=travel_adb
 report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
 def tap(label,pattern):
     direction=pattern not in (r'^Map$',r'^Trips$',r'^Memories$')

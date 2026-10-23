@@ -9,6 +9,7 @@ const assets = path.join(__dirname, '../app/src/main/assets');
 const html = fs.readFileSync(path.join(assets, 'index.html'), 'utf8');
 const entries = new Map();
 const elements = new Map();
+const documentListeners = new Map();
 function element(id) {
   if (!elements.has(id)) elements.set(id, {
     textContent: '', innerHTML: '', value: '', checked: false, disabled: false, style: {}, dataset: {},
@@ -26,7 +27,8 @@ function element(id) {
   return elements.get(id);
 }
 const context = vm.createContext({
-  document: {getElementById: id => elements.get(id) || null, querySelectorAll: () => [], querySelector: element},
+  document: {getElementById: id => elements.get(id) || null, querySelectorAll: () => [], querySelector: element,
+    addEventListener(name, handler) { const list=documentListeners.get(name)||[];list.push(handler);documentListeners.set(name,list); }},
   localStorage: {getItem: key => entries.get(key) || null, setItem: (key, value) => entries.set(key, value)},
   crypto: {randomUUID}, location: {hash: ''}, setTimeout: () => 1, clearTimeout() {},
   scrollTo() {}, confirm: () => false, console,
