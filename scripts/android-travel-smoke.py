@@ -31,6 +31,8 @@ def travel_adb(*arguments,binary=False):
             values[3]=values[5]=str(ui.width//2);values[4]=str(int(start));values[6]=str(int(end))
             ui.steps.append({'action':'scroll-page-outside-map','map_bounds':bounds,'from_y':start,'to_y':end})
             break
+    if values[:3]==['shell','input','swipe']:
+        ui.steps.append({'action':'travel-page-swipe','coordinates':values[3:]})
     return original_adb(*values,binary=binary)
 ui.adb=travel_adb
 report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
@@ -52,7 +54,9 @@ def verify(label,pattern):
     try:return h.verify('travel-'+label,pattern,capture=False,direction=direction)
     except RuntimeError as error:
         if 'actual visible element not found' not in str(error):raise
-        return h.verify('travel-'+label,pattern,capture=False,direction=not direction)
+        missed=h.dump('travel-'+label+'-first-search-end')
+        ui.steps.append({'action':'travel-search-direction-exhausted','label':label,'direction':direction,'visible_text':h.visible_text(missed,safe=False)})
+        return h.verify('travel-'+label+'-opposite',pattern,capture=False,direction=not direction)
 def screenshot(label):
     value=ui.adb('exec-out','screencap','-p',binary=True)
     if not value.startswith(b'\x89PNG\r\n\x1a\n'):raise RuntimeError('Invalid screenshot')
