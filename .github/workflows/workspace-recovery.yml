@@ -1,0 +1,27 @@
+name: Recover original UsSpace checkout history
+on:
+  push:
+    branches: ['workspace-recovery/**']
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bundle original source history without credentials or local configuration
+        run: |
+          set -euo pipefail
+          mkdir recovery
+          git bundle create recovery/usspace-history.bundle dcbd617ddd8abe4fea458349c4ba04bc2a0257ba refs/remotes/origin/main
+          git bundle verify recovery/usspace-history.bundle
+          sha256sum recovery/usspace-history.bundle > recovery/SHA256SUMS
+          du -h recovery/usspace-history.bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-original-git-history
+          path: recovery/
+          retention-days: 7
