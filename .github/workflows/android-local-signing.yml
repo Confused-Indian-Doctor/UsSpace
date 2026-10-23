@@ -186,10 +186,13 @@ jobs:
           url = pointer["url"]
           expected_sha = pointer["sha256"]
           source_commit = pointer["source_commit"]
+          qa_source_commit = pointer.get("instrumentation_source_commit", source_commit)
           if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
               raise SystemExit("Invalid APK SHA-256 in apk-source.json")
           if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
               raise SystemExit("Invalid source commit in apk-source.json")
+          if not re.fullmatch(r"[0-9a-f]{40}", qa_source_commit):
+              raise SystemExit("Invalid instrumentation source commit")
           def require_https(value):
               parsed = urllib.parse.urlsplit(value)
               if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
@@ -200,6 +203,8 @@ jobs:
                   require_https(newurl)
                   return super().redirect_request(req, fp, code, msg, headers, newurl)
           subprocess.run(["git", "cat-file", "-e", source_commit + "^{commit}"], check=True)
+          subprocess.run(["git", "cat-file", "-e", qa_source_commit + "^{commit}"], check=True)
+          subprocess.run(["git", "diff", "--exit-code", qa_source_commit, "HEAD", "--", "app/src/androidTest/"], check=True)
           # The Android UI harness and test-only emulator orchestration are not
           # embedded in the APK. They may advance
           # independently when correcting real-device selectors or scrolling.
@@ -208,6 +213,7 @@ jobs:
           subprocess.run([
               "git", "diff", "--exit-code", source_commit, "HEAD", "--",
               "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
+              ":(exclude)app/src/androidTest/",
               "scripts/", "firebase-tests/", "functions/", "firestore.rules", "firestore.indexes.json", "firebase.json",
               ":(exclude)scripts/android-us-features-smoke.py",
               ":(exclude)scripts/android-v014-smoke.py",
@@ -217,6 +223,7 @@ jobs:
               ":(exclude)scripts/android-upgrade-probe.py",
               ":(exclude)scripts/run-travel-runtime.sh",
               ":(exclude)scripts/android-travel-unpair.py",
+              ":(exclude)scripts/android-travel-cold-import.py",
               ":(exclude)scripts/verify-travel-runtime-state.mjs",
           ], check=True)
           output = pathlib.Path("artifacts")
@@ -266,6 +273,9 @@ jobs:
           v016_harness = pathlib.Path("scripts/android-v016-smoke.py")
           (output / "automation-provenance.json").write_text(json.dumps({
               "apk_source_commit": source_commit,
+              "instrumentation_source_commit": qa_source_commit,
+              "instrumentation_sha256": qa_sha,
+              "instrumentation_sources": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(pathlib.Path("app/src/androidTest").rglob("*")) if p.is_file()},
               "automation_commit": os.environ["GITHUB_SHA"],
               "ui_harness_file": str(harness),
               "ui_harness_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(),
@@ -280,7 +290,7 @@ jobs:
                   pathlib.Path("scripts/android-travel-cold-import.py"), pathlib.Path("scripts/android-travel-unpair.py"),
                   pathlib.Path("scripts/run-travel-runtime.sh"), pathlib.Path("scripts/seed-travel-runtime.mjs"),
                   pathlib.Path("scripts/verify-travel-runtime-state.mjs")]},
-              "protected_source": "Application, Android build inputs, Firestore rules, unit/protocol tests and implementation scripts match the APK compilation commit; separately hashed Android UI automation may advance",
+              "protected_source": "Release application, Android build inputs, Firestore rules and implementation match the release compilation commit; instrumentation has its own pinned source and UI automation is separately hashed",
           }, indent=2) + "\n")
           print(f"Downloaded APK SHA-256 verified: {expected_sha}; source commit: {source_commit}")
           PY
@@ -293,7 +303,15 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android SDK and Google APIs emulator
-        run: sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"
+        run: |
+          set -euo pipefail
+          for usspace_sdk_attempt in 1 2 3; do
+            if sdkmanager "platforms;android-$ANDROID_API" "build-tools;$ANDROID_BUILD_TOOLS" "platform-tools" "emulator" "system-images;android-$ANDROID_API;google_apis;x86_64"; then break; fi
+            if [ "$usspace_sdk_attempt" = 3 ]; then exit 1; fi
+            : "${ANDROID_HOME:?Android SDK directory must be configured}"
+            rm -rf -- "$ANDROID_HOME/.temp"
+            sleep 3
+          done
       - name: Verify the original-key APK and Firebase OAuth identity
         run: |
           "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 4 artifacts/UsSpace-v0.17.apk

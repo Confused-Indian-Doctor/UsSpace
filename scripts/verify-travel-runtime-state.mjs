@@ -7,6 +7,9 @@ const stops=await db.collection('couples/travel_qa_pair/travelStops').where('tri
 if(stops.docs.filter(x=>!x.data().deleted).length!==1||!stops.docs.some(x=>x.data().deleted))throw Error('Native undo did not preserve tombstones and restore one stop');
 const imported=await db.collection('users/travel_qa_al/travelItems').where('title','==','QA-offline-save').get();
 if(imported.size!==1||imported.docs[0].data().ownerUid!=='travel_qa_al'||imported.docs[0].data().visibility!=='private'||imported.docs[0].data().pairId!=='')throw Error('Reviewed offline import did not reconnect once to the owner-private server path');
+const preflight=await db.collection('users/travel_qa_al/travelItems').where('title','==','QA-preflight-save').get();
+if(preflight.size!==1)throw Error('Server-accepted item was not preserved exactly once through paused listener delivery');
+console.log('TRAVEL_NATIVE_ACCEPTED_WRITE_LISTENER_GAP_VERIFIED');
 console.log('TRAVEL_NATIVE_OFFLINE_PRIVATE_SAVE_RECONNECT_VERIFIED');
 const batch=db.batch();batch.delete(db.doc('couples/travel_qa_pair/members/travel_qa_partner'));batch.update(db.doc('couples/travel_qa_pair'),{memberCount:1});batch.update(db.doc('users/travel_qa_partner'),{coupleId:''});await batch.commit();
 console.log('TRAVEL_NATIVE_SERVER_WRITES_VERIFIED_AND_PAIR_REVOKED');

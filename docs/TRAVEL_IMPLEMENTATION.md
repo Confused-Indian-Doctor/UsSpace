@@ -1,96 +1,118 @@
 # Bucket List travel upgrade
 
-## Inspected baseline
+## Existing app and ordered implementation
 
-Current checkout: Android Java, minSdk26/target35, Gradle8.11.1/AGP8.7.3,
-bundled WebView assets; Firebase Auth/Firestore native bridges; no React/native
-navigation rewrite. No AGENTS.md was found in the workspace search. Bucket List
-is `bucket` under Us, implemented by `us-plans.js`, `UsExtrasBridge` and
-`couples/{pair}/usBucket`. Existing photographs are small JPEG Firestore records.
-There is no verified existing map renderer, place provider, Storage deployment,
-travel schema, ACTION_SEND receiver or travel AI service. The checkout also has
-unreleased v0.16 notification/Health/Back changes; preserve these.
+Continue the Java Android/WebView app (minSdk 26, target 35), bundled HTML/JS/CSS,
+Firebase authentication and existing two-person pairing. Bucket List remains
+under Us; no bottom-navigation tab or application rewrite is introduced.
 
-## Ordered implementation
+1. Versioned models, lossless legacy projection, private/shared documents,
+   user-owned reactions, strict access rules and durable revision-checked writes.
+2. Dreams cards, search, category/collection/interest filters and explicit private
+   import review. Existing non-travel goals remain available.
+3. Native cold/warm ACTION_SEND text and image imports, persistent sign-in inbox,
+   bounded file validation, bundled on-device OCR and reviewed deduplication.
+4. Confirmed place selection, separate map/place/routing interfaces and editable
+   day timelines with accessible reorder/move/remove and reviewed undo.
+5. Deterministic drafts and optional authenticated backend AI ordering, with
+   Preview → Apply/Discard and revision conflict checks.
+6. Memories, compressed photos, individual ratings/shared reflection, explicit
+   offline itinerary copies, foreground TTS and optional sourced exploration.
+7. Source/security verification, original-key signing, exact-APK upgrade/runtime
+   verification, five screenshots and a verified release artifact.
 
-1. Add versioned travel models and non-destructive legacy projection; test strict
-   validation, visibility, deduplication and revisions before wiring UI.
-2. Add owner-private and current-pair Firestore paths, separately owned reactions,
-   per-stop documents, deny-by-default Storage rules, and authenticated native
-   CRUD with scoped listeners/offline queue. Test unrelated/forged/unpaired access.
-3. Extend the existing Bucket List route with Dreams/Map/Trips/Memories, preserving
-   non-travel entries and the Appreciation Jar. Add explicit destinations,
-   collections, interests and reviewed import candidates. Native text/image shares
-   must survive cold/warm launch and sign-in without creating items automatically.
-4. Add map/place/routing interfaces, verified coordinates, manual trip/day editing
-   and explicit preview/apply/undo. Unknown hours/prices/travel times stay unknown.
-5. Add deterministic drafts plus authenticated configurable backend AI adapter;
-   only selected travel fields may cross that boundary. Provider failures leave
-   manual planning available. Add quotas/schema validation/SSRF protection.
-6. Add completion, ratings, reflection, photos, saved offline itinerary reading,
-   sourced TTS, and honest provider-unavailable states for nearby/weather.
-7. Run existing and new tests, build with the original signing key, upgrade-install
-   the exact APK, exercise real UI, capture all five requested screens and report
-   actual results. Do not label unfinished source as a verified release.
+Steps 1–6 are implemented in the travel source branch. Step 7 is in progress;
+the existing v0.15 artifact remains the verified release.
 
-## Data boundaries and conflicts
+## Data and privacy
 
-New records default private; importing does not infer a shared destination.
-Legacy `usBucket` stays shared in its existing pair and is never silently copied
-into another pair or broadened. Migration uses a stable legacy identity and keeps
-all source fields/photos. Private drafts/imports stay owner scoped. Reactions use
-one document per item/user. Items, collections, trips, stops, imports and memories
-are separate versioned documents. Updates use expected revisions; itinerary-wide
-apply is atomic and stale drafts require review. Deletion is a revisioned tombstone
-so retries cannot resurrect an item. An undo is another checked change, not a
-blind old snapshot overwrite. Account/unpair changes cancel listeners and clear
-inaccessible shared UI/queued writes before rendering a new scope.
+New imports, ideas, collections and trips default private. Shared destinations
+require explicit selection and the current canonical pair. Legacy usBucket data
+is not deleted or silently moved: a non-destructive projection retains original
+fields/photos, and an explicit copied experience records its legacy identity.
 
-Health/Cycle/comfort/profile history are never travel inputs. No background
-location or partner location sharing. Network sources are untrusted content.
-No arbitrary social-video extraction, inferred coordinates, fake booking, invented
-weather/opening hours or straight-line road-route claims.
+Records and trip stops are separate schema-versioned documents. Reactions are
+separate user-owned documents. Firestore rules validate identity, allowed fields,
+types and sizes. Storage rules restrict owner/current-pair access if a Storage
+provider is later configured. Current compressed JPEG photos use bounded private
+or pair-specific Firestore documents on the existing Spark setup.
 
-## Verification status
+Native writes persist a bounded account-scoped queue, use idempotent receipts and
+expected revisions, and retry transient failures. Deletions are revisioned
+tombstones. Itinerary-wide parent/stop changes are atomic. Stale drafts require
+review; undo is a new checked transaction, not a blind snapshot overwrite.
+Confirmed membership revocation, sign-out and account changes remove inaccessible
+shared records, pending writes and offline copies.
 
-Models, strict private/shared rules, durable native CRUD, Dreams, collections,
-reactions, text/image import review, bundled on-device OCR, confirmed map pins and
-manual trip editing have passed the branch CI build and Firebase rule emulator
-suite (run 38796955645). This is source/build verification, not Android runtime
-verification.
+Health, Cycle, comfort moods and unrelated profile/history data never enter travel
+or provider requests. There is no background location or partner tracking.
+Remote unpairing cannot be detected while disconnected; dated offline copies
+explain this limitation. Saved notes do not imply downloaded photographs or maps.
 
-The working tree additionally includes deterministic itinerary drafts, explicit
-preview/apply/undo, authenticated backend adapters, safe public-page metadata
-fetching, provider quotas, and Memories completion/photos/reflections/individual
-ratings. The planner and backend have local automated coverage. Memories has six
-local behavioral tests, including private/shared scope, account switching, invalid
-dates, cancellation and independently writable ratings. These newer changes still
-need branch CI and Android runtime verification.
+## Imports, providers and planning
 
-Remaining: exploring/audio/offline reading UX, production provider configuration
-and deployment, complete regression/security checks, signed APK assembly with the
-original certificate, exact upgrade-install/runtime tests and screenshots.
-Existing v0.15 remains the last verified release. No new APK is claimed verified.
+Imported content is untrusted. Images are MIME/magic/size/dimension checked;
+OCR yields candidate text, never confirmed locations. Restricted social sources
+remain links with caption/screenshot/manual fallbacks. Public HTML metadata uses
+bounded HTTPS fetching with pinned public DNS, redirect checks and SSRF defenses.
 
-## Offline and exploring implementation checkpoint
+Bundled Leaflet renders only confirmed points; a missing coordinate does not
+remove an idea from the list. Online OSM tiles require an explicit map action,
+attribution and normal viewport caching. There is no offline map download.
+External navigation opens an installed maps application. Geographic proximity
+is never presented as road travel time.
 
-User-invoked exploration reads only the selected saved place: nearby café
-candidates, timestamped Open-Meteo forecasts, or Geoapify travel-time estimates to
-another saved place in the same destination. Failure/quota/unconfigured responses
-keep manual planning usable. Selecting a café opens a private edit/review rather
-than silently saving. These paths have five local UI tests; live providers are not
-yet configured or claimed tested. Forecast advice does not rewrite an itinerary.
+Manual trips and deterministic drafts work without paid keys. Unknown hours,
+prices, reservations and travel times stay unknown. The optional backend enforces
+Firebase authentication, current-pair authorization, selected-record scope,
+quotas and structured output. AI proposes ordering of selected references and
+cannot silently change an accepted itinerary. Accommodation uses notes and
+external reservation/booking links; there is no in-app checkout.
 
-Travel narration reads the visible saved title/location/notes using a separate,
-foreground-only Android offline English TTS bridge. Transcript, play, pause,
-resume and stop are available. It stops when leaving the app and on scope changes.
-No synthetic Al voice, invented guide facts, or remote speech service is used.
-Three local UI tests pass; native playback needs runtime verification.
+The deployed backend was rechecked on 23 October 2026: capabilities returned 200,
+and unauthenticated planning returned 401. Metadata and weather report enabled;
+Geoapify places/routing and AI remain unconfigured. See TRAVEL_PROVIDERS.md and
+V017_SETUP.md for exact setup, licensing, quotas and availability limits.
 
-Explicit offline itinerary copies contain trip/stop notes in app-private storage,
-scoped to the signed-in account, at most 12 copies/1.5 MB. They are read-only and
-labelled with save time; photos and map tiles are not downloaded. Shared copies
-are cleared on observed membership revocation, sign-out or account switch. A
-remote unpair cannot be detected while disconnected; the UI states this limit.
-Four local tests cover reading, Back, account switching and removal. Native
-lifecycle/restart/unpair behavior still requires Android runtime verification.
+## Actual verification checkpoint
+
+Source 243850a8a6f53f0588def0eaa0ebc17d24ebde75 passed build run 39984306333:
+JavaScript regressions/travel tests, native Java policy tests, 89 Firebase emulator
+tests and Android release/instrumentation compilation. These are not device tests.
+
+The signed v0.17.0 APK (versionCode 19) has SHA-256
+4630506e9803af968db6c58cee0e4efbe52c08c347c05d1b114756f336b34391.
+Local SDK checks verified alignment, package/version and the original certificate.
+Android run 39997856349 is running the full exact-APK upgrade/runtime suite.
+Focused run 39995392469 passed real map rendering, reviewed trip removal/undo,
+offline itinerary reading and native screenshot OCR. It failed when a reviewed
+idea saved offline was absent from Dreams after the save confirmation. This
+remains an unresolved runtime failure; diagnostic run 39999848818 retains both
+scroll-search directions, and a separate test APK adds demo-only queue reads.
+
+Do not report this APK as verified until its runtime job passes. The rejected
+older v0.17 layout candidate must not be delivered. Real production two-phone
+Google login/sync, Samsung Health export and FCM delivery are not established by
+demo-emulator tests; live paid providers are not configured or claimed tested.
+
+## Commit/listener handoff fix under verification
+
+Diagnostic run 40002978826 proved the reviewed QA-preflight-save item and its
+receipt existed on the demo server while the paused-listener UI had lost the
+item. The write was accepted; its local optimistic overlay had been removed
+before a document snapshot arrived. Successful operations now retain a durable,
+account-scoped acknowledged overlay until every affected revision is observed.
+Acknowledged edits show as synced, are not sent again or offered for discard,
+and cannot override newer snapshots or cross an account/pair boundary.
+
+The regression harness separately covers a paused SDK listener with an accepted
+transaction and a real Firestore transport block on the disposable runner. The
+latter rejects port 8080 traffic during Save and restores the exact test firewall
+rule before reconnection/cleanup. No device or production firewall is changed.
+The native SDK creates transactions directly from its datastore; pausing normal
+listeners is therefore not a sufficient substitute for blocking its transport.
+Reference: https://github.com/firebase/firebase-android-sdk/blob/master/firebase-firestore/src/main/java/com/google/firebase/firestore/remote/RemoteStore.java
+
+All 29 local JavaScript suites passed after this change, including three new
+acknowledgement/listener regressions. Native compilation, new signed APK and
+complete emulator verification are still pending for the new source.

@@ -7,18 +7,45 @@ import importlib.util,json,pathlib,time,re
 spec=importlib.util.spec_from_file_location('travel_helpers',pathlib.Path(__file__).with_name('android-v015-smoke.py'))
 h=importlib.util.module_from_spec(spec);spec.loader.exec_module(h)
 ui=h.ui;output=ui.output
-# Swipe the page gutter: a gesture over Leaflet deliberately pans the map and
-# cannot reveal the caption or controls beneath it. Visibility checks stay intact.
+# Start page swipes outside the visible map; Leaflet consumes gestures that
+# begin on its canvas. Avoid Android's edge-back gesture area as well.
 original_adb=ui.adb
+gesture_count=0
 def travel_adb(*arguments,binary=False):
+    global gesture_count
     values=list(arguments)
     if values[:3]==['shell','input','swipe']:
-        values[3]=values[5]=str(max(8,int(ui.width*0.04)))
+        gesture_count+=1
+        root=h.dump('travel-scroll-geometry-'+str(gesture_count))
+        top,bottom=ui.safe_region(root)
+        maps=[ui.visible_bounds(n) for n in root.iter('node') if ui.matches(n,r'^Confirmed saved places map$') and ui.visible_bounds(n)]
+        for bounds in maps:
+            if bounds[3]<=top or bounds[1]>=bottom:continue
+            free=[(top,min(bottom,bounds[1])),(max(top,bounds[3]),bottom)]
+            start_free,end_free=max(free,key=lambda v:v[1]-v[0])
+            if end_free-start_free<40:continue
+            down=int(values[6])<int(values[4]);distance=abs(int(values[6])-int(values[4]))
+            start=end_free-12 if down else start_free+12
+            end=max(top+12,start-distance) if down else min(bottom-12,start+distance)
+            if abs(end-start)<28:continue
+            values[3]=values[5]=str(ui.width//2);values[4]=str(int(start));values[6]=str(int(end))
+            ui.steps.append({'action':'scroll-page-outside-map','map_bounds':bounds,'from_y':start,'to_y':end})
+            break
+    if values[:3]==['shell','input','swipe']:
+        ui.steps.append({'action':'travel-page-swipe','coordinates':values[3:]})
     return original_adb(*values,binary=binary)
 ui.adb=travel_adb
-report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
+transport_blocked=False
+transport_rule=["INPUT","-p","tcp","--dport","8080","-m","comment","--comment","usspace-travel-offline-qa","-j","REJECT"]
+def restore_transport():
+    global transport_blocked
+    if transport_blocked:
+        ui.subprocess.run(["sudo","-n","iptables","-w","5","-D",*transport_rule],check=True)
+        transport_blocked=False
+        ui.steps.append({"action":"restore-real-firestore-transport","port":8080})
+report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_state_mutation_injected':False,'read_only_demo_travel_diagnostics':True,'steps':ui.steps}
 def tap(label,pattern):
-    direction=pattern not in (r'^Map$',r'^Trips$',r'^Memories$')
+    direction=pattern not in (r'^Dreams$',r'^Map$',r'^Trips$',r'^Memories$') and label not in ('remove-preview','remove-reviewed','undo-removal','save-offline')
     for attempt in range(2):
         try:
             root,node=h.find('travel-'+label,pattern,interactive=True,enabled=True,direction=direction)
@@ -31,16 +58,24 @@ def tap(label,pattern):
             if attempt or 'actual visible element not found' not in str(error):raise
             direction=not direction
 def verify(label,pattern):
-    direction=pattern not in (r'Our Bucket List',r'A map of our someday')
+    direction=pattern not in (r'Our Bucket List',r'A map of our someday',r'Our little weekend',r'New trip',r'A proposal, not a changed plan')
     try:return h.verify('travel-'+label,pattern,capture=False,direction=direction)
     except RuntimeError as error:
         if 'actual visible element not found' not in str(error):raise
-        return h.verify('travel-'+label,pattern,capture=False,direction=not direction)
+        missed=h.dump('travel-'+label+'-first-search-end')
+        ui.steps.append({'action':'travel-search-direction-exhausted','label':label,'direction':direction,'visible_text':h.visible_text(missed,safe=False)})
+        return h.verify('travel-'+label+'-opposite',pattern,capture=False,direction=not direction)
 def screenshot(label):
     value=ui.adb('exec-out','screencap','-p',binary=True)
     if not value.startswith(b'\x89PNG\r\n\x1a\n'):raise RuntimeError('Invalid screenshot')
     (output/('UsSpace-travel-'+label+'.png')).write_bytes(value)
-def command(name):
+def command(name,block_transport=False):
+    global transport_blocked
+    if name=='online':restore_transport()
+    if name=='offline' and block_transport:
+        ui.subprocess.run(['sudo','-n','iptables','-w','5','-I',*transport_rule],check=True)
+        transport_blocked=True
+        ui.steps.append({'action':'block-real-firestore-transport','port':8080,'sdk_pause_also_requested':True})
     ui.adb('shell','am','broadcast','-a','app.usspace.TRAVEL_QA','--es','command',name)
     time.sleep(1)
 def bucket():
@@ -56,15 +91,27 @@ def run():
         time.sleep(1)
     else:raise RuntimeError('Native Firebase emulator setup did not become ready')
     verify('pending-import-after-signin',r'example\.com');tap('discard-retained-import',r'^Discard$')
-    bucket();verify('dreams',r'QA · Garden walk');screenshot('Dreams')
+    bucket()
+    # Exercise native durable saves before the longer map/trip journey so a
+    # queue regression produces focused evidence promptly, without skipping it.
+    command('offline')
+    ui.adb('shell','am','start','-W','-n',ui.PACKAGE+'/.MainActivity','-a','android.intent.action.SEND','-t','text/plain','--es','android.intent.extra.TEXT','QA-preflight-save')
+    verify('preflight-import',r'Is this the dream you meant')
+    tap('preflight-save',r'^Save selected ideas$');command('diagnostics')
+    h.dump('travel-preflight-immediately-after-save')
+    tap('preflight-dreams',r'^Dreams$')
+    verify('preflight-private-retained',r'QA-preflight-save')
+    verify('preflight-server-accepted-visible',r'You · dreaming · Synced')
+    command('online');verify('preflight-online-item',r'QA-preflight-save')
+    verify('dreams',r'QA · Garden walk');screenshot('Dreams')
     tap('map-tab',r'^Map$');verify('map-heading',r'A map of our someday')
     tap('load-confirmed-map',r'^Load online map$')
     verify('map-renderer-ready',r'Confirmed places only|Tiles are unavailable')
     screenshot('Map')
     tap('place-details',r'^Details$');verify('source-notes',r'Take a slow walk')
     h.back('travel-details-back');verify('map-after-back',r'A map of our someday')
-    tap('trips-tab',r'^Trips$');tap('open-trip',r'^Open trip$');verify('timeline',r'Our little weekend');screenshot('Trip-timeline')
-    verify('stop-notes',r'Bring a book')
+    tap('trips-tab',r'^Trips$');tap('open-trip',r'^Open trip$');verify('timeline',r'Our little weekend')
+    verify('stop-notes',r'Bring a book');screenshot('Trip-timeline')
     tap('numbered-day-map',r'^Load numbered map$')
     verify('numbered-map-ready',r'Confirmed places only|Tiles are unavailable')
     screenshot('Trip-numbered-map')
@@ -83,16 +130,26 @@ def run():
     command('share-text');verify('import-review',r'Is this the dream you meant');verify('import-private',r'Private review|Private · only me');screenshot('Import-review')
     tap('discard-url',r'^Discard$');command('share-image');verify('image-review',r'Is this the dream you meant')
     verify('ocr-text',r'Glasgow Botanic Gardens');screenshot('OCR-review');tap('discard-image',r'^Discard$')
-    command('offline')
+    command('offline',block_transport=True)
     ui.adb('shell','am','start','-W','-n',ui.PACKAGE+'/.MainActivity','-a','android.intent.action.SEND','-t','text/plain','--es','android.intent.extra.TEXT','QA-offline-save')
     verify('offline-import-review',r'Is this the dream you meant')
     verify('offline-import-private',r'Private · only me')
     tap('save-private-offline-idea',r'^Save selected ideas$')
+    command('diagnostics')
+    h.dump('travel-offline-immediately-after-save')
+    tap('open-saved-dreams',r'^Dreams$')
     verify('offline-idea-retained',r'QA-offline-save')
     verify('offline-save-pending',r'Saved on this phone, waiting to sync')
     screenshot('Offline-save')
-    tap('trips-offline-tab',r'^Trips$');tap('offline-read-again',r'^Read saved copy$');verify('offline-read',r'Bring a book')
-    h.back('travel-close-offline');command('online');command('partner');bucket()
+    tap('trips-offline-tab',r'^Trips$')
+    current=h.dump('travel-offline-current-trip-page')
+    if any(ui.matches(n,r'Add moment') for n in current.iter('node')):h.back('travel-offline-trip-parent')
+    verify('offline-trips-list',r'New trip')
+    tap('offline-read-again',r'^Read saved copy$');verify('offline-read',r'Bring a book')
+    h.back('travel-close-offline');command('online')
+    tap('reconnected-dreams',r'^Dreams$');verify('reconnected-private-idea',r'QA-offline-save')
+    verify('reconnected-sync-status',r'You · dreaming · Synced')
+    command('partner');bucket()
     verify('partner-shared-dream',r'QA · Garden walk')
     # Native scoped listeners and offline getter must clear the prior account's
     # private item and downloaded shared copy; inspect real accessibility text.
@@ -104,7 +161,16 @@ if __name__=='__main__':
     try:run()
     except Exception as error:
         report['error']=str(error)
+        try:
+            command('diagnostics')
+            (output/'travel-native-qa.log').write_text(ui.adb('logcat','-d','-s','UsSpaceTravelQA:I'))
+        except Exception:pass
         try:screenshot('failure');h.dump('travel-failure')
         except Exception:pass
         raise
-    finally:(output/'travel-ui-result.json').write_text(json.dumps(report,indent=2)+'\n')
+    finally:
+        try:restore_transport()
+        except Exception as cleanup_error:
+            report['status']='failed';report['transport_cleanup_error']=str(cleanup_error)
+            raise
+        finally:(output/'travel-ui-result.json').write_text(json.dumps(report,indent=2)+'\n')

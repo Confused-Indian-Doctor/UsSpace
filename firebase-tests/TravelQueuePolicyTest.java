@@ -12,6 +12,9 @@ public final class TravelQueuePolicyTest {
   equal(TravelQueuePolicy.descendants("missing",Map.of("a",List.of())),Set.of("missing"));
   for(String[] scope:new String[][]{{"al","al","al"}}){checks++;if(!TravelQueuePolicy.actor(scope[0],scope[1],scope[2]))throw new AssertionError("valid actor rejected");}
   for(String[] scope:new String[][]{{"al","al","yashika"},{"al","yashika","yashika"},{"","",""},{null,"al","al"},{"al","al",""}}){checks++;if(TravelQueuePolicy.actor(scope[0],scope[1],scope[2]))throw new AssertionError("stale or missing actor accepted");}
-  System.out.println("TRAVEL_QUEUE_POLICY_TEST_OK ("+checks+" dependency cascade, account/pair and cycle cases)");
+  for(long[] versions:new long[][]{{0,1},{1,2},{1,3}}){checks++;if(!TravelQueuePolicy.snapshotCovers(versions[0],versions[1]))throw new AssertionError("observed commit not covered");}
+  for(long[] versions:new long[][]{{0,0},{1,1},{2,1},{-1,1},{Long.MAX_VALUE,Long.MAX_VALUE}}){checks++;if(TravelQueuePolicy.snapshotCovers(versions[0],versions[1]))throw new AssertionError("stale or invalid snapshot covered commit");}
+  checks++;if(TravelQueuePolicy.snapshotCovers(0,null))throw new AssertionError("missing snapshot covered commit");
+  System.out.println("TRAVEL_QUEUE_POLICY_TEST_OK ("+checks+" dependency cascade, account/pair, cycle and commit/snapshot cases)");
  }
 }

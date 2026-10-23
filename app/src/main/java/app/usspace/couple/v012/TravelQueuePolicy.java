@@ -7,6 +7,7 @@ import java.util.Set;
 public final class TravelQueuePolicy {
  private TravelQueuePolicy(){}
  public static boolean actor(String expected,String bridgeUid,String firebaseUid){return expected!=null&&!expected.isEmpty()&&expected.equals(bridgeUid)&&expected.equals(firebaseUid);}
+ public static boolean snapshotCovers(long expectedRevision,Long observedRevision){return expectedRevision>=0&&expectedRevision<Long.MAX_VALUE&&observedRevision!=null&&observedRevision>=expectedRevision+1;}
  public static Set<String> descendants(String root,Map<String,List<String>> dependencies){
   Set<String> removed=new HashSet<>();removed.add(root);boolean changed=true;
   while(changed){changed=false;for(Map.Entry<String,List<String>> e:dependencies.entrySet())if(!removed.contains(e.getKey()))for(String dependency:e.getValue())if(removed.contains(dependency)){removed.add(e.getKey());changed=true;break;}}

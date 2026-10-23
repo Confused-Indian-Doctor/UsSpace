@@ -54,10 +54,13 @@ notes using an offline Android voice, with a transcript and playback controls.
 ## Verification
 
 The source-build workflow passed for commit
-`87a07b57dffac47c77662b33a876385cc062ef7c`. The signed APK checksum is
-`0880ddac9160808ae09e44090f93af5609d6ce079afda0a0b6c842cd265f0d37`.
-The first runtime attempt stopped before upgrade input while the old app's
-WebView was loading. The second installed and launched v0.17, then stopped at the
-upgrade date-persistence assertion; captured UI is being inspected. Neither run
-establishes completed runtime verification. Do not call this a verified release
-until the final Android job and travel UI checks pass.
+`243850a8a6f53f0588def0eaa0ebc17d24ebde75` in run `39984306333`.
+The current original-key signed APK checksum is
+`4630506e9803af968db6c58cee0e4efbe52c08c347c05d1b114756f336b34391`.
+Run `39986976594` checks this exact APK, including its in-place v0.15 upgrade,
+native Firebase demo-emulator integration and accessibility-driven travel UI.
+At this checkpoint the Firebase security/realtime tests, APK checksum and original
+signing identity checks passed; Android runtime verification is still running.
+This is not yet a verified release. Keep the verified v0.15 download until all
+runtime checks pass. The older v0.17 candidate with checksum starting `0880ddac`
+was rejected for a Bucket List layout defect and must not be distributed.

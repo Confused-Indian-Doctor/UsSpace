@@ -9,7 +9,7 @@ Checked against current documentation on 15 October 2026:
 
 ## Selected interfaces
 
-Keep map rendering, place resolution and routing separate. The planned renderer
+Keep map rendering, place resolution and routing separate. The renderer
 is bundled Leaflet 1.9.4 (BSD-2-Clause); it does not include tiles, place search or
 routes. Use visible OpenStreetMap attribution with the standard HTTPS tile layer
 only for a user-opened online map. Identify UsSpace in the Android User-Agent,
@@ -17,7 +17,7 @@ retain normal HTTP cache behaviour, and fetch only the visible viewport. Do not
 prefetch, bulk-download or advertise offline coverage. Public OSM tiles have no
 SLA and may block excessive usage. A different licensed tile provider must be
 configured before any higher-volume launch. Preserve the Leaflet licence with its
-bundled code. No vendor code has been added yet.
+bundled code. The renderer and its licence are included in the Android assets.
 
 Place search and routing are not silently backed by public Nominatim/OSRM demo
 servers. A configured provider must have suitable mobile/backend usage rights and
