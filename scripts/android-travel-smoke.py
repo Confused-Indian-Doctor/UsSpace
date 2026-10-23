@@ -7,13 +7,30 @@ import importlib.util,json,pathlib,time,re
 spec=importlib.util.spec_from_file_location('travel_helpers',pathlib.Path(__file__).with_name('android-v015-smoke.py'))
 h=importlib.util.module_from_spec(spec);spec.loader.exec_module(h)
 ui=h.ui;output=ui.output
-# Swipe the page gutter: a gesture over Leaflet deliberately pans the map and
-# cannot reveal the caption or controls beneath it. Visibility checks stay intact.
+# Start page swipes outside the visible map; Leaflet consumes gestures that
+# begin on its canvas. Avoid Android's edge-back gesture area as well.
 original_adb=ui.adb
+gesture_count=0
 def travel_adb(*arguments,binary=False):
+    global gesture_count
     values=list(arguments)
     if values[:3]==['shell','input','swipe']:
-        values[3]=values[5]=str(max(8,int(ui.width*0.04)))
+        gesture_count+=1
+        root=h.dump('travel-scroll-geometry-'+str(gesture_count))
+        top,bottom=ui.safe_region(root)
+        maps=[ui.visible_bounds(n) for n in root.iter('node') if ui.matches(n,r'^Confirmed saved places map$') and ui.visible_bounds(n)]
+        for bounds in maps:
+            if bounds[3]<=top or bounds[1]>=bottom:continue
+            free=[(top,min(bottom,bounds[1])),(max(top,bounds[3]),bottom)]
+            start_free,end_free=max(free,key=lambda v:v[1]-v[0])
+            if end_free-start_free<40:continue
+            down=int(values[6])<int(values[4]);distance=abs(int(values[6])-int(values[4]))
+            start=end_free-12 if down else start_free+12
+            end=max(top+12,start-distance) if down else min(bottom-12,start+distance)
+            if abs(end-start)<28:continue
+            values[3]=values[5]=str(ui.width//2);values[4]=str(int(start));values[6]=str(int(end))
+            ui.steps.append({'action':'scroll-page-outside-map','map_bounds':bounds,'from_y':start,'to_y':end})
+            break
     return original_adb(*values,binary=binary)
 ui.adb=travel_adb
 report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
@@ -63,8 +80,8 @@ def run():
     screenshot('Map')
     tap('place-details',r'^Details$');verify('source-notes',r'Take a slow walk')
     h.back('travel-details-back');verify('map-after-back',r'A map of our someday')
-    tap('trips-tab',r'^Trips$');tap('open-trip',r'^Open trip$');verify('timeline',r'Our little weekend');screenshot('Trip-timeline')
-    verify('stop-notes',r'Bring a book')
+    tap('trips-tab',r'^Trips$');tap('open-trip',r'^Open trip$');verify('timeline',r'Our little weekend')
+    verify('stop-notes',r'Bring a book');screenshot('Trip-timeline')
     tap('numbered-day-map',r'^Load numbered map$')
     verify('numbered-map-ready',r'Confirmed places only|Tiles are unavailable')
     screenshot('Trip-numbered-map')

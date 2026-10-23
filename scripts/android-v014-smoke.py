@@ -160,12 +160,11 @@ def open_settings(label):
             ui.steps.append({"action": label, "matched": ui.text_of(node), "bounds": bounds,
                              "legitimate_fixed_header_control": True})
             time.sleep(0.5)
-            sheet = dump(label + "-sheet")
-            if not any(ui.matches(item, r"^Our space$") and ui.visible_bounds(item)
-                       and item.get("class") == "android.widget.TextView"
-                       for item in sheet.iter("node")):
-                raise RuntimeError("The settings gear did not open the Our space sheet")
-            passed(label + "-sheet-visible")
+            # The upgrade probe has already used this scrollable sheet. Its
+            # restored scroll offset can place the title above the viewport.
+            sheet, title = find(label + "-sheet", r"^Our space$",
+                                class_name="android.widget.TextView", direction=False)
+            passed(label + "-sheet-visible", bounds=ui.usable_bounds(title, sheet))
             return
     raise RuntimeError("The actual fixed-header settings gear is not available")
 
