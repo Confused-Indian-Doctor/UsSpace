@@ -35,7 +35,7 @@ def travel_adb(*arguments,binary=False):
         ui.steps.append({'action':'travel-page-swipe','coordinates':values[3:]})
     return original_adb(*values,binary=binary)
 ui.adb=travel_adb
-report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
+report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_state_mutation_injected':False,'read_only_demo_travel_diagnostics':True,'steps':ui.steps}
 def tap(label,pattern):
     direction=pattern not in (r'^Dreams$',r'^Map$',r'^Trips$',r'^Memories$') and label not in ('remove-preview','remove-reviewed','undo-removal','save-offline')
     for attempt in range(2):

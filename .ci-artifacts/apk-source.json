@@ -3,10 +3,10 @@
   "sha256": "4630506e9803af968db6c58cee0e4efbe52c08c347c05d1b114756f336b34391",
   "bytes": 51648241,
   "source_commit": "243850a8a6f53f0588def0eaa0ebc17d24ebde75",
-  "instrumentation_url": "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/32f10b23-323f-40c3-8ea9-e818f04361cd-UsSpace-v0.17.0-runtime-test-22f7ba6e.apk",
-  "instrumentation_sha256": "22f7ba6ef7dad6e56b3f384d447fd4805091cb64d92e549d18b457fa6a4f89a4",
+  "instrumentation_url": "https://cb2f5cbc-8097-415e-9aa7-aaa4176cb607.sandbox.floot.app/_cdn/static/d5c3a638-081d-4e88-9939-e72249880de5-UsSpace-v0.17.0-runtime-read-diagnostic.apk",
+  "instrumentation_sha256": "65cb40594fb7146bed0823e8b36cdbb06c1029fefa92027870148aecad7d00e2",
   "transport_encoding": "gzip",
   "signing_sha1": "67eafa2c1f58fe0c4bf3ea2470f6628072157310",
   "signing_sha256": "b5edfcc256feb46edc9fa4f2c4e95aeae3a8572b248ef234ba2a61b4eaefc308",
-  "instrumentation_source_commit": "6160e3fe6a6a32415a9b86a3a1b74fce67e56029"
+  "instrumentation_source_commit": "98afdfa2165257044d072b38a69658902571ca09"
 }
