@@ -4,6 +4,9 @@ on:
     branches: ['android-travel-diagnostics/**']
 permissions:
   contents: read
+concurrency:
+  group: focused-travel-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify-apk:
     name: Exercise native travel on the exact original-key APK
@@ -197,10 +200,10 @@ jobs:
           trap 'adb -s emulator-5554 logcat -b all -d > artifacts/logcat.txt 2>&1 || true; adb -s emulator-5554 emu kill >/dev/null 2>&1 || true; kill "$travel_emulator_pid" 2>/dev/null || true' EXIT
           timeout 300 adb -s emulator-5554 wait-for-device
           for attempt in $(seq 1 150); do
-            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')" = 1 ]; then break; fi
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then break; fi
             sleep 2
           done
-          test "$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\\r')" = 1
+          test "$(adb -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')" = 1
           adb -s emulator-5554 shell input keyevent 82
           adb -s emulator-5554 install -r artifacts/UsSpace-v0.17.apk | tee artifacts/install.txt
           grep -qx Success artifacts/install.txt
