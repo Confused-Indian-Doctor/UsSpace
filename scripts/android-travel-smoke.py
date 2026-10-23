@@ -35,7 +35,7 @@ def travel_adb(*arguments,binary=False):
 ui.adb=travel_adb
 report={'status':'failed','scope':'actual signed release UI + native Firebase SDK against local demo emulators','production_google_signin_verified':False,'live_providers_verified':False,'javascript_injected':False,'steps':ui.steps}
 def tap(label,pattern):
-    direction=pattern not in (r'^Map$',r'^Trips$',r'^Memories$')
+    direction=pattern not in (r'^Dreams$',r'^Map$',r'^Trips$',r'^Memories$') and label not in ('remove-preview','remove-reviewed','undo-removal','save-offline')
     for attempt in range(2):
         try:
             root,node=h.find('travel-'+label,pattern,interactive=True,enabled=True,direction=direction)
@@ -48,7 +48,7 @@ def tap(label,pattern):
             if attempt or 'actual visible element not found' not in str(error):raise
             direction=not direction
 def verify(label,pattern):
-    direction=pattern not in (r'Our Bucket List',r'A map of our someday')
+    direction=pattern not in (r'Our Bucket List',r'A map of our someday',r'Our little weekend',r'New trip',r'A proposal, not a changed plan')
     try:return h.verify('travel-'+label,pattern,capture=False,direction=direction)
     except RuntimeError as error:
         if 'actual visible element not found' not in str(error):raise
@@ -105,11 +105,19 @@ def run():
     verify('offline-import-review',r'Is this the dream you meant')
     verify('offline-import-private',r'Private · only me')
     tap('save-private-offline-idea',r'^Save selected ideas$')
+    tap('open-saved-dreams',r'^Dreams$')
     verify('offline-idea-retained',r'QA-offline-save')
     verify('offline-save-pending',r'Saved on this phone, waiting to sync')
     screenshot('Offline-save')
-    tap('trips-offline-tab',r'^Trips$');tap('offline-read-again',r'^Read saved copy$');verify('offline-read',r'Bring a book')
-    h.back('travel-close-offline');command('online');command('partner');bucket()
+    tap('trips-offline-tab',r'^Trips$')
+    current=h.dump('travel-offline-current-trip-page')
+    if any(ui.matches(n,r'Add moment') for n in current.iter('node')):h.back('travel-offline-trip-parent')
+    verify('offline-trips-list',r'New trip')
+    tap('offline-read-again',r'^Read saved copy$');verify('offline-read',r'Bring a book')
+    h.back('travel-close-offline');command('online')
+    tap('reconnected-dreams',r'^Dreams$');verify('reconnected-private-idea',r'QA-offline-save')
+    verify('reconnected-sync-status',r'You · dreaming · Synced')
+    command('partner');bucket()
     verify('partner-shared-dream',r'QA · Garden walk')
     # Native scoped listeners and offline getter must clear the prior account's
     # private item and downloaded shared copy; inspect real accessibility text.

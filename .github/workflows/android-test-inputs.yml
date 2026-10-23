@@ -1,0 +1,42 @@
+name: Build separately signed UsSpace native test inputs
+on:
+  push:
+    branches: ['android-test-inputs/**']
+permissions:
+  contents: read
+jobs:
+  test-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Keep the release application identical to its verified compilation source
+        run: git diff --exit-code 243850a8a6f53f0588def0eaa0ebc17d24ebde75 HEAD -- app/ build.gradle.kts settings.gradle.kts gradle.properties ':(exclude)app/src/androidTest/'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile the separate demo-emulator instrumentation APK
+        run: gradle --no-daemon :app:assembleReleaseAndroidTest
+      - name: Export bounded public test bytes for original-key signing
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib
+          files=list(pathlib.Path('app/build/outputs/apk/androidTest/release').glob('*.apk'))
+          if len(files)!=1:raise SystemExit('Expected exactly one test APK')
+          data=files[0].read_bytes()
+          if not 1000<len(data)<128*1024:raise SystemExit('Unexpected test APK size')
+          print('USSPACE_QA_METADATA:'+json.dumps({'source_commit':os.environ['GITHUB_SHA'],'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}))
+          print('USSPACE_QA_BASE64:'+base64.b64encode(data).decode())
+          PY

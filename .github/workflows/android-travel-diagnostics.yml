@@ -44,10 +44,13 @@ jobs:
           url = pointer["url"]
           expected_sha = pointer["sha256"]
           source_commit = pointer["source_commit"]
+          qa_source_commit = pointer.get("instrumentation_source_commit", source_commit)
           if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
               raise SystemExit("Invalid APK SHA-256 in apk-source.json")
           if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
               raise SystemExit("Invalid source commit in apk-source.json")
+          if not re.fullmatch(r"[0-9a-f]{40}", qa_source_commit):
+              raise SystemExit("Invalid instrumentation source commit")
           def require_https(value):
               parsed = urllib.parse.urlsplit(value)
               if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None, 443):
@@ -58,6 +61,8 @@ jobs:
                   require_https(newurl)
                   return super().redirect_request(req, fp, code, msg, headers, newurl)
           subprocess.run(["git", "cat-file", "-e", source_commit + "^{commit}"], check=True)
+          subprocess.run(["git", "cat-file", "-e", qa_source_commit + "^{commit}"], check=True)
+          subprocess.run(["git", "diff", "--exit-code", qa_source_commit, "HEAD", "--", "app/src/androidTest/"], check=True)
           # The Android UI harness and test-only emulator orchestration are not
           # embedded in the APK. They may advance
           # independently when correcting real-device selectors or scrolling.
@@ -66,6 +71,7 @@ jobs:
           subprocess.run([
               "git", "diff", "--exit-code", source_commit, "HEAD", "--",
               "app/", "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
+              ":(exclude)app/src/androidTest/",
               "scripts/", "firebase-tests/", "functions/", "firestore.rules", "firestore.indexes.json", "firebase.json",
               ":(exclude)scripts/android-us-features-smoke.py",
               ":(exclude)scripts/android-v014-smoke.py",
@@ -125,6 +131,9 @@ jobs:
           v016_harness = pathlib.Path("scripts/android-v016-smoke.py")
           (output / "automation-provenance.json").write_text(json.dumps({
               "apk_source_commit": source_commit,
+              "instrumentation_source_commit": qa_source_commit,
+              "instrumentation_sha256": qa_sha,
+              "instrumentation_sources": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(pathlib.Path("app/src/androidTest").rglob("*")) if p.is_file()},
               "automation_commit": os.environ["GITHUB_SHA"],
               "ui_harness_file": str(harness),
               "ui_harness_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(),

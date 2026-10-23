@@ -49,7 +49,7 @@ public final class TravelRuntimeInstrumentation extends Instrumentation {
         Log.i("UsSpaceTravelQA","READY_AUTH_FIRESTORE_EMULATORS");
         // Keep the configured native SDK alive while the external accessibility harness
         // exercises real release UI. The disposable emulator is destroyed after the run.
-        for(int i=0;i<1200;i++)Thread.sleep(1000);
+        for(int i=0;i<2700;i++)Thread.sleep(1000);
         finish(0,new Bundle());
       }catch(Exception error){Log.e("UsSpaceTravelQA","QA_SETUP_FAILED",error);Bundle result=new Bundle();result.putString("error",error.toString());finish(1,result);}
     }
