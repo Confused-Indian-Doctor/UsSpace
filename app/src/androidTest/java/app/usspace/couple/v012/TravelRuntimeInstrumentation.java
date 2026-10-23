@@ -22,7 +22,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import java.util.concurrent.TimeUnit;
 
 /** Separately installed QA APK, signed with the same certificate, never embedded in release.
- * Uses actual Auth/Firestore emulators and actual release Activity. No JS injection. */
+ * Uses actual Auth/Firestore emulators and actual release Activity. Physical UI assertions; read-only demo travel diagnostics never mutate JavaScript state. */
 public final class TravelRuntimeInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);start();}
     @Override public void onStart(){
@@ -34,12 +34,22 @@ public final class TravelRuntimeInstrumentation extends Instrumentation {
         FirebaseAuth auth=FirebaseAuth.getInstance(app);auth.useEmulator("10.0.2.2",9099);
         FirebaseFirestore db=FirebaseFirestore.getInstance(app);db.useEmulator("10.0.2.2",8080);
         Tasks.await(auth.signInWithEmailAndPassword("travel-al@example.test","UsSpace-Emulator-Only-2026"),30,TimeUnit.SECONDS);
+        ActivityMonitor qaMonitor=addMonitor(MainActivity.class.getName(),null,false);
         Intent intent=new Intent(getTargetContext(),MainActivity.class);intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getTargetContext().startActivity(intent);
+        if(waitForMonitorWithTimeout(qaMonitor,30000)==null)throw new IllegalStateException("QA Activity not observed");
         BroadcastReceiver controls=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent command){
           String action=command.getStringExtra("command");if(action==null)return;
           if("diagnostics".equals(action))try{
             if(!"demo-usspace".equals(db.getApp().getOptions().getProjectId()))throw new IllegalStateException("Demo-only diagnostics");
+            android.app.Activity active=qaMonitor.getLastActivity();
+            java.lang.reflect.Field bridgeField=MainActivity.class.getDeclaredField("travelBridge");bridgeField.setAccessible(true);Object bridge=bridgeField.get(active);
+            java.lang.reflect.Field uidField=TravelBridge.class.getDeclaredField("uid");uidField.setAccessible(true);
+            Log.i("UsSpaceTravelQA","DEMO_NATIVE_UID "+uidField.get(bridge));
+            java.lang.reflect.Field prefsField=TravelBridge.class.getDeclaredField("prefs");prefsField.setAccessible(true);android.content.SharedPreferences nativePrefs=(android.content.SharedPreferences)prefsField.get(bridge);
+            Log.i("UsSpaceTravelQA","DEMO_NATIVE_QUEUE_KEYS "+nativePrefs.getAll().keySet());
+            java.lang.reflect.Field webField=MainActivity.class.getDeclaredField("webView");webField.setAccessible(true);android.webkit.WebView web=(android.webkit.WebView)webField.get(active);
+            web.evaluateJavascript("JSON.stringify({uid:UsTravel.get().uid,pending:UsTravel.get().pending.length,titles:UsTravel.get().items.map(x=>x.title),bridgeType:typeof AndroidTravel,applyType:typeof AndroidTravel.apply,applySource:String(AndroidTravel.apply)})",value->Log.i("UsSpaceTravelQA","DEMO_TRAVEL_READ_ONLY "+value));
             org.json.JSONArray queue=new org.json.JSONArray(getTargetContext().getSharedPreferences("usspace.travel.v1",0).getString("queue:travel_qa_al","[]"));
             org.json.JSONArray titles=new org.json.JSONArray();
             for(int q=0;q<queue.length();q++){org.json.JSONArray changes=queue.getJSONObject(q).getJSONArray("changes");for(int c=0;c<changes.length();c++)titles.put(changes.getJSONObject(c).getJSONObject("fields").optString("title",changes.getJSONObject(c).optString("kind")));}
