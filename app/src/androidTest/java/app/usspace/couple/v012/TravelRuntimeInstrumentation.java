@@ -38,6 +38,13 @@ public final class TravelRuntimeInstrumentation extends Instrumentation {
         getTargetContext().startActivity(intent);
         BroadcastReceiver controls=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent command){
           String action=command.getStringExtra("command");if(action==null)return;
+          if("diagnostics".equals(action))try{
+            if(!"demo-usspace".equals(db.getApp().getOptions().getProjectId()))throw new IllegalStateException("Demo-only diagnostics");
+            org.json.JSONArray queue=new org.json.JSONArray(getTargetContext().getSharedPreferences("usspace.travel.v1",0).getString("queue:travel_qa_al","[]"));
+            org.json.JSONArray titles=new org.json.JSONArray();
+            for(int q=0;q<queue.length();q++){org.json.JSONArray changes=queue.getJSONObject(q).getJSONArray("changes");for(int c=0;c<changes.length();c++)titles.put(changes.getJSONObject(c).getJSONObject("fields").optString("title",changes.getJSONObject(c).optString("kind")));}
+            Log.i("UsSpaceTravelQA","DEMO_QUEUE_DIAGNOSTICS count="+queue.length()+" titles="+titles);
+          }catch(Exception error){Log.e("UsSpaceTravelQA","DEMO_QUEUE_DIAGNOSTICS_FAILED",error);}
           if("offline".equals(action))db.disableNetwork().addOnSuccessListener(x->Log.i("UsSpaceTravelQA","READY_OFFLINE"));
           if("online".equals(action))db.enableNetwork().addOnSuccessListener(x->Log.i("UsSpaceTravelQA","READY_ONLINE"));
           if("partner".equals(action))auth.signInWithEmailAndPassword("travel-partner@example.test","UsSpace-Emulator-Only-2026").addOnSuccessListener(x->Log.i("UsSpaceTravelQA","READY_PARTNER"));

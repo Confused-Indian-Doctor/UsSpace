@@ -109,6 +109,8 @@ def run():
     verify('offline-import-review',r'Is this the dream you meant')
     verify('offline-import-private',r'Private · only me')
     tap('save-private-offline-idea',r'^Save selected ideas$')
+    command('diagnostics')
+    h.dump('travel-offline-immediately-after-save')
     tap('open-saved-dreams',r'^Dreams$')
     verify('offline-idea-retained',r'QA-offline-save')
     verify('offline-save-pending',r'Saved on this phone, waiting to sync')
@@ -133,6 +135,10 @@ if __name__=='__main__':
     try:run()
     except Exception as error:
         report['error']=str(error)
+        try:
+            command('diagnostics')
+            (output/'travel-native-qa.log').write_text(ui.adb('logcat','-d','-s','UsSpaceTravelQA:I'))
+        except Exception:pass
         try:screenshot('failure');h.dump('travel-failure')
         except Exception:pass
         raise
