@@ -157,9 +157,9 @@ def find(label, pattern, class_name=None, interactive=False, enabled=None,
     raise RuntimeError("v0.15 actual visible element not found: " + label)
 
 
-def tap(label, pattern, class_name=None, allow_tabs=False):
+def tap(label, pattern, class_name=None, allow_tabs=False, direction=True):
     root, node = find(label, pattern, class_name=class_name, interactive=True,
-                      enabled=True, allow_tabs=allow_tabs)
+                      enabled=True, allow_tabs=allow_tabs, direction=direction)
     bounds = ui.usable_bounds(node, root, allow_tabs=allow_tabs)
     left, top, right, bottom = bounds
     ui.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
@@ -609,10 +609,10 @@ def test_overlays_and_nested_pages():
     back_parent_home("memory-overlay-second-back", "Us")
 
     section("bucket-nested", "Us", r"\bBucket List\b.*Our next little adventure\s*→", r"Our someday starts here")
-    tap("bucket-nested-editor-open", r"Add a dream$")
+    tap("bucket-nested-editor-open", r"Add a dream(?: · original shared list)?$", direction=False)
     verify("bucket-nested-editor-visible", r"What shall we dream of")
     back("bucket-nested-first-back")
-    root = verify("bucket-nested-keeps-bucket", r"Add a dream$", capture=False)
+    root = verify("bucket-nested-keeps-bucket", r"Add a dream(?: · original shared list)?$", capture=False, direction=False)
     absent(root, "bucket-nested-editor-closed-before-home", r"What shall we dream of|\bTogether for\b")
     back_parent_home("bucket-nested-second-back", "Us")
 

@@ -181,7 +181,7 @@ jobs:
         timeout-minutes: 3
         run: |
           python3 - <<'PY'
-          import gzip, hashlib, json, os, pathlib, re, subprocess, time, urllib.parse, urllib.request
+          import gzip, hashlib, json, os, pathlib, re, subprocess, tempfile, time, urllib.parse, urllib.request, urllib.response
           pointer = json.loads(pathlib.Path(".ci-artifacts/apk-source.json").read_text())
           url = pointer["url"]
           expected_sha = pointer["sha256"]
@@ -233,7 +233,53 @@ jobs:
           size = 0
           deadline = time.monotonic() + 120
           opener = urllib.request.build_opener(HTTPSRedirectHandler())
-          with opener.open(url, timeout=30) as response, apk.open("wb") as dest:
+          def open_apk_download():
+              if pointer.get('transport') != 'github-gzip-chunks':
+                  return opener.open(url, timeout=30)
+              match = re.fullmatch(r'https://raw\.githubusercontent\.com/Confused-Indian-Doctor/UsSpace/([a-f0-9]{40})/release-manifest\.json', url)
+              if not match:
+                  raise SystemExit('Invalid pinned GitHub artifact manifest URL')
+              with opener.open(url, timeout=30) as response:
+                  require_https(response.geturl())
+                  raw = response.read(65537)
+              if len(raw) > 65536 or hashlib.sha256(raw).hexdigest() != pointer['transport_manifest_sha256']:
+                  raise SystemExit('Signed transport manifest checksum/size mismatch')
+              manifest = json.loads(raw)
+              if manifest['source_commit'] != source_commit or manifest['apk_sha256'] != expected_sha or manifest['apk_bytes'] != pointer['bytes']:
+                  raise SystemExit('Signed transport source or APK identity mismatch')
+              chunks = manifest['chunks']
+              if not 1 <= len(chunks) <= 64 or not 0 < manifest['gzip_bytes'] <= 64 * 1024 * 1024:
+                  raise SystemExit('Signed transport exceeds supported bounds')
+              stream = tempfile.TemporaryFile()
+              compressed_digest = hashlib.sha256()
+              compressed_size = 0
+              transport_deadline = time.monotonic() + 120
+              try:
+                  for index, part in enumerate(chunks):
+                      path = 'signed/apk-gzip-part-%03d.bin' % index
+                      if part['path'] != path or not 0 < part['bytes'] <= 1024 * 1024 or not re.fullmatch('[a-f0-9]{64}', part['sha256']):
+                          raise SystemExit('Invalid signed transport part')
+                      if time.monotonic() >= transport_deadline:
+                          raise SystemExit('Signed transport exceeded 120 seconds')
+                      part_url = url.rsplit('/', 1)[0] + '/' + path
+                      with opener.open(part_url, timeout=30) as response:
+                          require_https(response.geturl())
+                          content = response.read(part['bytes'] + 1)
+                      if len(content) != part['bytes'] or hashlib.sha256(content).hexdigest() != part['sha256']:
+                          raise SystemExit('Signed transport part checksum/size mismatch')
+                      compressed_size += len(content)
+                      if compressed_size > manifest['gzip_bytes']:
+                          raise SystemExit('Signed transport compressed size exceeded')
+                      compressed_digest.update(content)
+                      stream.write(content)
+                  if compressed_size != manifest['gzip_bytes'] or compressed_digest.hexdigest() != manifest['gzip_sha256']:
+                      raise SystemExit('Signed transport combined checksum/size mismatch')
+                  stream.seek(0)
+                  return urllib.response.addinfourl(stream, {'Content-Encoding': 'gzip'}, url)
+              except BaseException:
+                  stream.close()
+                  raise
+          with open_apk_download() as response, apk.open("wb") as dest:
               require_https(response.geturl())
               encoding = response.headers.get("Content-Encoding", "identity").strip().lower()
               if encoding not in ("identity", "gzip"):
