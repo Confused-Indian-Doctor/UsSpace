@@ -1,0 +1,141 @@
+{
+  "source_commit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
+  "apk_sha256": "d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59",
+  "apk_bytes": 51648241,
+  "gzip_sha256": "3b3dad8b5aa085fca5f4c5beac163bf2ad5cd61ccecd9630eafa5dbd20d9d07d",
+  "gzip_bytes": 26760452,
+  "chunks": [
+    {
+      "path": "signed/apk-gzip-part-000.bin",
+      "bytes": 1048576,
+      "sha256": "75cd4b2164b69d505c162d698a5c550ece13ad13908017846a3fc2eed76dcddf"
+    },
+    {
+      "path": "signed/apk-gzip-part-001.bin",
+      "bytes": 1048576,
+      "sha256": "44fe9fd4cebe2ae59ab8029848d3a182b8696a759738550ad47f479bac4b803d"
+    },
+    {
+      "path": "signed/apk-gzip-part-002.bin",
+      "bytes": 1048576,
+      "sha256": "ad35e65cb1d10f02929b1c83a496768021adc2dfc5a01b7914805264851f0641"
+    },
+    {
+      "path": "signed/apk-gzip-part-003.bin",
+      "bytes": 1048576,
+      "sha256": "8b2a2c03e6921d0d838a4d5339b82cc8817a10049e257ca8e3c9f82b74f08ef9"
+    },
+    {
+      "path": "signed/apk-gzip-part-004.bin",
+      "bytes": 1048576,
+      "sha256": "e13a1348ea8e6741cc26ec003159f52cd6b465748a8301cf89191f9f62d80f37"
+    },
+    {
+      "path": "signed/apk-gzip-part-005.bin",
+      "bytes": 1048576,
+      "sha256": "9605584e0a8174cbf58b4687fea4504a7301bd1d16064bce8f20932099fb858e"
+    },
+    {
+      "path": "signed/apk-gzip-part-006.bin",
+      "bytes": 1048576,
+      "sha256": "c7640b3acc1c11250889d8021d4d04db820c7875b4917c5df3681f22b58f6171"
+    },
+    {
+      "path": "signed/apk-gzip-part-007.bin",
+      "bytes": 1048576,
+      "sha256": "25a2d694d3ec6fe9e46bc4342f984a85b4f3c3520a0278b56325f481743438ef"
+    },
+    {
+      "path": "signed/apk-gzip-part-008.bin",
+      "bytes": 1048576,
+      "sha256": "0eead1d951ccb0ff5d199a1cfec5d3b3e2d02c75ae4e3544d1b700abf7a91b8d"
+    },
+    {
+      "path": "signed/apk-gzip-part-009.bin",
+      "bytes": 1048576,
+      "sha256": "34bf427600a275d383e92c44dc4d7977aa9a13e23476e8aeb968129704305822"
+    },
+    {
+      "path": "signed/apk-gzip-part-010.bin",
+      "bytes": 1048576,
+      "sha256": "4cd6b140df75fb397c4359cc095c42849a29b2d278bc33ab8303fb624b48210e"
+    },
+    {
+      "path": "signed/apk-gzip-part-011.bin",
+      "bytes": 1048576,
+      "sha256": "6d1be2b84cd30f00b7b19f1bf5f1f99ba571303152324ee33f06c2dcb3da629f"
+    },
+    {
+      "path": "signed/apk-gzip-part-012.bin",
+      "bytes": 1048576,
+      "sha256": "4483670dbb3f5726619dce4fbe1c917417a05830f91fe44b209f09c62999a7e1"
+    },
+    {
+      "path": "signed/apk-gzip-part-013.bin",
+      "bytes": 1048576,
+      "sha256": "d58e0b49b3debb0f2d0332ad54ad75b842f37d08c7aaff2f6d5959ec93f4c583"
+    },
+    {
+      "path": "signed/apk-gzip-part-014.bin",
+      "bytes": 1048576,
+      "sha256": "41e9a3488cd4b9c5d03138ce05a39e2f859c20a36bda031c98d1ed6b0481d51c"
+    },
+    {
+      "path": "signed/apk-gzip-part-015.bin",
+      "bytes": 1048576,
+      "sha256": "a6e4890972b4858e2317036075f6dc6ed7db60a8ebe15e911bdd6434973d099b"
+    },
+    {
+      "path": "signed/apk-gzip-part-016.bin",
+      "bytes": 1048576,
+      "sha256": "36d8c029d1958567a9b794a1144e42dc274078ae41040a222962939fb4173154"
+    },
+    {
+      "path": "signed/apk-gzip-part-017.bin",
+      "bytes": 1048576,
+      "sha256": "60af8ee5af9baea2bead90297bca84c4298e07d6c0eb43468bb440967cf81a89"
+    },
+    {
+      "path": "signed/apk-gzip-part-018.bin",
+      "bytes": 1048576,
+      "sha256": "5e375d6167a057273b3c3ee409ad364b6ded9ffe4c6e7be7f90529122cd9e01e"
+    },
+    {
+      "path": "signed/apk-gzip-part-019.bin",
+      "bytes": 1048576,
+      "sha256": "e352582d4cb573ecc586af6ca43f77a63aa1c86c50d129fdb1acc058babe8499"
+    },
+    {
+      "path": "signed/apk-gzip-part-020.bin",
+      "bytes": 1048576,
+      "sha256": "cd4e1d8668c105350330c98965219ad9437ca119d64edbf5f1c5a82cc0ece9f4"
+    },
+    {
+      "path": "signed/apk-gzip-part-021.bin",
+      "bytes": 1048576,
+      "sha256": "ab4503a97e63d6e90dfe01f6edeba0a9c31da73c850c7382def474d1233cea76"
+    },
+    {
+      "path": "signed/apk-gzip-part-022.bin",
+      "bytes": 1048576,
+      "sha256": "90c1d4bd37a9842306949dc8b739f339499c815c7537b16ca537ccbd497116a4"
+    },
+    {
+      "path": "signed/apk-gzip-part-023.bin",
+      "bytes": 1048576,
+      "sha256": "e2e64d8ed01d07e42ada9521361c8e3dadec2dc2ee3d72a3e3c9534962c4166b"
+    },
+    {
+      "path": "signed/apk-gzip-part-024.bin",
+      "bytes": 1048576,
+      "sha256": "68fcfce512532a9c5beb48177121933a05c1b2cd25ad7f977798f7e59a2c71fa"
+    },
+    {
+      "path": "signed/apk-gzip-part-025.bin",
+      "bytes": 546052,
+      "sha256": "17ba7a2a96543c76166d94f50b4cda95c33f461411d0079fd0b8fb71f7292ad8"
+    }
+  ],
+  "qa_path": "signed/UsSpace-v0.17.0-runtime-test.apk",
+  "qa_sha256": "65cb40594fb7146bed0823e8b36cdbb06c1029fefa92027870148aecad7d00e2"
+}
