@@ -1,13 +1,13 @@
 {
-  "url": "https://raw.githubusercontent.com/Confused-Indian-Doctor/UsSpace/d4d6c377af2abc878a5bb924913d1588fc031786/release-manifest.json",
-  "sha256": "b9786d50a755ea4416af5626e0cafb0eb93a21283200b99a02a9d89dc940bc6d",
+  "url": "https://raw.githubusercontent.com/Confused-Indian-Doctor/UsSpace/48be9ace7b59ce7c38ba855cdd454d1166d9356f/release-manifest.json",
+  "sha256": "d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59",
   "bytes": 51648241,
-  "source_commit": "d26cc43800aa1066d15649f455aba1f6c50037ee",
-  "instrumentation_url": "https://raw.githubusercontent.com/Confused-Indian-Doctor/UsSpace/d4d6c377af2abc878a5bb924913d1588fc031786/signed/UsSpace-v0.17.0-runtime-test.apk",
+  "source_commit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
+  "instrumentation_url": "https://raw.githubusercontent.com/Confused-Indian-Doctor/UsSpace/48be9ace7b59ce7c38ba855cdd454d1166d9356f/signed/UsSpace-v0.17.0-runtime-test.apk",
   "instrumentation_sha256": "65cb40594fb7146bed0823e8b36cdbb06c1029fefa92027870148aecad7d00e2",
   "signing_sha1": "67eafa2c1f58fe0c4bf3ea2470f6628072157310",
   "signing_sha256": "b5edfcc256feb46edc9fa4f2c4e95aeae3a8572b248ef234ba2a61b4eaefc308",
-  "instrumentation_source_commit": "d26cc43800aa1066d15649f455aba1f6c50037ee",
+  "instrumentation_source_commit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
   "transport": "github-gzip-chunks",
-  "transport_manifest_sha256": "f57ece93ac0996c0af0c6110c9a4657ba8d1346d2abb8be0a91bb7304ce3775e"
+  "transport_manifest_sha256": "3d46b072059e08eada9d60c51597a20eec35882f9dfcec224602bacd9ebbd7cb"
 }
