@@ -69,6 +69,23 @@ def screenshot(label):
     value=ui.adb('exec-out','screencap','-p',binary=True)
     if not value.startswith(b'\x89PNG\r\n\x1a\n'):raise RuntimeError('Invalid screenshot')
     (output/('UsSpace-travel-'+label+'.png')).write_bytes(value)
+def assert_dark_panel(label,pattern):
+    # Inspect real screenshot pixels inside the accessible panel copy; no
+    # WebView state or computed style is injected into the release app.
+    root,node=h.find('travel-dark-'+label,pattern)
+    left,top,right,bottom=ui.usable_bounds(node,root)
+    png=ui.adb('exec-out','screencap','-p',binary=True)
+    width,height,channels,rows=h.v014.decode_png(png)
+    if (width,height)!=(ui.width,ui.height):raise RuntimeError('Dark-panel screenshot dimensions changed')
+    values=[]
+    for y in range(top+2,bottom-2,3):
+        for x in range(left+2,right-2,3):
+            p=x*channels
+            values.append(.2126*rows[y][p]+.7152*rows[y][p+1]+.0722*rows[y][p+2])
+    mean=sum(values)/len(values) if values else 255
+    (output/('UsSpace-travel-Dark-'+label+'.png')).write_bytes(png)
+    ui.steps.append({'action':'travel-dark-panel-pixels','panel':label,'bounds':[left,top,right,bottom],'mean_luminance':round(mean,3),'expected':'< 130','matched':ui.text_of(node)})
+    if mean>=130:raise RuntimeError('Travel '+label+' panel retained a light background in Dark mode: '+str(mean))
 def command(name,block_transport=False):
     global transport_blocked
     if name=='online':restore_transport()
@@ -104,9 +121,12 @@ def run():
     verify('preflight-server-accepted-visible',r'You · dreaming · Synced')
     command('online');verify('preflight-online-item',r'QA-preflight-save')
     verify('dreams',r'QA · Garden walk');screenshot('Dreams')
+    h.choose_theme('travel-dark','Dark')
     tap('map-tab',r'^Map$');verify('map-heading',r'A map of our someday')
+    assert_dark_panel('Tabs',r'^Dreams$')
     tap('load-confirmed-map',r'^Load online map$')
     verify('map-renderer-ready',r'Confirmed places only|Tiles are unavailable')
+    assert_dark_panel('Map-caption',r'Confirmed places only|Tiles are unavailable')
     screenshot('Map')
     tap('place-details',r'^Details$');verify('source-notes',r'Take a slow walk')
     h.back('travel-details-back');verify('map-after-back',r'A map of our someday')
@@ -116,6 +136,7 @@ def run():
     verify('numbered-map-ready',r'Confirmed places only|Tiles are unavailable')
     screenshot('Trip-numbered-map')
     tap('remove-preview',r'^Remove$');verify('remove-not-applied',r'A proposal, not a changed plan')
+    assert_dark_panel('Draft-preview',r'A proposal, not a changed plan')
     screenshot('Itinerary-preview');tap('discard-removal',r'^Discard proposal$');verify('discard-keeps-stop',r'Bring a book')
     tap('remove-reviewed',r'^Remove$');tap('apply-removal',r'^Apply changes$')
     verify('removal-applied',r'Room for a little adventure')

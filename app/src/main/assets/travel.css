@@ -1,4 +1,5 @@
 /* UsSpace travel: existing rose/peach/navy tokens and original rounded cards. */
+:root[data-theme=dark] #bucket{--surface:#202c43;--surface-soft:#343247;--border:#685468}
 #bucket .travel-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;background:var(--surface,#fff6f2);border:1px solid var(--border,#e8d5d9);padding:5px;border-radius:18px;margin:18px 0 12px}
 .travel-tabs button{min-height:48px;border:0;background:transparent;color:var(--muted,#6e5962);font:inherit;font-size:14px;font-weight:750;border-radius:13px}.travel-tabs button[aria-selected=true]{background:var(--ink,#293247);color:var(--surface,#fff6f2)}
 .travel-privacy{display:inline-block;color:var(--ink,#343449);background:var(--surface-soft,#fae8e5);border:1px solid var(--border,#e7d0d4);padding:7px 10px;border-radius:12px;font-size:12px;font-weight:700;line-height:1.5}
