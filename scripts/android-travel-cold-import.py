@@ -9,8 +9,16 @@ try:
  # Including the same URI as Intent data grants read access to the cold app.
  inserted=h.ui.adb('shell','content','insert','--uri','content://media/external/images/media','--bind','_display_name:s:UsSpace-QA-cold-import.png','--bind','mime_type:s:image/png','--bind','relative_path:s:Pictures/')
  match=re.search(r'content://[^\s]+',inserted)
- if not match:raise RuntimeError('MediaStore did not return a cold image URI: '+inserted)
- image_uri=match.group(0)
+ if match:image_uri=match.group(0)
+ else:
+  # Android's content CLI may insert successfully without printing the URI.
+  queried=h.ui.adb('shell','content','query','--uri','content://media/external/images/media','--projection','_id:_display_name')
+  (h.output/'cold-image-mediastore-query.txt').write_text(queried)
+  rows=[line for line in queried.splitlines() if 'UsSpace-QA-cold-import.png' in line]
+  ids=[re.search(r'\b_id=(\d+)',line) for line in rows]
+  ids=[value.group(1) for value in ids if value]
+  if len(ids)!=1:raise RuntimeError('MediaStore cold fixture did not resolve to one image: '+queried)
+  image_uri='content://media/external/images/media/'+ids[0]
  fixture=pathlib.Path('app/src/main/assets/our_icon.png').read_bytes()
  written=subprocess.run([h.ui.args.adb,'-s',h.ui.args.serial,'shell','-T','content','write','--uri',image_uri],input=fixture,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=35)
  if b'Error' in written.stdout+written.stderr:raise RuntimeError('MediaStore rejected the cold image fixture')
