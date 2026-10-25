@@ -388,7 +388,7 @@ service cloud.firestore {
       return (kind == 'travelItems'
         && d.keys().hasOnly(base.concat(['title','kind','category','location','targetDate','priority','description','sourceUrl','sourceKey','extractionStatus','confidence','verifiedPlace','collectionIds','status','photoIds','completedDate','legacyId']))
         && shortText(d.title,160) && d.title.size()>0 && d.kind in ['place','experience','goal']
-        && d.category in ['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home']
+        && d.category in ['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home','Stays']
         && shortText(d.location,240) && optionalDate(d.targetDate) && d.priority in ['Low','Normal','High']
         && shortText(d.description,4000) && travelUrl(d.sourceUrl) && shortText(d.sourceKey,2048)
         && d.extractionStatus in ['manual','review','unavailable','confirmed']

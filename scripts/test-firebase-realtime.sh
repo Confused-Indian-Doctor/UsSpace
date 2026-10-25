@@ -26,6 +26,7 @@ mkdir -p artifacts
   node firebase-tests/travel_models_test.js
   node firebase-tests/travel_store_test.js
   node firebase-tests/travel_ui_test.js
+  node firebase-tests/travel_import_review_test.js
   node firebase-tests/travel_dom_structure_test.js
   node firebase-tests/travel_map_test.js
   node firebase-tests/travel_places_test.js
@@ -39,6 +40,7 @@ mkdir -p artifacts
   node functions/test/travel-fetch.test.mjs
   node functions/test/travel-service.test.mjs
   node functions/test/travel-providers.test.mjs
+  node functions/test/travel-transcription.test.mjs
   python3 scripts/prepare-travel-server.py --check
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh
@@ -56,8 +58,9 @@ mkdir -p artifacts
   java -cp "$native_test_dir" app.usspace.couple.v012.PushEventPolicyTest
   javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/HealthSyncPolicy.java firebase-tests/HealthSyncPolicyTest.java
   java -cp "$native_test_dir" HealthSyncPolicyTest
-  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/TravelImportPolicy.java firebase-tests/TravelImportPolicyTest.java
+  javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/TravelImportPolicy.java firebase-tests/TravelImportPolicyTest.java firebase-tests/TravelVideoPolicyTest.java
   java -cp "$native_test_dir" TravelImportPolicyTest
+  java -cp "$native_test_dir" app.usspace.couple.v012.TravelVideoPolicyTest
   javac --release 17 -d "$native_test_dir" app/src/main/java/app/usspace/couple/v012/TravelQueuePolicy.java firebase-tests/TravelQueuePolicyTest.java
   java -cp "$native_test_dir" TravelQueuePolicyTest
   npm --prefix firebase-tests ci --ignore-scripts --no-audit --no-fund

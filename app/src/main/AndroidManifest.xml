@@ -55,6 +55,7 @@
                 <data android:mimeType="image/jpeg" />
                 <data android:mimeType="image/png" />
                 <data android:mimeType="image/webp" />
+                <data android:mimeType="video/mp4" />
             </intent-filter>
         </activity>
         <service android:name=".UsMessagingService" android:exported="false">

@@ -4,7 +4,7 @@ export const usspaceTravelModels = (()=>{const globalThis={};const module={expor
 /* Versioned travel data only. No profile, mood, Health or Cycle inputs. */
 (function(root,factory){'use strict';const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.UsTravelModels=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
 'use strict';
-const VERSION=1, ID=/^[A-Za-z0-9_-]{1,140}$/, CATEGORIES=['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home'];
+const VERSION=1, ID=/^[A-Za-z0-9_-]{1,140}$/, CATEGORIES=['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home','Stays'];
 const COMMON=['schemaVersion','id','ownerUid','visibility','pairId','revision','deleted','createdAt','updatedAt','updatedBy'];
 const FIELDS={
  item:['title','kind','category','location','targetDate','priority','description','sourceUrl','sourceKey','extractionStatus','confidence','verifiedPlace','collectionIds','status','photoIds','completedDate','legacyId'],
@@ -48,11 +48,26 @@ function normalize(kind,input,identity){if(!Object.hasOwn(FIELDS,kind)||!input||
  if(kind==='reaction'){v.itemId=id(v.itemId);v.uid=id(v.uid);if(v.uid!==who.uid)fail('You can change only your own interest or rating.');v.interest=one(v.interest,['interested','maybe','not-for-me'],'interest');v.rating=number(v.rating,0,5,'rating');if(!Number.isInteger(v.rating))fail('Choose a whole-star rating.');}
  return Object.fromEntries([...COMMON,...FIELDS[kind]].filter(k=>v[k]!==undefined).map(k=>[k,v[k]]));}
 function migrateLegacy(item,pairId){id(item.id);id(pairId);return {schemaVersion:VERSION,id:item.id,ownerUid:item.suggestedBy,visibility:'shared',pairId,title:item.title,kind:item.category==='Travel'?'place':'experience',category:item.category,location:item.location||'',targetDate:item.targetDate||'',priority:item.priority||'Normal',description:item.notes||'',sourceUrl:'',sourceKey:'',extractionStatus:'manual',confidence:0,verifiedPlace:null,collectionIds:[],status:({Dreaming:'dreaming',Planning:'planning',Booked:'booked',Done:'done'})[item.state]||'dreaming',photoIds:[item.completedPhotoId||item.photoId].filter(Boolean),completedDate:item.completedDate||'',legacyId:item.id,revision:0,deleted:false,createdAt:item.createdAt,updatedAt:item.updatedAt,updatedBy:item.updatedBy,legacy:JSON.parse(JSON.stringify(item))};}
-function duplicate(candidate,items){const key=sourceKey(candidate.sourceUrl||'');return (items||[]).filter(x=>!x.deleted&&((candidate.verifiedPlace&&x.verifiedPlace&&candidate.verifiedPlace.provider===x.verifiedPlace.provider&&candidate.verifiedPlace.placeId===x.verifiedPlace.placeId)||(key&&key===x.sourceKey)) );}
-function extract(text){const value=str(text,12000,'shared text');const urls=[...new Set(value.match(/https:\/\/[^\s<>"']+/g)||[])].slice(0,20);return {text:value,candidates:urls.length?urls.map(x=>{try{return {sourceUrl:url(x.replace(/[),.!]+$/,'')),title:'Review this saved link',extractionStatus:'review',confidence:0};}catch(_){return null;}}).filter(Boolean):[{title:value.split('\n')[0].slice(0,160),sourceUrl:'',extractionStatus:'review',confidence:0}],needsConfirmation:true};}
+function duplicate(candidate,items){const key=sourceKey(candidate.sourceUrl||'');return (items||[]).filter(x=>!x.deleted&&((candidate.verifiedPlace&&x.verifiedPlace&&candidate.verifiedPlace.provider===x.verifiedPlace.provider&&candidate.verifiedPlace.placeId===x.verifiedPlace.placeId)||(key&&key===x.sourceKey)||(candidate.title&&candidateKey(candidate)===candidateKey(x)&&String(candidate.location||'').trim().toLowerCase()===String(x.location||'').trim().toLowerCase())) );}
+/* Conservative local parsing: excerpts are data, never executable instructions or AI prompts. */
+function travelGroup(value){return value.category==='Food'?'Restaurants':value.category==='Stays'?'Stays':'Places';}
+function candidateKey(value){return String(value.title||'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();}
+function extract(text){const value=str(text,12000,'shared text'),urls=[...new Set(value.match(/https:\/\/[^\s<>"']+/g)||[])].slice(0,20).map(x=>{try{return url(x.replace(/[),.!]+$/,''));}catch(_){return '';}}).filter(Boolean);
+ const sourceUrl=urls[0]||'',lines=value.replace(/https:\/\/[^\s<>"']+/g,'').split(/\n|;|(?<=[.!?])\s+(?=[A-Z])/).map(x=>x.trim()).filter(Boolean),candidates=[];
+ for(const raw of lines){if(candidates.length>=20)break;const excerpt=raw.slice(0,800),line=raw.replace(/^\s*(?:[-*•]|\d+[.)])\s*/,'').trim();
+ const explicit=/^(?:visit|try|eat at|dine at|stay at|book|recommend(?:ed)?|don't miss|must[- ]visit)\s+(.+)$/i.exec(line),label=/^(places?|restaurants?|caf[eé]s?|stays?|hotels?)\s*:\s*(.+)$/i.exec(line);
+ if(!explicit&&!label&&lines.length===1&&urls.length)continue;
+ if(!explicit&&!label&&line.length>160)continue;
+ const title=(explicit?.[1]||label?.[2]||line).slice(0,160).trim();if(!title)continue;
+ const category=/^(?:stay at|book)\b/i.test(line)||/^(?:stays?|hotels?)$/i.test(label?.[1]||'')||/\b(?:hotel|hostel|resort|guesthouse)\b/i.test(title)?'Stays':/^(?:eat at|dine at)\b/i.test(line)||/^(?:restaurants?|caf[eé]s?)$/i.test(label?.[1]||'')||/\b(?:restaurant|caf[eé]|bistro)\b/i.test(title)?'Food':'Travel';
+ candidates.push({title,sourceUrl,category,location:'',excerpt,statement:explicit?'recommendation':'mention',selected:!!explicit,extractionStatus:'review',confidence:0});}
+ if(!candidates.length)for(const link of urls)candidates.push({sourceUrl:link,title:'Review this saved link',category:'Travel',location:'',excerpt:'',statement:'unknown',selected:true,extractionStatus:'review',confidence:0});
+ if(!candidates.length)candidates.push({title:value.slice(0,160)||'A place to review',sourceUrl,category:'Travel',location:'',excerpt:value.slice(0,800),statement:'mention',selected:false,extractionStatus:'review',confidence:0});
+ return {text:value,candidates,needsConfirmation:true,truncated:lines.length>20};}
+function imageSignature(bytes,mime){if(!bytes||typeof bytes.length!=='number')return false;if(mime==='image/jpeg')return bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;if(mime==='image/png')return [137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v);if(mime==='image/webp')return bytes.length>=12&&[82,73,70,70].every((v,i)=>bytes[i]===v)&&[87,69,66,80].every((v,i)=>bytes[i+8]===v);return false;}
 function ordered(stops,tripId,day){return (stops||[]).filter(x=>!x.deleted&&x.tripId===tripId&&(!day||x.localDate===day)).sort((a,b)=>a.localDate.localeCompare(b.localDate)||a.orderKey-b.orderKey||a.id.localeCompare(b.id));}
 function revisionChange(current,expected,patch){if(!current||current.deleted||current.revision!==expected)fail('This changed on the other phone. Review the latest version before saving.');if(patch.id&&patch.id!==current.id||patch.ownerUid&&patch.ownerUid!==current.ownerUid||patch.pairId&&patch.pairId!==current.pairId||patch.visibility&&patch.visibility!==current.visibility)fail('Move visibility explicitly; ownership and destination cannot be overwritten.');return {...current,...patch,revision:expected+1};}
-return {VERSION,CATEGORIES,COMMON,FIELDS,DEFAULTS,id,date,url,sourceKey,place,normalize,migrateLegacy,duplicate,extract,ordered,revisionChange};
+return {VERSION,CATEGORIES,COMMON,FIELDS,DEFAULTS,id,date,url,sourceKey,place,normalize,migrateLegacy,duplicate,extract,travelGroup,candidateKey,imageSignature,ordered,revisionChange};
 });
 
 return module.exports;})();

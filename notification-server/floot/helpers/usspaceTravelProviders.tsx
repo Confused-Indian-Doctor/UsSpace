@@ -3,7 +3,7 @@
 
 export const usspaceTravelProviders = (()=>{
 /* Licensed provider interfaces, with server-only keys and bounded actual responses. */
-async function json(url,{fetcher,limit=1048576}){const response=await fetcher(url,{signal:AbortSignal.timeout(12000),headers:{Accept:'application/json'}});if(!response.ok||Number(response.headers?.get('content-length')||0)>limit)throw Error('provider-unavailable');const reader=response.body?.getReader();if(!reader)throw Error('provider-unavailable');let bytes=0;const parts=[];try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.length;if(bytes>limit)throw Error('provider-response-too-large');parts.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}return JSON.parse(Buffer.concat(parts).toString('utf8'));}
+async function json(url,{fetcher,limit=1048576}){const response=await fetcher(url,{redirect:'error',signal:AbortSignal.timeout(12000),headers:{Accept:'application/json'}});if(!response.ok||Number(response.headers?.get('content-length')||0)>limit)throw Error('provider-unavailable');const reader=response.body?.getReader();if(!reader)throw Error('provider-unavailable');let bytes=0;const parts=[];try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.length;if(bytes>limit)throw Error('provider-response-too-large');parts.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}return JSON.parse(Buffer.concat(parts).toString('utf8'));}
 const coordinate=(lat,lon)=>Number.isFinite(lat)&&Math.abs(lat)<=90&&Number.isFinite(lon)&&Math.abs(lon)<=180;
 function candidate(properties,geometry){const latitude=properties.lat??geometry?.coordinates?.[1],longitude=properties.lon??geometry?.coordinates?.[0],id=properties.place_id;if(!coordinate(latitude,longitude)||typeof id!=='string'||id.length>240)return null;const name=String(properties.name||properties.formatted||properties.city||'').slice(0,240);if(!name)return null;return {provider:'geoapify',placeId:id,name,latitude,longitude,resultType:String(properties.result_type||'place').slice(0,40),sourceUrl:'https://www.openstreetmap.org/?mlat='+latitude+'&mlon='+longitude,confidence:Math.max(0,Math.min(1,Number(properties.rank?.confidence)||0)),attribution:'© Geoapify · © OpenStreetMap contributors'};}
 function createTravelProviders({geoapifyKey='',weatherEnabled=false,fetcher=fetch,beforeRequest=async()=>{},now=()=>new Date()}={}){
@@ -18,4 +18,34 @@ function createTravelProviders({geoapifyKey='',weatherEnabled=false,fetcher=fetc
 }
 function dailyProviderBudget(db,{now=()=>new Date(),limit=100}={}){if(!Number.isInteger(limit)||limit<0||limit>1000)throw Error('invalid-provider-quota');return async()=>{const day=now().toISOString().slice(0,10),ref=db.doc('_travelQuotas/providers_'+day);await db.runTransaction(async tx=>{const snapshot=await tx.get(ref),current=snapshot.exists?snapshot.data().calls:0;if(!Number.isInteger(current)||current>=limit){const error=new Error('provider-quota-reached');error.status=429;throw error;}tx.set(ref,{day,calls:current+1});});};}
 
-return {createTravelProviders, dailyProviderBudget};})();
+/* Optional transcription of locally decoded audio. No URL fetching or storage.
+ * The Android upload/consent transport is deliberately unavailable until configured
+ * and runtime-verified. Callers must obtain the exact consent below before sending.
+ */
+const TRANSCRIPTION_CONSENT='usspace-travel-openai-audio-v1';
+function inspectTravelWav(audio){
+ if(!(audio instanceof Uint8Array)||audio.byteLength<44||audio.byteLength>12*1024*1024)throw Error('invalid-audio-size');
+ const b=Buffer.from(audio.buffer,audio.byteOffset,audio.byteLength);
+ if(b.toString('ascii',0,4)!=='RIFF'||b.toString('ascii',8,12)!=='WAVE'||b.readUInt32LE(4)!==b.length-8)throw Error('invalid-audio-signature');
+ let format=null,dataBytes=0,chunks=0;for(let p=12;p+8<=b.length;){if(++chunks>64)throw Error('invalid-audio-chunks');const name=b.toString('ascii',p,p+4),size=b.readUInt32LE(p+4),start=p+8;if(size>b.length-start)throw Error('invalid-audio-chunk');
+  if(name==='fmt '){if(format||size<16)throw Error('invalid-audio-format');format={codec:b.readUInt16LE(start),channels:b.readUInt16LE(start+2),rate:b.readUInt32LE(start+4),byteRate:b.readUInt32LE(start+8),align:b.readUInt16LE(start+12),bits:b.readUInt16LE(start+14)};}
+  if(name==='data'){if(dataBytes)throw Error('invalid-audio-data');dataBytes=size;}p=start+size+(size%2);if(p>b.length)throw Error('invalid-audio-padding');
+ }
+ if(!format||format.codec!==1||format.channels!==1||format.bits!==16||format.rate<8000||format.rate>48000||format.align!==2||format.byteRate!==format.rate*2||!dataBytes||dataBytes%2)throw Error('unsupported-audio-format');
+ const durationSeconds=dataBytes/format.byteRate;if(durationSeconds>120)throw Error('audio-duration-limit');return {durationSeconds,sampleRate:format.rate};
+}
+function createTravelTranscriptionAdapter({key='',fetcher=fetch,beforeRequest=async()=>{},now=()=>new Date()}={}){
+ const configured=typeof key==='string'&&key.length>0&&key.length<=512;
+ return {configured,provider:'openai',consent:TRANSCRIPTION_CONSENT,
+ async transcribe({audio,consent,signal}={}){
+  if(consent!==TRANSCRIPTION_CONSENT)throw Error('explicit-media-consent-required');if(signal?.aborted)throw Error('media-cancelled');
+  const inspected=inspectTravelWav(audio);if(!configured)throw Error('transcription-provider-not-configured');await beforeRequest();if(signal?.aborted)throw Error('media-cancelled');
+  const body=new FormData();body.set('file',new Blob([audio],{type:'audio/wav'}),'travel-audio.wav');body.set('model','whisper-1');body.set('response_format','json');
+  const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(45000)]):AbortSignal.timeout(45000);
+  const result=await json('https://api.openai.com/v1/audio/transcriptions',{limit:65536,fetcher:(url)=>fetcher(url,{method:'POST',redirect:'error',signal:combined,headers:{Authorization:'Bearer '+key},body})});
+  if(combined.aborted)throw Error('media-cancelled');if(typeof result.text!=='string'||!result.text.trim()||result.text.length>12000)throw Error('invalid-transcription-response');
+  return {text:result.text,provider:'openai',kind:'transcript',inference:'machine-transcription-unverified',retrievedAt:now().toISOString(),durationSeconds:inspected.durationSeconds,retained:false};
+ }};
+}
+
+return {createTravelProviders, dailyProviderBudget, TRANSCRIPTION_CONSENT, inspectTravelWav, createTravelTranscriptionAdapter};})();
