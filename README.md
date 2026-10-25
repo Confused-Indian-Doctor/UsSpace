@@ -1,10 +1,35 @@
 # UsSpace
 
-## v0.16.0 — recovery and navigation update under verification
+## v0.17.0 — Dreams, Map, Trips and Memories
 
-This continues the existing Android app with the same package and original signing
-identity. The new APK will be linked after its complete signed/emulator verification;
-the download below is the **previous verified v0.15 release**.
+[**Download the verified UsSpace v0.17.0 APK**](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk).
+Install it as an update over the existing app to keep its data and pairing.
+Open **Us → Bucket List** for the upgraded travel space; original non-travel goals
+and all other sections remain available.
+
+- Save private ideas from text, links, screenshots or manual entry; review before
+  saving, organise collections and choose your interest independently.
+- Map confirmed places, edit day timelines, preview/apply/discard changes and undo.
+- Keep completed experiences, photos, ratings and reflections as memories.
+- Save itinerary notes for offline reading. New imports start private; sharing
+  requires an explicit destination. Health/Cycle privacy remains unchanged.
+
+The exact original-key APK passed Android 35 installation, in-place upgrade,
+launch and full UI regression checks. All 34 JavaScript suites, 89 Firebase
+security/realtime emulator cases and native policy checks passed. Dark travel
+panels were checked using actual screen pixels.
+
+[Verification report](docs/V017_VERIFICATION.md) ·
+[Screenshots](docs/screenshots/v0.17/README.md) ·
+[Download runtime evidence](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0-verification.zip) ·
+[APK checksum](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk.sha256) ·
+[Provider/setup instructions](docs/TRAVEL_PROVIDERS.md).
+
+Manual planning works without paid keys. Optional AI, place search and road
+routing still need provider configuration. Emulator tests do not establish live
+two-phone FCM delivery or physical Samsung Health/Galaxy Watch export.
+
+## Recovery and navigation features included in v0.17
 
 - Android Back closes a modal, keyboard or nested editor first, then returns to the
   previous submenu or its **Us/Life** parent. Another Back returns Home; Back from
@@ -19,12 +44,11 @@ the download below is the **previous verified v0.15 release**.
   with each shared change; Android schedules authenticated delivery requests on
   demand. It needs no cron or continuously running worker.
 
-The selected relay is **not yet deployed or verified**. It still requires the complete
-Firebase Admin service-account JSON in the host's private secret facility and the
-matching v0.16 outbox rules. Those credentials never belong in GitHub, the APK or a
-public upload. Existing Firestore sync keeps working while push setup is incomplete.
-A local phone test does not prove partner delivery. No live Galaxy Watch export or
-two-phone push delivery is claimed by these source changes.
+Live partner FCM delivery remains unverified and needs its separate outbox/recovery
+setup. Travel-backend readiness does not establish notification delivery. Firebase
+Admin credentials stay in the server's private secret facility. Realtime Firestore
+sync operates independently from push setup. A local phone test does not prove
+partner delivery, and no physical Galaxy Watch export is claimed by emulator tests.
 
 See [v0.16 setup and device checks](docs/V016_SETUP.md),
 [push server setup](PUSH_SETUP.md), and [Android verification](ANDROID_BUILD.md).
@@ -90,8 +114,8 @@ The v0.12.x foundation combined Health Connect and the embedded Namma ↔ Nammal
 
 ## Android identity
 - Package/applicationId: `app.usspace.couple.v012`
-- Current source: `0.16.0` / versionCode 18. The previous verified APK is
-  `0.15.0` / versionCode 17; historical v0.12.3 used versionCode 15.
+- Current source and verified APK: `0.17.0` / versionCode 19. Previous verified
+  v0.15 used code 17; v0.16 source used code 18 and v0.12.3 used code 15.
 - The Google sign-in button uses Credential Manager's explicit account selection flow, with visible progress and actionable errors.
 - Firebase Authentication turns the Google ID token into the app identity.
 - Each signed-in Google account has its own `/users/{uid}` document.

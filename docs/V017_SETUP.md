@@ -61,8 +61,8 @@ regressions. All 34 local JavaScript suites also passed.
 The original-key signed APK SHA-256 is
 `d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59`.
 An independent download reconstructed the exact signed bytes. Cold image/text
-run `40144080474`, focused `40144079908` and full `40144079117` passed. Keep
-the previous verified v0.15 download until the replacement is published. See [the detailed test report](V017_VERIFICATION.md).
+run `40144080474`, focused `40144079908` and full `40144079117` passed. The
+verified v0.17 release is now published; the v0.15 download remains an archive. See [the detailed test report](V017_VERIFICATION.md).
 
 The earlier candidate beginning `4630506e` was rejected after an accepted edit
 vanished from the paused-listener UI. The new source retains acknowledged edits

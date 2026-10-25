@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-25T00:50:44.184458+00:00",
+  "checkedAt": "2026-10-25T00:56:52.779438+00:00",
   "sourceCommit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
   "sourceBuild": {
     "run": 40143632730,
@@ -129,7 +129,9 @@
         "expected": "< 130",
         "matched": "A PROPOSAL, NOT A CHANGED PLAN"
       }
-    ]
+    ],
+    "gallery": "docs/screenshots/v0.17/README.md",
+    "capturedRun": 40144079908
   },
   "previousCandidate": {
     "apkSha256": "b9786d50a755ea4416af5626e0cafb0eb93a21283200b99a02a9d89dc940bc6d",
@@ -140,7 +142,15 @@
     "supersededReason": "Dark travel panel contrast fix; new APK requires its own runtime evidence"
   },
   "publication": {
-    "status": "pending: source integration and publication follow completed Android verification"
+    "status": "published and live download bytes verified",
+    "tag": "v0.17.0",
+    "releaseId": 423072245,
+    "apkUrl": "https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk",
+    "evidenceUrl": "https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0-verification.zip",
+    "mainRun": 40148282451,
+    "mainHead": "919f556efa1d80ca477fc7f6433f46d235da634f",
+    "publicationRun": 40148532136,
+    "publicationHead": "cf8c79fc068639bb162a8ca4d2a18e7bcb69632c"
   },
   "apkContentComparison": {
     "previous_apk_sha256": "b9786d50a755ea4416af5626e0cafb0eb93a21283200b99a02a9d89dc940bc6d",

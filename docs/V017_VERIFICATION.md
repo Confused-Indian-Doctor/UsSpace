@@ -88,7 +88,13 @@ revocation until it reconnects.
 
 The earlier candidate beginning `b9786d50` passed a complete Android run, but was
 superseded by the Dark contrast fix. Its results are not substituted for this
-APK's runtime evidence. Publication is the final step. The previous v0.15 download stays current until
-the new release is available.
+APK's runtime evidence. The v0.17 release is now published. The previous v0.15 link remains an archived
+fallback.
 
 [Actual screenshots](screenshots/v0.17/README.md) · [Machine-readable results](V017_TEST_RESULTS.json).
+
+Main source workflow [40148282451](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/40148282451)
+and publication workflow [40148532136](https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/40148532136)
+passed. Publication downloaded the live asset and verified its SHA-256 against
+the exact installed/tested APK. [Download APK](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk) ·
+[Download evidence](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0-verification.zip).

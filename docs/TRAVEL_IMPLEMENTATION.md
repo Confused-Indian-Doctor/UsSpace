@@ -21,9 +21,9 @@ under Us; no bottom-navigation tab or application rewrite is introduced.
 7. Source/security verification, original-key signing, exact-APK upgrade/runtime
    verification, five screenshots and a verified release artifact.
 
-Steps 1–6 are implemented. Step 7 has passed source/security verification,
-original-key signing and all Android runs. Publication is the remaining delivery
-step; keep the existing v0.15 link until the new release is available.
+Steps 1–7 are complete: source/security checks, original-key signing, all Android
+runs and publication passed. The verified v0.17 APK is available in GitHub Releases;
+the previous v0.15 download remains an archived fallback.
 
 ## Data and privacy
 
@@ -91,7 +91,7 @@ run `40144080474` passed. Focused run `40144079908` and full run `40144079117`
 passed the corrected Dark-mode panels and complete existing app journeys.
 
 See [actual verification and limits](V017_VERIFICATION.md). The previous verified
-v0.15 link stays current until the new release is available.
+v0.15 link remains an archived fallback; v0.17 is now published.
 
 ## Commit/listener handoff repair
 
