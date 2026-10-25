@@ -1,0 +1,17 @@
+{
+  "android": {
+    "id": 40144079117,
+    "head_sha": "a4a2c3f54772ca6c7f468669d1af067e4ade1635"
+  },
+  "main": {
+    "id": 40148282451,
+    "head_sha": "919f556efa1d80ca477fc7f6433f46d235da634f"
+  },
+  "cold_import": {
+    "id": 40144080474,
+    "head_sha": "a4a2c3f54772ca6c7f468669d1af067e4ade1635"
+  },
+  "release_target_commit": "919f556efa1d80ca477fc7f6433f46d235da634f",
+  "source_commit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
+  "apk_sha256": "d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59"
+}
