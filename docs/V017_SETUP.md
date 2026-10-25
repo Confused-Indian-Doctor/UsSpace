@@ -53,14 +53,23 @@ notes using an offline Android voice, with a transcript and playback controls.
 
 ## Verification
 
-The source-build workflow passed for commit
-`243850a8a6f53f0588def0eaa0ebc17d24ebde75` in run `39984306333`.
-The current original-key signed APK checksum is
-`4630506e9803af968db6c58cee0e4efbe52c08c347c05d1b114756f336b34391`.
-Run `39986976594` checks this exact APK, including its in-place v0.15 upgrade,
-native Firebase demo-emulator integration and accessibility-driven travel UI.
-At this checkpoint the Firebase security/realtime tests, APK checksum and original
-signing identity checks passed; Android runtime verification is still running.
-This is not yet a verified release. Keep the verified v0.15 download until all
-runtime checks pass. The older v0.17 candidate with checksum starting `0880ddac`
-was rejected for a Bucket List layout defect and must not be distributed.
+Source `20b8f06225d984ead857a34c6ca4d84b94cdd48e` passed build run
+`40143632730`: Android release/instrumentation compilation, 89 Firebase emulator
+cases, 20 native queue-policy cases, 37 native import-policy cases and existing
+regressions. All 34 local JavaScript suites also passed.
+
+The original-key signed APK SHA-256 is
+`d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59`.
+An independent download reconstructed the exact signed bytes. Cold image/text
+run `40144080474`, focused `40144079908` and full `40144079117` passed. Keep
+the previous verified v0.15 download until the replacement is published. See [the detailed test report](V017_VERIFICATION.md).
+
+The earlier candidate beginning `4630506e` was rejected after an accepted edit
+vanished from the paused-listener UI. The new source retains acknowledged edits
+until their revisions arrive through the listener, without resending them or
+showing them as unsent. A separate test blocks the emulator's real Firestore
+transport to verify pending offline saves and reconnection.
+
+The backend was rechecked on 24 October 2026: capabilities returned 200 and an
+unauthenticated planning request returned 401. Metadata and weather are enabled;
+AI, place search and routing still require optional provider configuration.

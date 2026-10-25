@@ -21,14 +21,16 @@ jobs:
           from pathlib import Path
           p=json.loads(Path('.ci-artifacts/release-verification.json').read_text())
           repo=os.environ['GITHUB_REPOSITORY']
-          for name in ['android','main']:
+          for name in ['android','main','cold_import']:
               run=p[name]
               if not isinstance(run['id'],int) or not re.fullmatch('[a-f0-9]{40}',run['head_sha']): raise SystemExit('Invalid verification reference')
               request=urllib.request.Request(f'https://api.github.com/repos/{repo}/actions/runs/{run["id"]}',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
               with urllib.request.urlopen(request,timeout=30) as response: actual=json.load(response)
               if actual['conclusion']!='success' or actual['status']!='completed' or actual['head_sha']!=run['head_sha']: raise SystemExit('Verification run is not the approved successful run')
           if p['main']['head_sha']!=p['release_target_commit']: raise SystemExit('Release must target the verified main commit')
-          with open(os.environ['GITHUB_OUTPUT'],'a') as out: out.write('run_id='+str(p['android']['id'])+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write('run_id='+str(p['android']['id'])+'\n')
+              out.write('cold_run_id='+str(p['cold_import']['id'])+'\n')
           PY
       - uses: actions/download-artifact@v4
         with:
@@ -36,6 +38,12 @@ jobs:
           run-id: ${{ steps.verified.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: release-inputs
+      - uses: actions/download-artifact@v4
+        with:
+          name: UsSpace-v0.17-cold-import-evidence
+          run-id: ${{ steps.verified.outputs.cold_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: cold-import-inputs
       - name: Validate exact signed APK, UI results and screenshot deliverables
         run: |
           python3 - <<'PY'
@@ -51,12 +59,28 @@ jobs:
           for name in results:
               if json.loads((root/name).read_text()).get('status')!='passed': raise SystemExit('Runtime verification missing or failed: '+name)
           screenshots=['Dreams','Import-review','Map','Trip-timeline','Memories']
+          dark_panels=['Tabs','Map-caption','Draft-preview']
+          dark_checks=[s for s in json.loads((root/'travel-ui-result.json').read_text()).get('steps',[]) if s.get('action')=='travel-dark-panel-pixels']
+          if {s.get('panel') for s in dark_checks}!=set(dark_panels) or any(not isinstance(s.get('mean_luminance'),(int,float)) or s['mean_luminance']>=130 for s in dark_checks):raise SystemExit('Dark travel panel pixel checks are missing or failed')
+          screenshots += ['Dark-'+n for n in dark_panels]
           for name in screenshots:
               if not (root/f'UsSpace-travel-{name}.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):raise SystemExit('Required screenshot missing: '+name)
+          cold=Path('cold-import-inputs')
+          if hashlib.sha256((cold/'UsSpace-v0.17.apk').read_bytes()).hexdigest()!=sha:raise SystemExit('Cold-share verification used a different APK')
+          for inputs in [root,cold]:
+              origin=json.loads((inputs/'apk-source.json').read_text())
+              if origin.get('source_commit')!=p['source_commit'] or origin.get('sha256')!=sha:raise SystemExit('Verification source provenance differs')
+          cold_result=json.loads((cold/'travel-cold-import-result.json').read_text())
+          if cold_result.get('status')!='passed' or any(not cold_result.get('cases',{}).get(case,'').startswith('passed:') for case in ['image','text']):raise SystemExit('Cold image/text shares were not both verified')
+          cold_screens=sorted(cold.glob('UsSpace-v015-cold-image-*.png'))
+          if not cold_screens or any(not f.read_bytes().startswith(b'\x89PNG\r\n\x1a\n') for f in cold_screens):raise SystemExit('Cold image screenshots are missing or invalid')
           dest=Path('release-files');dest.mkdir(exist_ok=True);(dest/'UsSpace-v0.17.0.apk').write_bytes(apk.read_bytes());(dest/'UsSpace-v0.17.0.apk.sha256').write_text(sha+'  UsSpace-v0.17.0.apk\n')
           with zipfile.ZipFile(dest/'UsSpace-v0.17.0-verification.zip','w',zipfile.ZIP_DEFLATED) as archive:
               for name in results+['apk-verification.json','apk-source.json','automation-provenance.json']+[f'UsSpace-travel-{n}.png' for n in screenshots]:archive.write(root/name,name)
-          notes='UsSpace v0.17.0 continues the existing Android app with Dreams, reviewed imports, Map, editable Trips and Memories.\n\nThe exact APK passed installation, in-place upgrade, Android UI and Firebase privacy/realtime verification. The original signing identity is unchanged.\n\nAI and live place/routing search require optional provider keys; manual planning and local drafts remain available. Real Samsung Health export and production two-phone FCM delivery were not verified by these emulator tests.\n\nAPK SHA-256: '+sha+'\nCompilation source: '+p['source_commit']+'\nAndroid verification run: '+str(p['android']['id'])+'\n'
+              archive.writestr('release-verification.json',json.dumps(p,indent=2)+'\n')
+              for name in ['travel-cold-import-result.json','apk-verification.json','apk-source.json','automation-provenance.json']:archive.write(cold/name,'cold-import/'+name)
+              for file in cold_screens:archive.write(file,'cold-import/'+file.name)
+          notes='UsSpace v0.17.0 continues the existing Android app with Dreams, reviewed imports, Map, editable Trips and Memories.\n\nThe exact APK passed installation, in-place upgrade, Android UI and Firebase privacy/realtime verification. The original signing identity is unchanged.\n\nAI and live place/routing search require optional provider keys; manual planning and local drafts remain available. Real Samsung Health export and production two-phone FCM delivery were not verified by these emulator tests.\n\nAPK SHA-256: '+sha+'\nCompilation source: '+p['source_commit']+'\nAndroid verification run: '+str(p['android']['id'])+'\nCold image/text verification run: '+str(p['cold_import']['id'])+'\n'
           (dest/'release-notes.md').write_text(notes)
           PY
       - name: Publish the verified installable APK and evidence
@@ -66,3 +90,16 @@ jobs:
           target=$(python3 -c 'import json;print(json.load(open(".ci-artifacts/release-verification.json"))["release_target_commit"])')
           gh release create v0.17.0 --draft --target "$target" --title "UsSpace v0.17.0" --notes-file release-files/release-notes.md release-files/UsSpace-v0.17.0.apk release-files/UsSpace-v0.17.0.apk.sha256 release-files/UsSpace-v0.17.0-verification.zip
           gh release edit v0.17.0 --draft=false --latest
+      - name: Verify the published download is the exact tested APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download v0.17.0 --repo "$GITHUB_REPOSITORY" --pattern UsSpace-v0.17.0.apk --dir published-check
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          expected=json.loads(Path('.ci-artifacts/release-verification.json').read_text())['apk_sha256']
+          actual=hashlib.sha256(Path('published-check/UsSpace-v0.17.0.apk').read_bytes()).hexdigest()
+          if actual!=expected:raise SystemExit('Published download differs from the tested APK')
+          print('PUBLISHED_APK_EXACT_BYTES_VERIFIED',actual)
+          PY

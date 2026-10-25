@@ -1,0 +1,167 @@
+{
+  "checkedAt": "2026-10-25T00:50:44.184458+00:00",
+  "sourceCommit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
+  "sourceBuild": {
+    "run": 40143632730,
+    "status": "passed",
+    "firebaseEmulatorTestsPassed": 89,
+    "androidJavaCompilation": "passed",
+    "localJavaScriptSuitesPassed": 34,
+    "travelStoreCases": 14,
+    "nativeTravelQueuePolicyCases": 20,
+    "nativeImportPolicyCases": 37
+  },
+  "workspace": {
+    "originalHistoryRestored": true,
+    "originalPngAssetsVerified": 2,
+    "completeCheckout": true,
+    "checkpointHead": "a4a2c3f54772ca6c7f468669d1af067e4ade1635",
+    "reachableCommitsAtCheckpoint": 85
+  },
+  "apk": {
+    "url": "https://raw.githubusercontent.com/Confused-Indian-Doctor/UsSpace/48be9ace7b59ce7c38ba855cdd454d1166d9356f/release-manifest.json",
+    "sha256": "d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59",
+    "bytes": 51648241,
+    "source_commit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
+    "instrumentation_url": "https://raw.githubusercontent.com/Confused-Indian-Doctor/UsSpace/48be9ace7b59ce7c38ba855cdd454d1166d9356f/signed/UsSpace-v0.17.0-runtime-test.apk",
+    "instrumentation_sha256": "65cb40594fb7146bed0823e8b36cdbb06c1029fefa92027870148aecad7d00e2",
+    "signing_sha1": "67eafa2c1f58fe0c4bf3ea2470f6628072157310",
+    "signing_sha256": "b5edfcc256feb46edc9fa4f2c4e95aeae3a8572b248ef234ba2a61b4eaefc308",
+    "instrumentation_source_commit": "20b8f06225d984ead857a34c6ca4d84b94cdd48e",
+    "transport": "github-gzip-chunks",
+    "transport_manifest_sha256": "3d46b072059e08eada9d60c51597a20eec35882f9dfcec224602bacd9ebbd7cb",
+    "certificateVerified": true,
+    "githubTransportRoundtripVerified": true
+  },
+  "runtime": {
+    "head": "a4a2c3f54772ca6c7f468669d1af067e4ade1635",
+    "run": 40144079117,
+    "focusedRun": 40144079908,
+    "coldImportRun": 40144080474,
+    "status": "passed: exact signed APK upgraded, installed, launched and regression-tested on Android 35",
+    "verifiedRelease": true,
+    "coldImportStatus": "passed: exact APK; real cold image URI and text",
+    "coldImportArtifactId": 12579399726,
+    "focusedStatus": "passed",
+    "focusedArtifactId": 12580556784,
+    "fullArtifactId": 12581555419,
+    "reports": {
+      "smoke-result.json": "passed",
+      "learning-ui-result.json": "passed",
+      "signin-ui-result.json": "passed",
+      "travel-ui-result.json": "passed",
+      "travel-unpair-result.json": "passed",
+      "travel-cold-import-result.json": "passed",
+      "upgrade-before.json": "passed",
+      "upgrade-after.json": "passed",
+      "v015-ui-result.json": "passed",
+      "v016-ui-result.json": "passed",
+      "us-features-ui-result.json": "passed",
+      "v014-ui-result.json": "passed"
+    }
+  },
+  "providers": {
+    "productionCapabilitiesProbe": 200,
+    "unauthenticatedPlanningProbe": 401,
+    "metadata": true,
+    "weather": true,
+    "ai": false,
+    "places": false,
+    "routing": false
+  },
+  "notEstablished": [
+    "production two-phone Google Sign-In/pairing test",
+    "production FCM delivery",
+    "Samsung Health export on physical device",
+    "live paid place/routing/AI provider calls"
+  ],
+  "nativeTravelObserved": [
+    "real native SDK paired/private reads",
+    "accepted write retained during paused listener delivery",
+    "real port-8080 transport-blocked private offline save and reconnect",
+    "server revision/stop tombstone verification after apply and undo",
+    "account-switch private-cache isolation",
+    "server unpair revocation and shared/offline-copy UI clearing",
+    "real Leaflet OSM rendering and numbered itinerary pins",
+    "warm text and on-device screenshot OCR imports"
+  ],
+  "screenshots": {
+    "folder": "artifacts/focused-40144079908",
+    "fiveRequiredPresent": true,
+    "viewedActualImages": true,
+    "darkPanelChecks": [
+      {
+        "action": "travel-dark-panel-pixels",
+        "panel": "Tabs",
+        "bounds": [
+          22,
+          121,
+          88,
+          170
+        ],
+        "mean_luminance": 52.653,
+        "expected": "< 130",
+        "matched": "Dreams"
+      },
+      {
+        "action": "travel-dark-panel-pixels",
+        "panel": "Map-caption",
+        "bounds": [
+          17,
+          447,
+          303,
+          504
+        ],
+        "mean_luminance": 50.825,
+        "expected": "< 130",
+        "matched": "Confirmed places only \u00b7 numbers show itinerary order, not a calculated road route."
+      },
+      {
+        "action": "travel-dark-panel-pixels",
+        "panel": "Draft-preview",
+        "bounds": [
+          35,
+          122,
+          285,
+          137
+        ],
+        "mean_luminance": 97.209,
+        "expected": "< 130",
+        "matched": "A PROPOSAL, NOT A CHANGED PLAN"
+      }
+    ]
+  },
+  "previousCandidate": {
+    "apkSha256": "b9786d50a755ea4416af5626e0cafb0eb93a21283200b99a02a9d89dc940bc6d",
+    "fullRun": 40139976282,
+    "fullStatus": "passed",
+    "focusedRun": 40137280307,
+    "coldImportRun": 40139493318,
+    "supersededReason": "Dark travel panel contrast fix; new APK requires its own runtime evidence"
+  },
+  "publication": {
+    "status": "pending: source integration and publication follow completed Android verification"
+  },
+  "apkContentComparison": {
+    "previous_apk_sha256": "b9786d50a755ea4416af5626e0cafb0eb93a21283200b99a02a9d89dc940bc6d",
+    "current_apk_sha256": "d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59",
+    "zip_entries": 683,
+    "changed_entries": [
+      {
+        "path": "META-INF/version-control-info.textproto",
+        "previous_sha256": "5ad261afa792f2c9f0830bca11dabc1b9f51d6c1670cb6412376c391f56a1f24",
+        "current_sha256": "5e866d7e237ce1a0689abd23169970d7a783486dbb91d86eed71f63f1876d57e",
+        "previous_bytes": 120,
+        "current_bytes": 120
+      },
+      {
+        "path": "assets/travel.css",
+        "previous_sha256": "5ebf3e058459e89cf61457382a2f39d2620c735418962333b2e40a71f46b4b95",
+        "current_sha256": "16aaf1b24e957f600aa715895f81d7aaefa52165d5b26e34ffc2523780cd54bc",
+        "previous_bytes": 5431,
+        "current_bytes": 5521
+      }
+    ],
+    "signature_block_excluded_from_zip_entry_comparison": true
+  }
+}

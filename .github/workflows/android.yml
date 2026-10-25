@@ -78,7 +78,7 @@ jobs:
     needs: source-validation
     if: needs.source-validation.outputs.signing_ready == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     env:
       ANDROID_API: '35'
       ANDROID_BUILD_TOOLS: '35.0.0'
@@ -152,7 +152,7 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Boot Android 35, install and launch the signed APK
-        timeout-minutes: 60
+        timeout-minutes: 90
         env:
           ANDROID_EMULATOR_ACCEL: 'on'
           BOOT_TIMEOUT_SECONDS: '300'

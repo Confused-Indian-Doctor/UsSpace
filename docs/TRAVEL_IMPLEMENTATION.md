@@ -21,8 +21,9 @@ under Us; no bottom-navigation tab or application rewrite is introduced.
 7. Source/security verification, original-key signing, exact-APK upgrade/runtime
    verification, five screenshots and a verified release artifact.
 
-Steps 1–6 are implemented in the travel source branch. Step 7 is in progress;
-the existing v0.15 artifact remains the verified release.
+Steps 1–6 are implemented. Step 7 has passed source/security verification,
+original-key signing and all Android runs. Publication is the remaining delivery
+step; keep the existing v0.15 link until the new release is available.
 
 ## Data and privacy
 
@@ -69,33 +70,30 @@ quotas and structured output. AI proposes ordering of selected references and
 cannot silently change an accepted itinerary. Accommodation uses notes and
 external reservation/booking links; there is no in-app checkout.
 
-The deployed backend was rechecked on 23 October 2026: capabilities returned 200,
+The deployed backend was rechecked on 24 October 2026: capabilities returned 200,
 and unauthenticated planning returned 401. Metadata and weather report enabled;
 Geoapify places/routing and AI remain unconfigured. See TRAVEL_PROVIDERS.md and
 V017_SETUP.md for exact setup, licensing, quotas and availability limits.
 
 ## Actual verification checkpoint
 
-Source 243850a8a6f53f0588def0eaa0ebc17d24ebde75 passed build run 39984306333:
-JavaScript regressions/travel tests, native Java policy tests, 89 Firebase emulator
-tests and Android release/instrumentation compilation. These are not device tests.
+Source `20b8f06225d984ead857a34c6ca4d84b94cdd48e` passed build run
+`40143632730`: Android release/instrumentation compilation, 89 Firebase emulator
+cases, 20 native queue-policy cases and 37 native import-policy cases. All 34
+local JavaScript suites passed, including 14 travel-store cases. These source
+and security results are distinct from installation results.
 
-The signed v0.17.0 APK (versionCode 19) has SHA-256
-4630506e9803af968db6c58cee0e4efbe52c08c347c05d1b114756f336b34391.
-Local SDK checks verified alignment, package/version and the original certificate.
-Android run 39997856349 is running the full exact-APK upgrade/runtime suite.
-Focused run 39995392469 passed real map rendering, reviewed trip removal/undo,
-offline itinerary reading and native screenshot OCR. It failed when a reviewed
-idea saved offline was absent from Dreams after the save confirmation. This
-remains an unresolved runtime failure; diagnostic run 39999848818 retains both
-scroll-search directions, and a separate test APK adds demo-only queue reads.
+The original-key signed APK (versionCode 19) has SHA-256
+`d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59`.
+Package, version, alignment, Firebase OAuth and original certificate checks passed.
+An independent download reconstructed those exact signed bytes. Cold image/text
+run `40144080474` passed. Focused run `40144079908` and full run `40144079117`
+passed the corrected Dark-mode panels and complete existing app journeys.
 
-Do not report this APK as verified until its runtime job passes. The rejected
-older v0.17 layout candidate must not be delivered. Real production two-phone
-Google login/sync, Samsung Health export and FCM delivery are not established by
-demo-emulator tests; live paid providers are not configured or claimed tested.
+See [actual verification and limits](V017_VERIFICATION.md). The previous verified
+v0.15 link stays current until the new release is available.
 
-## Commit/listener handoff fix under verification
+## Commit/listener handoff repair
 
 Diagnostic run 40002978826 proved the reviewed QA-preflight-save item and its
 receipt existed on the demo server while the paused-listener UI had lost the
@@ -113,6 +111,6 @@ The native SDK creates transactions directly from its datastore; pausing normal
 listeners is therefore not a sufficient substitute for blocking its transport.
 Reference: https://github.com/firebase/firebase-android-sdk/blob/master/firebase-firestore/src/main/java/com/google/firebase/firestore/remote/RemoteStore.java
 
-All 29 local JavaScript suites passed after this change, including three new
-acknowledgement/listener regressions. Native compilation, new signed APK and
-complete emulator verification are still pending for the new source.
+All 34 local JavaScript suites passed after this change, including three new
+acknowledgement/listener regressions. Native compilation and original-key signing passed; complete Android emulator
+verification passed. Production service/device limits remain as stated above.
