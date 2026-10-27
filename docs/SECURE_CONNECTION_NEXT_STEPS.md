@@ -75,3 +75,8 @@ checks passed. Actual phone execution unverified. Source version1793105494723;
 publish job553f16a3-c50c-43dd-9be5-86696ec34dd2. Check terminal deployment and
 fetch live HTML before claiming the link is ready. No actual private key or
 password was embedded, logged or used in these tests. Existing app routes remain.
+
+Deployment succeeded; live helper GET returned200 with text/html, no-store,
+expected title/file input and network-blocking CSP meta. Evidence:
+`artifacts/signing-helper-live-check.json`. No phone browser or real key operation
+is claimed. Await user adding the key secret; Firebase binding remains pending.
