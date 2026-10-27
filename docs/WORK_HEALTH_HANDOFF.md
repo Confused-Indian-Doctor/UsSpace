@@ -92,7 +92,7 @@ checkpoint. Fixture providers are not proof of live Jubilee/Samsung processing.
 1. Read WORK_HEALTH_INTEGRATION.md for paths and exact setup variable names.
 2. Bind the existing original signing key/passwords securely, verify its known
    certificate, and rebuild. Keep all secret values out of chat/source/logs.
-3. Validate the additive Jubilee files against its existing Site build. Configure
+3. Preserve the now-validated additive Jubilee files. Configure
    the existing-owner UID, exact source person, dedicated export token/hash and
    scoped ingress credential. Keep hospital/laptop tokens separate and local.
 4. Obtain authorization before deploying the prepared existing-backend additions,

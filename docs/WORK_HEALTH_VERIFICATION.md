@@ -45,9 +45,9 @@ Exact final APK hashes, source hashes, full Git commit and working-tree state ar
 recorded in `/workspace/USSPACE_WORK_HEALTH_CHECKPOINT.json` after the milestone
 commit. `artifacts/work-health-apk-metadata.json` records the unsigned artifacts.
 The unsigned candidate is **not** an approved release or installable upgrade.
-The prepared Floot transport wrappers and additive Site route still require their
-respective hosting build/deployment validation; only their shared cores were
-executed in the local contract tests.
+The prepared Floot transport wrappers still require hosting validation. The
+additive Site route now passes the existing Site build, as recorded in the
+follow-up below; neither integration has been deployed.
 
 ## Required original-key/runtime gates still outstanding
 
