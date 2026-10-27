@@ -21,7 +21,11 @@ def main():
     parser.add_argument("apk", type=Path)
     parser.add_argument("--config", type=Path, default=Path(__file__).resolve().parents[1] / "app/google-services.json")
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--version-code", type=int, default=19)
+    parser.add_argument("--version-name", default="0.17.0")
     args = parser.parse_args()
+    if args.version_code < 1 or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version_name):
+        raise ValueError("Expected release version must be explicit and valid.")
     sdk = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME")
     if not sdk:
         raise ValueError("Set ANDROID_SDK_ROOT or ANDROID_HOME to the Android SDK directory.")
@@ -65,13 +69,13 @@ def main():
     badging = subprocess.run([str(tools / "aapt"), "dump", "badging", str(args.apk)],
                              check=True, capture_output=True, text=True).stdout
     identity = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging, re.MULTILINE)
-    if not identity or identity.groups() != (PACKAGE, "19", "0.17.0"):
-        raise ValueError("APK identity must be app.usspace.couple.v012, versionCode 19, versionName 0.17.0.")
+    if not identity or identity.groups() != (PACKAGE, str(args.version_code), args.version_name):
+        raise ValueError(f"APK identity must be {PACKAGE}, versionCode {args.version_code}, versionName {args.version_name}.")
     report = {
         "status": "verified",
         "package": PACKAGE,
-        "version_code": 19,
-        "version_name": "0.17.0",
+        "version_code": args.version_code,
+        "version_name": args.version_name,
         "firebase_project": config.get("project_info", {}).get("project_id"),
         "signing_sha1": sha1,
         "signing_sha256": sha256,

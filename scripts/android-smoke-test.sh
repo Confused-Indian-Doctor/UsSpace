@@ -28,6 +28,11 @@ for duration in "$boot_timeout" "$observe_seconds"; do
   fi
 done
 emulator_pid=
+baseline_apk=${USSPACE_UPGRADE_BASELINE_APK:-"$output/UsSpace-v0.15-baseline.apk"}
+if [ -n "${USSPACE_UPGRADE_BASELINE_APK:-}" ] && [ ! -s "$baseline_apk" ]; then
+  echo "ERROR: Required upgrade baseline is missing." >&2
+  exit 1
+fi
 
 adb_device() {
   timeout 30 "$adb_bin" -s "$serial" "$@"
@@ -98,8 +103,8 @@ until [ "$(adb_device shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
 done
 
 adb_device shell input keyevent 82
-if [ -s "$output/UsSpace-v0.15-baseline.apk" ]; then
-  adb_device install -r "$output/UsSpace-v0.15-baseline.apk" > "$output/upgrade-baseline-install.txt"
+if [ -s "$baseline_apk" ]; then
+  adb_device install -r "$baseline_apk" > "$output/upgrade-baseline-install.txt"
   adb_device shell am start -W -n "$activity" > "$output/upgrade-baseline-launch.txt"
   USSPACE_UPGRADE_STAGE=before python3 scripts/android-upgrade-probe.py --adb "$adb_bin" --serial "$serial" --output "$output"
 fi
@@ -110,7 +115,7 @@ adb_device logcat -b all -c
 adb_device shell am start -W -n "$activity" | tr -d '\r' | tee "$output/launch.txt"
 grep -qx 'Status: ok' "$output/launch.txt"
 
-if [ -s "$output/UsSpace-v0.15-baseline.apk" ]; then
+if [ -s "$baseline_apk" ]; then
   USSPACE_UPGRADE_STAGE=after python3 scripts/android-upgrade-probe.py --adb "$adb_bin" --serial "$serial" --output "$output"
 fi
 

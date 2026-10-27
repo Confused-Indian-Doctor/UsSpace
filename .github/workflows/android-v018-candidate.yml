@@ -1,0 +1,123 @@
+name: UsSpace v0.18 original-key candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: [work-health-sharing]
+permissions:
+  contents: read
+concurrency:
+  group: usspace-v018-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify-build-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANDROID_API: '35'
+      ANDROID_BUILD_TOOLS: '35.0.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify source, native policies and Firebase access rules
+        run: |
+          python3 scripts/validate-firebase-config.py
+          bash scripts/test-firebase-realtime.sh
+          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android build and emulator tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Restore existing signing identity without displaying credentials
+        env:
+          USSPACE_KEYSTORE_B64: ${{ secrets.USSPACE_KEYSTORE_B64 }}
+          USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$USSPACE_KEYSTORE_B64" || { echo 'Missing original signing key secret'; exit 1; }
+          test -n "$USSPACE_KEYSTORE_PASSWORD" || { echo 'Missing original signing password secret'; exit 1; }
+          umask 077
+          printf '%s' "$USSPACE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/usspace-original.p12"
+          test -s "$RUNNER_TEMP/usspace-original.p12"
+          printf 'USSPACE_KEYSTORE_PATH=%s\n' "$RUNNER_TEMP/usspace-original.p12" >> "$GITHUB_ENV"
+      - name: Compile signed candidate and separate instrumentation APK
+        env:
+          USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
+          USSPACE_KEY_PASSWORD: ${{ secrets.USSPACE_KEY_PASSWORD || secrets.USSPACE_KEYSTORE_PASSWORD }}
+          USSPACE_KEY_ALIAS: ${{ secrets.USSPACE_KEY_ALIAS || 'usspace' }}
+        run: gradle --no-daemon :app:assembleRelease :app:assembleReleaseAndroidTest
+      - name: Verify original certificate, Firebase OAuth, version and alignment
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/release/app-release.apk artifacts/UsSpace-v0.18.0-candidate.apk
+          cp app/build/outputs/apk/androidTest/release/app-release-androidTest.apk artifacts/travel-runtime-test.apk
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.18.0-candidate.apk --version-code 20 --version-name 0.18.0 --report artifacts/apk-verification.json
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 artifacts/UsSpace-v0.18.0-candidate.apk
+          git rev-parse HEAD > artifacts/SOURCE_COMMIT.txt
+          sha256sum artifacts/UsSpace-v0.18.0-candidate.apk > artifacts/candidate.sha256
+      - name: Fetch exact approved v0.17 upgrade baseline
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, urllib.request
+          url='https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk'
+          with urllib.request.urlopen(url,timeout=60) as response:
+              data=response.read(80*1024*1024+1)
+          if len(data)>80*1024*1024 or hashlib.sha256(data).hexdigest()!='d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59':
+              raise SystemExit('Approved upgrade baseline checksum mismatch')
+          pathlib.Path('artifacts/UsSpace-v0.17-baseline.apk').write_bytes(data)
+          PY
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo modprobe kvm
+          sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          sudo chmod a+rw /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Upgrade-install exact candidate, launch and run existing runtime regressions
+        timeout-minutes: 65
+        env:
+          USSPACE_UPGRADE_BASELINE_APK: artifacts/UsSpace-v0.17-baseline.apk
+          ANDROID_EMULATOR_ACCEL: 'on'
+          BOOT_TIMEOUT_SECONDS: '300'
+          CRASH_OBSERVE_SECONDS: '20'
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/usspace-v018-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.18.0-candidate.apk artifacts
+      - name: Save verified candidate and runtime evidence without publishing a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.18.0-verified-candidate
+          path: |
+            artifacts/
+            !artifacts/UsSpace-v0.17-baseline.apk
+            !artifacts/travel-runtime-test.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.18.0-failure-evidence
+          path: |
+            artifacts/
+            !artifacts/*.apk
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove private signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/usspace-original.p12"
