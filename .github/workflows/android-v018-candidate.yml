@@ -5,6 +5,7 @@ on:
     branches: [work-health-sharing]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: usspace-v018-${{ github.ref }}
   cancel-in-progress: false
@@ -27,6 +28,7 @@ jobs:
       - name: Verify source, native policies and Firebase access rules
         run: |
           python3 scripts/validate-firebase-config.py
+          python3 firebase-tests/prior_runtime_evidence_test.py
           bash scripts/test-firebase-realtime.sh
           npm --prefix functions install --ignore-scripts --no-audit --no-fund
           npm --prefix functions run check
@@ -66,6 +68,29 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 artifacts/UsSpace-v0.18.0-candidate.apk
           git rev-parse HEAD > artifacts/SOURCE_COMMIT.txt
           sha256sum artifacts/UsSpace-v0.18.0-candidate.apk > artifacts/candidate.sha256
+      - name: Retain exact signed candidate for diagnostics (runtime verification pending)
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.18.0-signed-runtime-pending
+          path: |
+            artifacts/UsSpace-v0.18.0-candidate.apk
+            artifacts/apk-verification.json
+            artifacts/candidate.sha256
+            artifacts/SOURCE_COMMIT.txt
+          retention-days: 7
+      - name: Check pinned prior runtime evidence for an identical APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git fetch --no-tags --depth=1 origin 6d2d529a2a708f174a8eecbd2020d0603ea60fd5 && gh api repos/Confused-Indian-Doctor/UsSpace/actions/artifacts/12777091411/zip > "$RUNNER_TEMP/prior-runtime.zip" 2> "$RUNNER_TEMP/prior-runtime-download-error"; then
+            if python3 scripts/verify-prior-runtime-evidence.py --apk artifacts/UsSpace-v0.18.0-candidate.apk --archive "$RUNNER_TEMP/prior-runtime.zip" --report "$RUNNER_TEMP/prior-runtime-proof.json"; then
+              printf 'USSPACE_PRIOR_RUNTIME_ZIP=%s\n' "$RUNNER_TEMP/prior-runtime.zip" >> "$GITHUB_ENV"
+            else
+              echo 'Prior evidence cannot be reused; the complete runtime suite will run.'
+            fi
+          else
+            echo 'Prior evidence is unavailable; the complete runtime suite will run.'
+          fi
       - name: Fetch exact approved v0.17 upgrade baseline
         run: |
           python3 - <<'PY'
@@ -89,7 +114,7 @@ jobs:
           test -r /dev/kvm && test -w /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -accel-check
       - name: Upgrade-install exact candidate, launch and run existing runtime regressions
-        timeout-minutes: 65
+        timeout-minutes: 90
         env:
           USSPACE_UPGRADE_BASELINE_APK: artifacts/UsSpace-v0.17-baseline.apk
           ANDROID_EMULATOR_ACCEL: 'on'

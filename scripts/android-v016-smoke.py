@@ -200,7 +200,16 @@ def health_checks():
     verify("health-read-only-samsung-pipeline", r"Read-only sync for steps, sleep, recent heart rate")
     verify("health-no-import-in-anonymous-emulator", r"No readings imported\. Saved data is never replaced by missing readings")
     verify("health-no-invented-record-history", r"No health snapshots yet\. Allow Samsung Health to write to Health Connect")
-    verify("health-cloud-sharing-remains-excluded", r"The cloud sync bridge rejects Health and Cycle fields", direction=False)
+    verify("health-common-cloud-excludes-health-and-cycle", r"The common cloud sync bridge rejects Health and Cycle fields", direction=False)
+    verify("health-selected-summaries-need-separate-consent", r"Selected summaries use separate consent below")
+    verify("health-optional-partner-sharing-explicit", r"^Optional partner sharing$", capture=True)
+    verify("health-pairing-does-not-grant-access", r"Only you control your sharing\. Pairing does not grant access")
+    root, node = previous.find("health-sharing-disabled-before-confirmed-account", r"^Enable sharing$",
+                               class_name="android.widget.Button", enabled=False)
+    passed("health-sharing-disabled-before-confirmed-account", enabled=False,
+           bounds=ui.usable_bounds(node, root), accessibility_evidence_file=dump.last_path.name)
+    verify("health-revocation-and-cache-limit-explained", r"Already viewed or independently saved information cannot be recalled")
+    verify("health-no-sensitive-notification-preview-or-travel-ai", r"No health details in notification previews; none goes to travel AI or analytics")
     # Going toward the top matters: previous checks intentionally inspect the
     # real empty history below the controls, without an offscreen tap.
     root, node = previous.find("health-read-control", r"^Allow read access$",

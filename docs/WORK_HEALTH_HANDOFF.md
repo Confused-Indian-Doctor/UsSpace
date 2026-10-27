@@ -238,3 +238,44 @@ reply/binding yet. Original signed candidate at6d2d529 remains in GitHub runtime
 checks and none of these backend-only tools change that APK's inputs or source
 identity. See SECURE_CONNECTION_NEXT_STEPS.md for inspect/apply commands and
 follow-up Site secret-hash/person configuration and actual live export tests.
+
+### Native result and remaining-runtime retry
+
+Run40592219427 finished failed at the v0.16 UI check matching old text
+`The cloud sync bridge...`; actual accessible screen has `The common cloud sync
+bridge...`, still explicitly rejecting Health/Cycle in common sync and requiring
+separate consent for selected summaries. Inspected screenshot and all failed
+fresh XML attempts. Corrected that exact text check and added explicit optional
+sharing, pairing-no-access, disabled guest sharing, revocation/cache limitations,
+notification-preview/travel-AI privacy checks. No application code was changed.
+
+Original-key signed APK SHA256 from that run:
+`d88a8ae5cb40a4fa35e1702f7422d4d55b8139b49836ebdc4317f3980271a264`.
+Upgrade-before11 / upgrade-after13, learning12, Us features80, v01457 and v015474
+recorded steps all passed; v016 failed; v017 travel had not run. These are recorded
+steps, not all unique test assertions. No replacement release is approved.
+Failure evidence artifact12777091411, SHA256
+`607173411ffacf46eada631944a944efe04ca2efbf3c8ec7a5847f6e0466408c`, 17,106,867 bytes.
+Saved/extracted as `artifacts/v018-runtime-diagnostics.zip` and directory.
+GitHub connector download succeeded; direct gh artifact download failed through
+the environment's external blob route. Do not copy expiring download URLs.
+
+`verify-prior-runtime-evidence.py` can reuse only the four passed UI suites if
+new signed APK bytes exactly match d88..., the exact pinned evidence ZIP verifies,
+all four reports passed with real steps/no disallowed fabricated mechanisms,
+the prior source identity and original certificate/version match, and every
+app input and passed UI harness is unchanged from6d2d529. Eight guard unit tests
+passed. Otherwise the workflow automatically runs the complete suite. Upgrade,
+launch, corrected v016 and native travel are always rerun; proof ZIP and report
+are retained with final evidence. Main harness independently rechecks the proof
+before reuse; no environment flag alone skips checks. Runtime budget restored
+to90 minutes, matching original full workflow. Prior successful full Android
+runtime took59m55s; the failed new run took34m35s to reach this wording check.
+
+Live notification capabilities checked separately: readyfalse,
+firestoreRulesReadyfalse, setup publish-verified-firestore-rules. Remote embedded
+push-rules metadata equals its previous hash and has no enabled outbox contract,
+as in the original source. Readiness guard remains completely unchanged. An
+attempted compatibility shortcut was rejected by its tests and reverted locally
+before any publication. Do not claim actual FCM delivery or enable it based only
+on private-roster rules. New roster activation remains independent/blocked.

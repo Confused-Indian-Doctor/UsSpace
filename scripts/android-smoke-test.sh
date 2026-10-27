@@ -149,10 +149,16 @@ if Path(sys.argv[1]).read_bytes()[:8] != b'\x89PNG\r\n\x1a\n':
     raise SystemExit('ERROR: Emulator screenshot is not a PNG.')
 PY
 adb_device shell getprop ro.build.version.sdk > "$output/android-api.txt"
-python3 scripts/android-learning-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
-python3 scripts/android-us-features-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
-python3 scripts/android-v014-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
-python3 scripts/android-v015-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+if [ -n "${USSPACE_PRIOR_RUNTIME_ZIP:-}" ]; then
+  python3 scripts/verify-prior-runtime-evidence.py --apk "$apk" --archive "$USSPACE_PRIOR_RUNTIME_ZIP" --report "$output/prior-runtime-proof.json"
+  cp "$USSPACE_PRIOR_RUNTIME_ZIP" "$output/prior-runtime-evidence.zip"
+  echo 'Reusing four previously passed suites for the exact same signed APK. Upgrade, v016 and travel checks still run.'
+else
+  python3 scripts/android-learning-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+  python3 scripts/android-us-features-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+  python3 scripts/android-v014-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+  python3 scripts/android-v015-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+fi
 python3 scripts/android-v016-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 if [ -s "$output/travel-runtime-test.apk" ]; then
   npx --yes firebase-tools@14.12.1 emulators:exec --config firebase.json --only auth,firestore --project demo-usspace "bash scripts/run-travel-runtime.sh"
@@ -176,4 +182,13 @@ if grep -Eq "Process: $package([,[:space:]]|$)|>>> $package <<<|ANR in $package(
 fi
 printf '{"status":"passed","package":"%s","serial":"%s","observation_seconds":%s,"google_signin_handoff":"passed","us_features":"passed","v014_features":"passed","relationship_and_navigation":"passed","health_and_notification_recovery":"passed","authenticated_success_verified":false,"background_fcm_delivery_verified":false,"samsung_health_record_import_verified":false}\n' \
   "$package" "$serial" "$observe_seconds" > "$output/smoke-result.json"
+if [ -s "$output/prior-runtime-proof.json" ]; then
+  python3 - "$output" <<'PYPROOF'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+result = json.loads((root/'smoke-result.json').read_text())
+result['prior_exact_apk_runtime_evidence'] = json.loads((root/'prior-runtime-proof.json').read_text())
+(root/'smoke-result.json').write_text(json.dumps(result,indent=2)+'\n')
+PYPROOF
+fi
 echo "ANDROID_SMOKE_TEST_PASSED: $package remained running and resumed for $observe_seconds seconds."
