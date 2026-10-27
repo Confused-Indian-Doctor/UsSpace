@@ -22,6 +22,7 @@ import android.health.connect.datatypes.SleepSessionRecord;
 import android.health.connect.datatypes.StepsRecord;
 import android.health.connect.datatypes.TotalCaloriesBurnedRecord;
 import android.health.connect.datatypes.WeightRecord;
+import android.health.connect.datatypes.MenstruationPeriodRecord;
 import android.net.Uri;
 import android.os.Build;
 import android.os.OutcomeReceiver;
@@ -65,6 +66,7 @@ public class HealthBridge {
     private String account;
     private volatile boolean closed;
     private boolean pageReady, requesting, externalReturn;
+    private String permissionAccount="",backgroundPermissionAccount="";
     private Run current;
     private String state = "checking", message = "", lastSync = "";
     private boolean samsungRecordsFound;
@@ -79,7 +81,7 @@ public class HealthBridge {
         final Map<String, String> fields = new LinkedHashMap<>();
         final Set<String> completed = new HashSet<>();
         Runnable timeout;
-        int pending = HealthSyncPolicy.FIELDS.length, errors;
+        int pending = HealthSyncPolicy.FIELDS.length+1, errors;
         Run(long token, String uid) {
             this.token = token; this.uid = uid; this.now = Instant.now();
             this.date = HealthSyncPolicy.localDate(now, ZoneId.systemDefault());
@@ -94,15 +96,17 @@ public class HealthBridge {
         authListener = ignored -> activity.runOnUiThread(() -> {
             String next = uid();
             if (closed || next.equals(account)) return;
+            if(!account.isEmpty())activity.getSharedPreferences("usspace.health.accounts",0).edit().remove("connected:"+account).remove("background:"+account).apply();
             account = next; cancelRead(next);
             lastSync = ""; lastAttempt = 0; samsungRecordsFound = false;
             updateState("checking", "");
-            if (pageReady) syncInternal();
+            if (pageReady&&accountConnected()) syncInternal();
         });
         auth.addAuthStateListener(authListener);
     }
 
     private String uid() { FirebaseUser user = auth.getCurrentUser(); return user == null ? "" : user.getUid(); }
+    private boolean accountConnected(){return activity.getSharedPreferences("usspace.health.accounts",0).getBoolean("connected:"+uid(),false);}
     @JavascriptInterface public boolean isSupported() { return Build.VERSION.SDK_INT >= 34; }
     private boolean granted(String permission) {
         return isSupported() && activity.checkSelfPermission(PREFIX + permission) == PackageManager.PERMISSION_GRANTED;
@@ -123,14 +127,15 @@ public class HealthBridge {
         try {
             int count = grantedCount();
             String visibleState = !isSupported() ? "unsupported" : current != null ? "syncing" : state;
-            if ("checking".equals(visibleState)) visibleState = count > 0 ? "connected" : "disconnected";
+            if ("checking".equals(visibleState)) visibleState = count > 0&&accountConnected() ? "connected" : "disconnected";
             if (isSupported() && count == 0 && !requesting && !"permissions".equals(visibleState)
                     && !"permission_denied".equals(visibleState)) visibleState = "disconnected";
             result.put("uid", uid()); result.put("supported", isSupported());
-            result.put("connected", count > 0); result.put("allPermissions", count == PERMISSIONS.length);
+            result.put("connected", count > 0&&accountConnected());result.put("accountConnected",accountConnected()); result.put("allPermissions", count == PERMISSIONS.length);
             result.put("grantedCount", count); result.put("totalPermissions", PERMISSIONS.length);
             result.put("android14plus", isSupported()); result.put("state", visibleState);
             result.put("samsungInstalled", samsungInstalled()); result.put("samsungRecordsFound", samsungRecordsFound);
+            result.put("backgroundSupported",backgroundSupported());result.put("backgroundGranted",activity.checkSelfPermission("android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND")==PackageManager.PERMISSION_GRANTED);
             result.put("source", "Samsung Health via Health Connect"); result.put("readOnly", true);
             result.put("private", true); result.put("message", message); result.put("lastSync", lastSync);
         } catch (Exception ignored) { }
@@ -140,16 +145,19 @@ public class HealthBridge {
     @JavascriptInterface public void refresh() {
         activity.runOnUiThread(() -> { if (!closed) publishStatus(); });
     }
+    private void deliverBackground(){if(!accountConnected()||uid().isEmpty())return;try{String data=activity.getSharedPreferences("usspace.health.background",0).getString("snapshot:"+uid(),"");if(data.isEmpty())return;JSONObject snapshot=new JSONObject(data);if(uid().equals(snapshot.optString("uid")))eval("window.onHealthConnectSnapshot&&window.onHealthConnectSnapshot("+snapshot+");",uid());}catch(Exception ignored){}}
     public void onPageReady() {
         activity.runOnUiThread(() -> {
             if (closed) return;
-            pageReady = true; publishStatus();
-            if (grantedCount() > 0 && current == null) syncInternal();
+            pageReady = true; publishStatus();deliverBackground();
+            if (accountConnected()&&grantedCount() > 0 && current == null) syncInternal();
         });
     }
     public void onResume() {
         activity.runOnUiThread(() -> {
             if (closed || !pageReady || requesting) return;
+            if(!accountConnected()){updateState("disconnected","Connect Health Connect for this account on this phone. Android permissions alone do not link another account.");return;}
+            deliverBackground();
             if (!isSupported()) {
                 updateState("unsupported", "Samsung Health sync requires Android 14 or newer."); return;
             }
@@ -170,18 +178,27 @@ public class HealthBridge {
         activity.runOnUiThread(() -> {
             if (closed || requesting) return;
             if (!isSupported()) { updateState("unsupported", "Samsung Health sync requires Android 14 or newer."); return; }
-            requesting = true; updateState("requesting", "Choose any health types you want to import. All access is read-only.");
+            permissionAccount=uid();requesting = true; updateState("requesting", "Choose any health types you want to import. All access is read-only.");
             try { activity.requestPermissions(PERMISSIONS, REQUEST_CODE); }
             catch (RuntimeException unavailable) { requesting = false; updateState("error", "Open Health Connect settings to grant read access."); }
         });
     }
     public void onRequestPermissionsResult(int requestCode) {
+        if(requestCode==4312){if(backgroundPermissionAccount.equals(uid())&&accountConnected()&&backgroundSupported()&&activity.checkSelfPermission("android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND")==PackageManager.PERMISSION_GRANTED){activity.getSharedPreferences("usspace.health.accounts",0).edit().putBoolean("background:"+uid(),true).apply();androidx.work.PeriodicWorkRequest work=new androidx.work.PeriodicWorkRequest.Builder(HealthBackgroundWorker.class,1,java.util.concurrent.TimeUnit.HOURS).setConstraints(new androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build()).build();androidx.work.WorkManager.getInstance(activity).enqueueUniquePeriodicWork("usspace-health-background",androidx.work.ExistingPeriodicWorkPolicy.UPDATE,work);}publishStatus();return;}if(requestCode==4313){publishStatus();return;}
         if (requestCode != REQUEST_CODE) return;
+        if(!permissionAccount.equals(uid())){requesting=false;publishStatus();return;}
         requesting = false; previousGrants = grantedCount();
+        activity.getSharedPreferences("usspace.health.accounts",0).edit().putBoolean("connected:"+uid(),previousGrants>0).apply();
         cancelRead(uid());
         if (previousGrants > 0) syncInternal();
         else updateState("permission_denied", "No read access was granted. Manual logging still works.");
     }
+    private boolean backgroundSupported(){try{
+      Class<?> client=Class.forName("androidx.health.connect.client.HealthConnectClient"),companion=Class.forName("androidx.health.connect.client.HealthConnectClient$Companion");Object factory=client.getField("Companion").get(null),instance=companion.getMethod("getOrCreate",android.content.Context.class,String.class).invoke(factory,activity,"com.google.android.apps.healthdata");Object features=client.getMethod("getFeatures").invoke(instance);Class<?> type=Class.forName("androidx.health.connect.client.HealthConnectFeatures");int feature=type.getField("FEATURE_READ_HEALTH_DATA_IN_BACKGROUND").getInt(null),available=type.getField("FEATURE_STATUS_AVAILABLE").getInt(null);return ((Number)type.getMethod("getFeatureStatus",int.class).invoke(features,feature)).intValue()==available;
+    }catch(Exception unavailable){return false;}}
+    @JavascriptInterface public void requestBackground(){activity.runOnUiThread(()->{if(!accountConnected()){updateState("disconnected","Connect this account before enabling background reads.");return;}backgroundPermissionAccount=uid();if(backgroundSupported())activity.requestPermissions(new String[]{"android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"},4312);else updateState("connected","Background health reads are unavailable on this device. Foreground and manual refresh still work.");});}
+    @JavascriptInterface public void importCycle(){activity.runOnUiThread(()->{if(!accountConnected()){cycleResult(new JSONArray(),"connect-this-account-first");return;}if(!isSupported()){cycleResult(new JSONArray(),"unavailable");return;}if(!granted("MENSTRUATION")){activity.requestPermissions(new String[]{PREFIX+"MENSTRUATION"},4313);cycleResult(new JSONArray(),"permission-required; grant then retry");return;}final String expected=uid();try{ReadRecordsRequestUsingFilters<MenstruationPeriodRecord> request=new ReadRecordsRequestUsingFilters.Builder<>(MenstruationPeriodRecord.class).addDataOrigins(samsung()).setTimeRangeFilter(range(Instant.now().minusSeconds(30L*86400),Instant.now())).setPageSize(200).build();activity.getSystemService(HealthConnectManager.class).readRecords(request,activity::runOnUiThread,new OutcomeReceiver<ReadRecordsResponse<MenstruationPeriodRecord>,HealthConnectException>(){public void onResult(ReadRecordsResponse<MenstruationPeriodRecord> response){if(!expected.equals(uid()))return;JSONArray rows=new JSONArray();for(MenstruationPeriodRecord r:response.getRecords())try{JSONObject d=new JSONObject();d.put("id",r.getMetadata().getId());d.put("start",r.getStartTime().atZone(ZoneId.systemDefault()).toLocalDate().toString());d.put("end",r.getEndTime().atZone(ZoneId.systemDefault()).toLocalDate().toString());d.put("source",r.getMetadata().getDataOrigin().getPackageName());rows.put(d);}catch(Exception ignored){}cycleResult(rows,response.getNextPageToken()!=-1?"partial-review":rows.length()==0?"unavailable":"review");}public void onError(HealthConnectException e){cycleResult(new JSONArray(),"unavailable");}});}catch(Exception unavailable){cycleResult(new JSONArray(),"unavailable");}});}
+    private void cycleResult(JSONArray rows,String status){JSONObject out=new JSONObject();put(out,"uid",uid());put(out,"records",rows);put(out,"status",status);eval("window.onUsCycleImport&&window.onUsCycleImport("+out+");",uid());}
     @JavascriptInterface public void openHealthConnectSettings() {
         openSettings(new Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
                 .putExtra(Intent.EXTRA_PACKAGE_NAME, activity.getPackageName()),
@@ -215,6 +232,7 @@ public class HealthBridge {
         if (closed) return;
         if (!isSupported()) { updateState("unsupported", "Samsung Health sync requires Android 14 or newer."); return; }
         if (current != null) { publishStatus(); return; }
+        if(!accountConnected()){updateState("disconnected","Connect Health Connect for this account before importing. Manual logging still works.");return;}
         if (grantedCount() == 0) { updateState("permissions", "Choose the data UsSpace may read."); return; }
         if (activity.getSystemService(HealthConnectManager.class) == null) {
             updateState("error", "Health Connect is not available. Check its Android Settings page."); return;
@@ -223,11 +241,15 @@ public class HealthBridge {
         lastAttempt = System.currentTimeMillis(); updateState("syncing", "Reading only Samsung Health records.");
         run.timeout = () -> {
             if (!active(run)) return;
+            if(!run.completed.contains("ledger"))complete(run,"ledger","error");
             for (String field : HealthSyncPolicy.FIELDS) {
                 if (!run.completed.contains(field)) { run.errors++; complete(run, field, "error"); }
             }
         };
         handler.postDelayed(run.timeout, 45_000);
+        Set<Class<? extends Record>> changes=new HashSet<>();
+        if(granted("STEPS"))changes.add(StepsRecord.class);if(granted("SLEEP"))changes.add(SleepSessionRecord.class);if(granted("HEART_RATE"))changes.add(HeartRateRecord.class);if(granted("RESTING_HEART_RATE"))changes.add(RestingHeartRateRecord.class);if(granted("EXERCISE"))changes.add(ExerciseSessionRecord.class);
+        List<String> grantNames=new ArrayList<>();for(Class<? extends Record> t:changes)grantNames.add(t.getName());java.util.Collections.sort(grantNames);String grants=String.join("|",grantNames);new HealthRecordLedger(activity,activity::runOnUiThread).sync(run.uid,changes,grants,result->{if(!active(run))return;put(run.values,"deletedFields",result.optJSONArray("deletedFields"));put(run.values,"incremental",result.optBoolean("incremental"));complete(run,"ledger","no_data");});
         if (granted("STEPS")) aggregate(run, "steps", StepsRecord.STEPS_COUNT_TOTAL,
                 value -> value.longValue(), ""); else complete(run, "steps", "permission_denied");
         if (granted("SLEEP")) read(run, "sleep", SleepSessionRecord.class, run.now.minusSeconds(2 * 86400L), run.now,
@@ -257,7 +279,7 @@ public class HealthBridge {
                     for (ExerciseSessionRecord record : records)
                         intervals.add(new long[]{record.getStartTime().toEpochMilli(), record.getEndTime().toEpochMilli()});
                     long mins = HealthSyncPolicy.coveredMillis(intervals, run.dayStart.toEpochMilli(), run.now.toEpochMilli()) / 60_000;
-                    value(run, "workout", records.size() + " workout" + (records.size() == 1 ? "" : "s") + " · " + mins + " min", run.now);
+                    put(run.values,"workoutCount",records.size());put(run.values,"workoutMinutes",mins);value(run, "workout", records.size() + " workout" + (records.size() == 1 ? "" : "s") + " · " + mins + " min", run.now);
                 }); else complete(run, "workout", "permission_denied");
     }
     private void receiveSleep(Run run, List<SleepSessionRecord> records) {
@@ -365,7 +387,7 @@ public class HealthBridge {
                                 if (HealthSyncPolicy.SAMSUNG_PACKAGE.equals(record.getMetadata().getDataOrigin().getPackageName())) records.add(record);
                             if (response.getNextPageToken() != -1)
                                 readPage(run, field, type, start, end, response.getNextPageToken(), pages + 1, records, callback, failed);
-                            else try { callback.accept(records); }
+                            else try { callback.accept(uniqueRecords(records)); }
                             catch (RuntimeException malformed) { run.errors++; failed.run(); }
                         }
                         @Override public void onError(HealthConnectException error) {
@@ -388,6 +410,7 @@ public class HealthBridge {
     private boolean active(Run run) {
         return !closed && current == run && gate.accepts(run.token, uid()) && run.uid.equals(uid());
     }
+    private static <T extends Record> List<T> uniqueRecords(List<T> rows){Map<String,T> byId=new LinkedHashMap<>();for(T row:rows){String id=row.getMetadata().getId();T previous=byId.get(id);if(previous==null||row.getMetadata().getLastModifiedTime().isAfter(previous.getMetadata().getLastModifiedTime()))byId.put(id,row);}return new ArrayList<>(byId.values());}
     private void value(Run run, String field, Object value, Instant time) {
         if (!active(run)) return;
         put(run.values, field, value); put(run.fieldTimes, field, time.toString());

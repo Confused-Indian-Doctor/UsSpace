@@ -23,6 +23,7 @@ mkdir -p artifacts
   node firebase-tests/relationship_feature_test.js
   node firebase-tests/navigation_feature_test.js
   node firebase-tests/health_sync_feature_test.js
+  node firebase-tests/paired_care_models_test.js
   node firebase-tests/travel_models_test.js
   node firebase-tests/travel_store_test.js
   node firebase-tests/travel_ui_test.js
@@ -41,6 +42,8 @@ mkdir -p artifacts
   node functions/test/travel-service.test.mjs
   node functions/test/travel-providers.test.mjs
   node functions/test/travel-transcription.test.mjs
+  node functions/test/roster-service.test.mjs
+  node functions/test/jubilee-provider.test.mjs
   python3 scripts/prepare-travel-server.py --check
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh

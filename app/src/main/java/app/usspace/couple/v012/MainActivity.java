@@ -21,6 +21,7 @@ import com.google.firebase.FirebaseApp;
 public class MainActivity extends Activity {
     private WebView webView;
     private HealthBridge healthBridge;
+    private PairedCareBridge pairedCareBridge;
     private AuthBridge authBridge;
     private CoupleSyncBridge syncBridge;
     private SpeechBridge speechBridge;
@@ -109,6 +110,7 @@ public class MainActivity extends Activity {
                     if (workScheduleBridge != null) workScheduleBridge.requestRender();
                     if (relationshipBridge != null) relationshipBridge.refresh();
                     if (healthBridge != null) healthBridge.onPageReady();
+                    if (pairedCareBridge != null) pairedCareBridge.onPageReady();
                     if (travelBridge != null) travelBridge.onPageReady();
                     if (travelImportBridge != null) travelImportBridge.onPageReady();
                 }
@@ -118,6 +120,7 @@ public class MainActivity extends Activity {
         syncBridge = new CoupleSyncBridge(this, webView);
         authBridge = new AuthBridge(this, webView, syncBridge);
         healthBridge = new HealthBridge(this, webView);
+        pairedCareBridge = new PairedCareBridge(this, webView);
         speechBridge = new SpeechBridge(this, webView);
         travelAudioBridge = new TravelAudioBridge(this, webView);
         extrasBridge = new UsExtrasBridge(this, webView);
@@ -131,6 +134,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(authBridge, "UsAuth");
         webView.addJavascriptInterface(syncBridge, "UsSync");
         webView.addJavascriptInterface(healthBridge, "UsHealth");
+        webView.addJavascriptInterface(pairedCareBridge, "AndroidPairedCare");
         webView.addJavascriptInterface(speechBridge, "UsSpeech");
         webView.addJavascriptInterface(travelAudioBridge, "AndroidTravelAudio");
         webView.addJavascriptInterface(extrasBridge, "UsSpaceExtras");
@@ -171,6 +175,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (healthBridge != null) healthBridge.onResume();
+        if (pairedCareBridge != null) pairedCareBridge.onResume();
         if (notificationBridge != null) notificationBridge.refresh();
         if (travelBridge != null) travelBridge.refresh();
     }
@@ -196,6 +201,7 @@ public class MainActivity extends Activity {
             backCallback = null;
         }
         if (healthBridge != null) healthBridge.close();
+        if (pairedCareBridge != null) pairedCareBridge.close();
         if (travelBridge != null) travelBridge.close();
         if (travelImportBridge != null) travelImportBridge.close();
         if (relationshipBridge != null) relationshipBridge.close();

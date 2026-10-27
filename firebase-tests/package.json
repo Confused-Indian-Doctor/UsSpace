@@ -3,7 +3,7 @@
   "version": "0.16.0",
   "private": true,
   "scripts": {
-    "test": "node --test --test-concurrency=1 realtime_emulator_test.mjs us_extras_emulator_test.mjs v014_push_emulator_test.mjs relationship_emulator_test.mjs travel_emulator_test.mjs travel_storage_emulator_test.mjs",
+    "test": "node --test --test-concurrency=1 realtime_emulator_test.mjs us_extras_emulator_test.mjs v014_push_emulator_test.mjs relationship_emulator_test.mjs travel_emulator_test.mjs travel_storage_emulator_test.mjs paired_care_emulator_test.mjs",
     "test:emulator": "npx --yes firebase-tools@14.12.1 emulators:exec --config ../firebase.json --only firestore,storage --project demo-usspace \"npm test\""
   },
   "devDependencies": {

@@ -298,3 +298,36 @@ assert.equal(element('alMessageText').value, '', 'account change clears unsent c
 assert.equal(run('UsFeatures.identity().uid'), '');
 assert.deepEqual(run('JSON.stringify(UsExtras.get().letters)'), '[]');
 console.log('US_FEATURE_INTEGRATION_TEST_OK (explicit mood sharing, reviewed Memory prefill, scalar photo references and signout privacy)');
+
+// Exercise the new production script in the same actual bundled-script context.
+const careCalls=[];context.AndroidPairedCare={refresh(){},setConsent(...args){careCalls.push(args);},updateData(){},saveEvent(){}};
+run("onUsAuthState({signedIn:true,uid:'care-owner',error:''})");
+context.onUsPairedCare({uid:'care-owner',pairId:'care-pair',paired:true,consentConfirmed:true,partnerUid:'care-partner',consents:{},partnerData:{},events:[],sources:[],partnerEvents:[]});
+assert.match(element('care-health').innerHTML,/Enable sharing/);
+assert.equal(careCalls.length,0,'pairing and rendering cannot enable any sharing');
+const careClick=documentListeners.get('click').at(-1);
+const stepsButton={dataset:{careToggle:'steps'},hasAttribute:()=>false};
+careClick({target:{closest:()=>stepsButton}});
+assert.equal(careCalls.length,0,'cancelled consent prompt sends no sharing change');
+context.confirm=()=>true;careClick({target:{closest:()=>stepsButton}});
+assert.deepEqual(careCalls[0],['steps',true,'busy',0,'care-owner']);
+context.onUsPairedCare({uid:'care-owner',pairId:'care-pair',paired:true,consentConfirmed:true,partnerUid:'care-partner',consents:{steps:{enabled:true,pairId:'care-pair',revision:1}},partnerData:{steps:{value:{value:321},measuredAt:'2026-10-27T08:00:00Z',source:'Samsung Health'}},events:[],sources:[],partnerEvents:[]});
+assert.match(element('care-health').innerHTML,/321/);
+careClick({target:{closest:()=>stepsButton}});
+assert.deepEqual(careCalls[1],['steps',false,'busy',1,'care-owner']);
+run("onUsAuthState({signedIn:true,uid:'another-care-account',error:''})");
+assert.doesNotMatch(element('care-health').innerHTML,/321/,'switching accounts clears partner data');
+context.onUsPairedCare({uid:'care-owner',pairId:'care-pair',paired:true,consents:{},partnerData:{steps:{value:{value:'OLD_PRIVATE'}}},events:[],sources:[],partnerEvents:[]});
+assert.doesNotMatch(element('care-health').innerHTML,/OLD_PRIVATE/,'late old-account state is rejected');
+run("openHealth();healthSteps.value='';healthSleep.value='7';saveHealth()");
+assert.equal(run('state.healthHistory[0].steps'),undefined,'blank manual input remains missing');
+assert.equal(run('state.healthHistory[0].sleep'),7);
+element('care-period-records'); // Browser creates this host when the cycle panel renders.
+context.onUsCycleImport({uid:'another-care-account',records:[],status:'unavailable'});
+assert.match(element('care-period-records').innerHTML,/manual entries/);
+console.log('PAIRED_CARE_UI_TEST_OK (explicit consent, cancellation, revision, account/cache isolation, missing data and cycle fallback)');
+context.onUsPairedCare({uid:'another-care-account',pairId:'care-pair',paired:true,consentConfirmed:true,consents:{},partnerData:{},sources:[],partnerEvents:[],events:[{id:'date-only',origin:'helper',kind:'teaching',title:'Source-only teaching',localDate:new Date(Date.now()+86400000).toISOString().slice(0,10),start:null,end:null,timing:'unknown',cancelled:false}]});
+assert.match(element('dutyList').innerHTML,/Source-only teaching/);
+assert.match(element('dutyList').innerHTML,/Time not provided by source/);
+assert.doesNotMatch(run('JSON.stringify(sharedCommonProjection())'),/Source-only teaching/,'private imported events cannot leak through the legacy common payload');
+console.log('CARE_DATE_ONLY_CALENDAR_TEST_OK (unknown hours remain visible and source records stay outside common sync)');

@@ -17,7 +17,7 @@ for stem,name in [('travel-models','usspaceTravelModels'),('travel-planner','uss
  write(out/f'{name}.tsx','// @ts-nocheck\n// Generated from the tested travel-only browser module.\n'+imports+'export const '+name+' = (()=>{const globalThis={};const module={exports:{}};\n'+require+source+'\nreturn module.exports;})();\n')
 print(('Verified' if checking else 'Generated')+' matching Node and server travel models/planner')
 import re
-names={'travel-fetch':'usspaceTravelFetch','travel-ai':'usspaceTravelAI','travel-service':'usspaceTravelServiceCore','travel-providers':'usspaceTravelProviders'}
+names={'travel-fetch':'usspaceTravelFetch','travel-ai':'usspaceTravelAI','travel-service':'usspaceTravelServiceCore','travel-providers':'usspaceTravelProviders','roster-service':'usspaceRosterServiceCore','jubilee-provider':'usspaceJubileeProvider'}
 for stem,name in names.items():
  source=(root/'functions/src'/f'{stem}.mjs').read_text();imports=[]
  def convert(match):

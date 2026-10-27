@@ -17,8 +17,8 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "app.usspace.couple.v012.TravelRuntimeInstrumentation"
-        versionCode = 19
-        versionName = "0.17.0"
+        versionCode = 20
+        versionName = "0.18.0"
         manifestPlaceholders["appAuthRedirectScheme"] = "app.usspace.couple.v012"
     }
 
@@ -58,6 +58,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
     implementation("androidx.work:work-runtime:2.10.1")
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha12")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // Worker exposes ListenableFuture; Firebase's empty conflict artifact is not its API.
     implementation("com.google.guava:guava:33.4.8-android")

@@ -21,20 +21,24 @@
   }
   function mergeSnapshot(previous, incoming) {
     if (!incoming || !validDay(incoming.date)) return {changed: false, fields: [], entry: previous || null};
+    let cleared=false;
+    if(previous&&Array.isArray(incoming.deletedFields)&&String(previous.source||'').includes('Samsung')){const copy={...previous,fieldTimes:{...previous.fieldTimes},fieldSources:{...previous.fieldSources},availableFields:[...(previous.availableFields||[])]};for(const key of incoming.deletedFields)if(FIELDS.includes(key)&&incoming.fieldStates?.[key]==='no_data'&&String(previous.fieldSources?.[key]||previous.source||'').includes('Samsung')){delete copy[key];delete copy.fieldTimes[key];delete copy.fieldSources[key];copy.availableFields=copy.availableFields.filter(x=>x!==key);cleared=true;}previous=copy;}
     const declared = Array.isArray(incoming.availableFields) ? incoming.availableFields : FIELDS.filter(key => own(incoming, key) && (key === 'workout' ? !!incoming[key] : incoming[key] > 0));
     const fields = FIELDS.filter(key => declared.includes(key) && validValue(key, incoming[key]));
-    if (!fields.length) return {changed: false, fields, entry: previous || null};
+    if (!fields.length) return {changed: cleared, fields, entry: previous || null};
     const entry = Object.assign({}, previous || {}, {date: incoming.date, source: 'Samsung Health via Health Connect'});
     const available = new Set(Array.isArray(entry.availableFields) ? entry.availableFields : FIELDS.filter(key => own(entry, key) && validValue(key, entry[key]) && entry[key] !== 0 && entry[key] !== ''));
     entry.fieldTimes = Object.assign({}, entry.fieldTimes || {});
+    entry.fieldSources=Object.assign({},Object.fromEntries(FIELDS.filter(k=>own(previous,k)).map(k=>[k,previous.source||'Manual entry'])),previous?.fieldSources||{});
     fields.forEach(key => {
-      entry[key] = incoming[key]; available.add(key);
+      entry[key] = incoming[key]; entry.fieldSources[key]='Samsung Health via Health Connect'; available.add(key);
       const time = incoming.fieldTimes?.[key];
       if (typeof time === 'string' && time.length <= 64 && Number.isFinite(Date.parse(time))) entry.fieldTimes[key] = time;
     });
     entry.availableFields = FIELDS.filter(key => available.has(key));
     if (fields.includes('hr')) entry.hrType = incoming.hrType === 'recent' ? 'recent' : 'resting';
     if (fields.includes('kcal')) entry.kcalType = incoming.kcalType === 'total' ? 'total' : 'active';
+    if(fields.includes('workout')&&Number.isFinite(incoming.workoutCount)&&Number.isFinite(incoming.workoutMinutes)){entry.workoutCount=incoming.workoutCount;entry.workoutMinutes=incoming.workoutMinutes;}
     return {changed: true, fields, entry};
   }
   function createController(deps) {
@@ -107,7 +111,7 @@
         const value = exists ? (key === 'steps' || key === 'kcal' ? Math.round(current[key]).toLocaleString() : current[key]) + unit : '—';
         const issue = {permission_denied: 'Read access not allowed', no_data: 'No new Samsung reading', error: 'Could not refresh this reading'}[fieldStates[key]];
         const recorded = current?.fieldTimes?.[key], stamp = recorded && Number.isFinite(Date.parse(recorded)) ? new Date(recorded).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
-        return '<div class="healthstat"><div>' + icon + ' <span class="small">' + esc(label) + '</span></div><b>' + esc(value) + '</b>' + (issue || stamp ? '<div class="small">' + esc(issue || 'Recorded ' + stamp) + '</div>' : '') + '</div>';
+        return '<div class="healthstat"><div>' + icon + ' <span class="small">' + esc(label) + '</span></div><b>' + esc(value) + '</b>' + (issue || stamp ? '<div class="small">' + esc(issue || 'Recorded ' + stamp + ' · ' + (current.fieldSources?.[key]||current.source||'Unknown source')) + '</div>' : '') + '</div>';
       }).join('');
       const list = element('healthHistory');
       if (list) list.innerHTML = history.length ? history.slice(0, 10).map(x => '<div class="healthHistory"><b>' + esc(x.date) + '</b><div class="small">' + esc(x.source || 'Manual') + '</div><div>' + FIELDS.filter(key => validValue(key, x[key]) && (x[key] !== 0 && x[key] !== '' || x.availableFields?.includes(key))).map(key => esc(key + ': ' + x[key])).join(' · ') + '</div>' + (x.note ? '<div class="small">' + esc(x.note) + '</div>' : '') + '</div>').join('') : '<div class="empty">No health snapshots yet. Allow Samsung Health to write to Health Connect, then grant UsSpace read access.</div>';

@@ -231,6 +231,7 @@ service cloud.firestore {
         allow create: if signedIn()
           && request.auth.uid == uid
           && request.resource.data.uid == uid
+          && (!('joinedAt' in request.resource.data) || request.resource.data.joinedAt == request.time)
           && (
             (getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.ownerUid == uid
              && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 1)
@@ -240,7 +241,8 @@ service cloud.firestore {
              && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.lastJoinUid == uid
              && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.inviteCode)).data.usedByUid == uid)
           );
-        allow update: if isMember(coupleId) && request.auth.uid == uid && request.resource.data.uid == uid;
+        allow update: if isMember(coupleId) && request.auth.uid == uid && request.resource.data.uid == uid
+          && (('joinedAt' in resource.data && request.resource.data.joinedAt == resource.data.joinedAt) || (!('joinedAt' in resource.data) && !('joinedAt' in request.resource.data)));
         allow delete: if signedIn() && request.auth.uid == uid && isMember(coupleId);
       }
 
@@ -494,6 +496,79 @@ service cloud.firestore {
       allow create,update: if currentPair(pairId) && request.auth.uid==uid && travelReaction(request.resource.data,uid)
         && get(/databases/$(database)/documents/couples/$(pairId)/travelItems/$(id)).data.deleted==false;
       allow delete: if false;
+    }
+    // Independent owner-controlled consent, bound to both current membership generations.
+    function careCategory(c) { return c in ['steps','sleep','workouts','heartRate','cycleDates','cyclePredictions','cycleSymptoms','roster']; }
+    function carePair(uid,c) {
+      return signedIn() && currentPair(c.pairId)
+        && get(/databases/$(database)/documents/users/$(uid)).data.coupleId==c.pairId
+        && get(/databases/$(database)/documents/users/$(c.partnerUid)).data.coupleId==c.pairId
+        && uid!=c.partnerUid && exists(/databases/$(database)/documents/couples/$(c.pairId)/members/$(uid))
+        && exists(/databases/$(database)/documents/couples/$(c.pairId)/members/$(c.partnerUid))
+        && get(/databases/$(database)/documents/couples/$(c.pairId)/members/$(uid)).data.joinedAt==c.ownerJoinedAt
+        && get(/databases/$(database)/documents/couples/$(c.pairId)/members/$(c.partnerUid)).data.joinedAt==c.partnerJoinedAt;
+    }
+    function carePeer(uid) { let p=get(/databases/$(database)/documents/users/$(request.auth.uid)).data.coupleId; return currentPair(p) && get(/databases/$(database)/documents/users/$(uid)).data.coupleId==p && exists(/databases/$(database)/documents/couples/$(p)/members/$(uid)) && uid!=request.auth.uid; }
+    function careConsent(uid,category) { return get(/databases/$(database)/documents/users/$(uid)/careConsent/$(category)).data; }
+    function careReadable(uid,category) { let c=careConsent(uid,category); return c.enabled && carePair(uid,c) && request.auth.uid==c.partnerUid; }
+    function careGrant(d,uid,category) {
+      return d.keys().hasOnly(['ownerUid','category','pairId','partnerUid','ownerJoinedAt','partnerJoinedAt','revision','enabled','mode','updatedAt'])
+        && d.ownerUid==uid && d.category==category && careCategory(category) && d.enabled is bool
+        && d.revision is int && d.revision>=1 && d.mode in ['busy','details'] && d.updatedAt==request.time
+        && (!d.enabled || carePair(uid,d));
+    }
+    match /users/{uid}/careConsent/{category} {
+      allow read: if signedIn() && (request.auth.uid==uid || carePeer(uid));
+      allow create: if signedIn() && request.auth.uid==uid && careGrant(request.resource.data,uid,category) && request.resource.data.revision==1;
+      allow update: if signedIn() && request.auth.uid==uid && careGrant(request.resource.data,uid,category) && request.resource.data.revision==resource.data.revision+1;
+      allow delete: if false;
+    }
+    function careValue(v,c) {
+      return v is map && ((c=='steps' && v.keys().hasOnly(['value']) && v.value is number && v.value>=0 && v.value<=10000000)
+        || (c=='sleep' && v.keys().hasOnly(['hours']) && v.hours is number && v.hours>=0 && v.hours<=48)
+        || (c=='heartRate' && v.keys().hasOnly(['bpm']) && v.bpm is number && v.bpm>=20 && v.bpm<=250)
+        || (c=='workouts' && v.keys().hasOnly(['count','minutes']) && v.count is int && v.count>=0 && v.count<=1000 && v.minutes is number && v.minutes>=0 && v.minutes<=1440)
+        || (c in ['cycleDates','cyclePredictions'] && v.keys().hasOnly(['start','end','estimated']) && optionalDate(v.start) && v.start!='' && optionalDate(v.end) && v.end>=v.start && v.estimated==(c=='cyclePredictions'))
+        || (c=='cycleSymptoms' && v.keys().hasOnly(['text']) && shortText(v.text,1500))
+        || (c=='roster' && v.keys().hasOnly(['start','end']) && v.start is number && v.end is number && v.end>v.start));
+    }
+    function careEnvelope(d,uid,category) {
+      let c=careConsent(uid,category);
+      return c.enabled && carePair(uid,c) && d.ownerUid==uid && d.category==category
+        && d.pairId==c.pairId && d.consentRevision==c.revision && d.updatedAt==request.time;
+    }
+    match /users/{uid}/careShares/{category} {
+      allow get: if signedIn() && (request.auth.uid==uid || (careReadable(uid,category) && (!exists(/databases/$(database)/documents/users/$(uid)/careShares/$(category)) || (resource.data.pairId==careConsent(uid,category).pairId && resource.data.consentRevision==careConsent(uid,category).revision))));
+      allow create,update: if signedIn() && request.auth.uid==uid && careCategory(category)
+        && request.resource.data.keys().hasOnly(['ownerUid','pairId','category','consentRevision','value','measuredAt','source','updatedAt'])
+        && careEnvelope(request.resource.data,uid,category) && careValue(request.resource.data.value,category)
+        && isoTime(request.resource.data.measuredAt) && shortText(request.resource.data.source,160);
+      allow delete: if signedIn() && request.auth.uid==uid;
+    }
+    function rosterEvent(d,uid,id) {
+      return d.keys().hasOnly(['id','ownerUid','origin','sourceId','sourceEventId','sourceTimestamp','kind','title','start','end','timeZone','cancelled','updatedAt'])
+        && d.id==id && itemId(id) && d.ownerUid==uid && d.origin=='manual' && d.sourceId=='manual'
+        && d.sourceEventId==id && isoTime(d.sourceTimestamp) && d.kind in ['shift','teaching','on-call','leave','personal']
+        && shortText(d.title,160) && d.title.size()>0 && d.start is number && d.end is number
+        && d.end>d.start && d.end-d.start<=1209600000 && d.timeZone=='Europe/London' && d.cancelled is bool && d.updatedAt==request.time;
+    }
+    match /users/{uid}/rosterEvents/{id} {
+      allow read: if signedIn() && request.auth.uid==uid;
+      allow create: if signedIn() && request.auth.uid==uid && rosterEvent(request.resource.data,uid,id);
+      allow update: if signedIn() && request.auth.uid==uid && resource.data.origin=='manual' && rosterEvent(request.resource.data,uid,id);
+      allow delete: if false;
+    }
+    match /users/{uid}/rosterSources/{id} { allow read: if signedIn() && request.auth.uid==uid; allow write: if false; }
+    match /users/{uid}/rosterPublic/{id} {
+      allow read: if signedIn() && (request.auth.uid==uid || (careReadable(uid,'roster') && resource.data.pairId==careConsent(uid,'roster').pairId && resource.data.consentRevision==careConsent(uid,'roster').revision));
+      allow create,update: if signedIn() && request.auth.uid==uid
+        && request.resource.data.keys().hasOnly(['id','ownerUid','pairId','category','consentRevision','start','end','localDate','timing','title','kind','updatedAt'])
+        && careEnvelope(request.resource.data,uid,'roster') && request.resource.data.id==id && itemId(id)
+        && (!('localDate' in request.resource.data) || (optionalDate(request.resource.data.localDate) && request.resource.data.localDate!='')) && (!('timing' in request.resource.data) || request.resource.data.timing in ['known','unknown'])
+        && ((request.resource.data.start is number && request.resource.data.end is number && request.resource.data.end>request.resource.data.start) || (request.resource.data.timing=='unknown' && optionalDate(request.resource.data.localDate) && request.resource.data.localDate!='' && (request.resource.data.start==null || request.resource.data.start is number) && (request.resource.data.end==null || request.resource.data.end is number)))
+        && shortText(request.resource.data.title,160) && request.resource.data.kind in ['shift','teaching','on-call','leave','personal','busy']
+        && (careConsent(uid,'roster').mode=='details' || (request.resource.data.title=='' && request.resource.data.kind=='busy'));
+      allow delete: if signedIn() && request.auth.uid==uid;
     }
   }
 }
