@@ -28,7 +28,15 @@ function makeRosterService({db,now=()=>new Date(),serverTimestamp=()=>new Date()
  return db.runTransaction(async tx=>{const key=await tx.get(ref),c=key.exists?key.data():null;if(!c||!c.enabled||c.expiresAt<=now().getTime()||!ID.test(c.uid)||!ID.test(c.sourceId)||typeof c.digest!=='string'||c.digest.length!==64||!timingSafeEqual(Buffer.from(c.digest),Buffer.from(hash(credential))))fail('invalid-credential');if(expectedUid!==undefined&&c.uid!==expectedUid)fail('source-owner-mismatch');
  const stateRef=db.doc('users/'+c.uid+'/rosterSources/'+c.sourceId),stateSnap=await tx.get(stateRef),state=stateSnap.exists?stateSnap.data():{},query=db.collection('users/'+c.uid+'/rosterEvents').where('sourceId','==',c.sourceId).limit(450),rows=await tx.get(query);if(rows.docs.length>=450)fail('source-capacity');
  if(state.sourceTimestamp&&clean.sourceTimestamp<state.sourceTimestamp)fail('stale-source-refresh');if(clean.sourceTimestamp===state.sourceTimestamp){if(state.digest===digest)return {replayed:true};fail('source-version-conflict');}
- const previous=new Map(rows.docs.map(s=>[s.data().sourceEventId,s]));let upserts=0,cancellations=0;
+ const previous=new Map(rows.docs.map(s=>[s.data().sourceEventId,s]));
+ // Preflight every target before any write. A manual/other-source record must
+ // never be silently replaced, even if an occupied ID matches this source hash.
+ if(clean.status!=='failed'){
+  const targets=await Promise.allSettled(clean.events.map(e=>tx.get(db.doc('users/'+c.uid+'/rosterEvents/src_'+hash(c.sourceId+'|'+e.sourceEventId).slice(0,40)))));let unreadable=false,collision=false;
+  for(let i=0;i<targets.length;i++){const result=targets[i];if(result.status==='rejected'){unreadable=true;continue;}if(result.value.exists){const v=result.value.data(),e=clean.events[i];if(v.origin!=='helper'||v.ownerUid!==c.uid||v.sourceId!==c.sourceId||v.sourceEventId!==e.sourceEventId)collision=true;}}
+  if(unreadable)fail('source-target-unavailable');if(collision)fail('source-target-collision');
+ }
+ let upserts=0,cancellations=0;
  if(clean.status!=='failed')for(const e of clean.events){const old=previous.get(e.sourceEventId);previous.delete(e.sourceEventId);if(old&&old.data().sourceTimestamp>e.sourceTimestamp)continue;const id='src_'+hash(c.sourceId+'|'+e.sourceEventId).slice(0,40),target=db.doc('users/'+c.uid+'/rosterEvents/'+id);tx.set(target,{...e,id,sourceId:c.sourceId,ownerUid:c.uid,origin:'helper',updatedAt:serverTimestamp()});upserts++;}
  if(clean.authoritative)for(const old of previous.values()){const e=old.data();if((e.start??Date.parse(e.localDate+'T12:00:00Z'))>=clean.coverageStart&&(e.start??Date.parse(e.localDate+'T12:00:00Z'))<clean.coverageEnd&&e.sourceTimestamp<=clean.sourceTimestamp&&!e.cancelled){tx.set(old.ref,{...e,cancelled:true,sourceTimestamp:clean.sourceTimestamp,updatedAt:serverTimestamp()});cancellations++;}}
  const next={...state,ownerUid:c.uid,sourceId:c.sourceId,sourceTimestamp:clean.sourceTimestamp,digest,status:clean.status,attemptedAt:serverTimestamp(),laptopDependent:true,timeZone:'Europe/London'};

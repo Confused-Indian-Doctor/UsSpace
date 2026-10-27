@@ -12,9 +12,10 @@ async function main(){
  if(!process.env.USSPACE_FIREBASE_ADMIN_JSON)throw Error('firebase-admin-secret-required');
  let raw;try{raw=JSON.parse(process.env.USSPACE_FIREBASE_ADMIN_JSON);}catch{throw Error('invalid-admin-configuration');}
  if(raw.type!=='service_account'||raw.project_id!=='usspace-c859e')throw Error('wrong-firebase-project');
+ if(typeof raw.client_email!=='string'||!/^([^\s@]+)@usspace-c859e\.iam\.gserviceaccount\.com$/.test(raw.client_email)||typeof raw.private_key!=='string'||raw.private_key.length<1200||raw.private_key.length>10000)throw Error('invalid-admin-configuration');
  const require=createRequire(new URL('../functions/package.json',import.meta.url));
  const {initializeApp,cert,deleteApp}=require('firebase-admin/app'),{getAuth}=require('firebase-admin/auth'),{getFirestore,FieldValue}=require('firebase-admin/firestore');
- const app=initializeApp({projectId:'usspace-c859e',credential:cert(raw)}),db=getFirestore(app),auth=getAuth(app);
+ const app=initializeApp({projectId:'usspace-c859e',credential:cert({projectId:raw.project_id,clientEmail:raw.client_email,privateKey:raw.private_key})}),db=getFirestore(app),auth=getAuth(app);
  async function google(path,method='GET',body){const t=await app.options.credential.getAccessToken();const r=await fetch('https://firebaserules.googleapis.com/v1/projects/usspace-c859e/'+path,{method,signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+t.access_token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});if(!r.ok)throw Error('firebase-rules-permission-or-service-unavailable');return r.json();}
  try{
   const owner=await resolveRosterOwner({db,auth,ownerEmail:value('--owner-email')||process.env.USSPACE_ROSTER_OWNER_EMAIL,expectedOwnerEmailSha256:value('--expected-owner-email-sha256')||process.env.USSPACE_JUBILEE_OWNER_EMAIL_SHA256});

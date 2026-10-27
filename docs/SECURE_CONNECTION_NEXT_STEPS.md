@@ -110,3 +110,52 @@ Prepared Floot wrapper fallback reads dedicated configuration from the server-on
 binding, retaining existing env-secret support. Deploy that small wrapper update
 only as part of activation after actual live-rule inspection. Existing v0.18
 Android candidate source is unchanged by these backend setup tools.
+
+## Current phone-only Firebase setup
+
+User said they have the Admin JSON, but inspection run40599687692 on branch
+`roster-activation` stopped with `firebase-admin-secret-required` BEFORE any SDK
+read/write. User then confirmed the repository secret was missing. Do not assume
+that a selected “added” chat answer establishes credential readiness.
+
+A browser-local JSON helper is now deployed at
+https://usspace-notify-cb2f5cbc.floot.app/_api/usspace-firebase-secret-helper
+Backend source version1793142654641; publish joba32b18fd-f55d-4b32-a017-29d98459205c
+succeeded. Live GET200 HTML/no-store and CSP connect-src none checked. Synthetic
+checks cover wrong type/project/format/extension, clear/read race, name copy,
+full JSON copy and fallback. File stays in browser; no upload route is added.
+User selects the JSON, copies its exact name/value into GitHub Repository secrets.
+Do not request JSON/password screenshots or chat contents.
+
+Inspection workflow `.github/workflows/roster-activation.yml` runs ONLY the
+separate `roster-activation` branch, preserving the long Android build. It uses a
+one-way email verifier from authenticated Sites owner metadata, then existing
+Firebase canonical role and BOTH current pair pointers/members. No names/UIDs
+are hardcoded. Discovery scans at most30 role docs; ambiguous/missing matches
+stop for review. No raw email, pair ID, work roster or medical data is output.
+Only rule fingerprints and boolean readiness are retained. Nine configuration
+unit tests pass. Optional own-account email override can be a private secret
+`USSPACE_ROSTER_OWNER_EMAIL` if the Site email differs; never create new users.
+
+`/workspace/usspace-roster-activation` is a separate worktree at branch
+roster-activation; last inspection commitbb65c39420ab0981509033cdc7195eee30b64306
+(parentfcc047c). Main working copy remains work-health-sharing. After user confirms
+the JSON secret is actually listed, bring the newest admin CLI changes into that
+branch and push a normal inspection commit (skip-ci suppresses that workflow).
+First inspection is read-only. Review actual live rule hash against known source
+before any apply. Do not expose live unknown rule source in public artifacts.
+
+Current candidate run40598231847 uses sourcebc79f95951393b4ba2fd6a765d414b8086aaf06c.
+Its signed APK SHA256208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece
+differs from prior d88..., so the proof guard refused reuse and ALL Android
+runtime suites are running fresh. Signature/OAuth/version/alignment checks pass;
+workspace independently verified the downloaded signed APK too. Exact pending
+artifact12777128835, ZIP SHA256c05d0277c727196a8c97ea66af056b60f5ee1effadbf5682e22898b54f156ec7,
+saved under artifacts/v018-signed-runtime-pending/. Do not offer it as verified
+or publish a replacement until runtime checks pass. Original v0.17 unchanged.
+
+Prepared local collision guard additionally rejects occupied deterministic source
+IDs belonging to a manual/other-source/other-owner record before any write;
+all target reads settle before failure, no partial merge. Eleven roster service
+unit cases pass. Generated Floot core updated locally, not deployed. Source-error
+and ID-collision tests are unit evidence, not real source refresh proof.
