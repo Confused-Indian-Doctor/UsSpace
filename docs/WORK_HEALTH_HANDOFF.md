@@ -162,3 +162,34 @@ already-passing build. Native save/deploy tools accepted the archive and reporte
 success. No credential was written to source/config/logs. Archive checksum and
 exact local continuation state: `/workspace/USSPACE_DEPLOY_CHECKPOINT.json`.
 Original signing key/device remain unavailable; no new APK release or installation.
+
+### Original-key GitHub candidate, 2026-10-27
+
+User reports both GitHub repository signing secrets added; password name was
+confirmed by their screenshot and key name by their reply. Secrets remain inside
+GitHub, not this workspace. Pushed `work-health-sharing` including all existing
+implementation history plus candidate CI at
+`2b8125a72aad9307b094b4f08f0cdb903d9d3fb5`.
+
+Run https://github.com/Confused-Indian-Doctor/UsSpace/actions/runs/40591869021
+is in progress at this checkpoint. New `.github/workflows/android-v018-candidate.yml`
+is branch-push/manual only, has contents-read permission, never publishes releases,
+and restores the original key only inside its runner. Runs full source/native/
+Firebase rules checks, signed release + separate instrumentation compilation,
+strict original certificate/Firebase OAuth + v20/0.18.0 + 16KB alignment checks,
+exact SHA256-pinned approved v0.17 baseline, upgrade preservation and existing
+Android/travel runtime harnesses. Failure diagnostics exclude APKs; verified
+candidate artifact uploads only after all preceding gates pass.
+
+Verifier preserves its v0.17 defaults and mandatory original SHA1/SHA256 checks;
+new explicit version args support v0.18. Checked locally against the verified
+v0.17 APK: default succeeds; requesting v0.18 rejects it. Existing smoke harness
+now accepts an explicitly required baseline path, preserving its old v0.15 default.
+No app runtime code or test assertion was changed in this CI preparation.
+Workflow parse and Python/shell syntax checks passed. Monitor remote run, fix
+actual failures and retrieve exact artifacts. Neither signing correctness nor
+runtime success has yet been claimed. CI watch log:
+`artifacts/v018-ci-watch.log`; metadata `/workspace/USSPACE_DEPLOY_CHECKPOINT.json`.
+Backend Firebase credential binding and live roster activation remain pending.
+
+Initial candidate run40591869021 passed all102 Firebase emulator cases and source/native checks, then failed at the added functions dependency-install step because no functions lockfile is committed. Corrected to the existing project's `npm install --ignore-scripts` workflow and retained its `npm run check`; no assertions were weakened. The initial run never reached signing or emulator installation. Log `artifacts/v018-ci-failure.log`.

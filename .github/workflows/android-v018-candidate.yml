@@ -28,7 +28,8 @@ jobs:
         run: |
           python3 scripts/validate-firebase-config.py
           bash scripts/test-firebase-realtime.sh
-          npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+          npm --prefix functions install --ignore-scripts --no-audit --no-fund
+          npm --prefix functions run check
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
