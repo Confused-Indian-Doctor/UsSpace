@@ -95,3 +95,14 @@ unchanged. No secrets or owner binding were configured. Deployment authorization
 and the existing original-key APK delivery remain outstanding. Microsoft OAuth
 inside the old APK is a separate optional route; the prepared Jubilee bridge
 reuses the working laptop source instead.
+
+
+## Authorized deployment, 2026-10-27
+
+Jubilee v13 and the six-file UsSpace roster backend addition deployed successfully.
+Remote roster typecheck clean. Live missing-auth401 and forged-token/credential400
+probes passed (`artifacts/jubilee-deployed-backend-access-tests.json`). Jubilee
+export probes hit hosting edge403/code1010; this is an environment limitation,
+not proof of handler authorization. No live source export, owner binding, private
+calendar upsert, health sharing, rule deployment or signed Android runtime is
+claimed. Dedicated integration secrets remain unconfigured. See latest handoff.

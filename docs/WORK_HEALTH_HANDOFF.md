@@ -6,8 +6,7 @@ Repository `/workspace/usspace`, branch `work-health-sharing`, based on the prio
 travel milestone `eebce2317f061546a4bc618c80703e788a0383fb`. The final exact commit,
 working tree, source/artifact checksums and verification flags are recorded after
 commit in `/workspace/USSPACE_WORK_HEALTH_CHECKPOINT.json`. A full local Git
-continuation bundle and checksum are saved outside the repository. Nothing was
-pushed, deployed or published. See WORK_HEALTH_VERIFICATION.md for evidence.
+continuation bundle and checksum are saved outside the repository. The original implementation checkpoint was local-only. The latest authorized deployment is documented below; see WORK_HEALTH_VERIFICATION.md for evidence.
 
 ## What is implemented
 
@@ -114,3 +113,52 @@ updater tests now pass (source fixture, not a new live refresh). Production Site
 is still v12; UsSpace backend still lacks roster routes. No deployment, runtime
 secret configuration or production binding was performed. See the verification
 follow-up and `/workspace/USSPACE_ROTA_FOLLOWUP_CHECKPOINT.json` for exact state.
+
+
+### Authorized backend deployment — 2026-10-27
+
+User explicitly said “Yes deploy”. Existing Jubilee source was fetched again;
+remote HEAD matched the inspected v12 source. Three additive export files were
+committed/pushed at `330123a61d4efd48de254ce3919f389fb8f12e52`; helper/parser,
+`/api/sync` and `/api/sessions` remained unchanged. Source checkout is clean.
+Jubilee v13 deployed successfully at
+https://jubilee-work.alameenashraf.chatgpt.site
+Saved version `appgprj_6ac263cb6520819198b56c2a1e15482b~appgver_02691e54ead881918a69ee6dc0293c20`;
+deployment `appgdep_6ae07d29c5408191a769e6de5201903b`, env revision0.
+Audience remains public; export has its own fail-closed bearer authentication.
+
+Existing UsSpace backend published successfully at
+https://usspace-notify-cb2f5cbc.floot.app
+Job `3f28ab91-ec27-48e1-b048-ea58797cb7fd`; source version1793096933277;
+checkpoint `9091662f-ac87-4ced-8c93-e329956b5b7f`.
+Six additive roster files were applied; remote typecheck clean. Existing
+Firebase Admin, push and travel code was read and preserved. Backend publication
+was web-only; no Floot mobile build/store identity or billing change occurred.
+Floot's generic no-auth/no-database publication notices do not recognize this
+project's external Firebase auth/database. Do not provision a replacement.
+
+Live backend probes: missing authentication rejected401; forged Firebase token
+rejected400; invalid import credential rejected400. These establish rejection,
+not successful authenticated processing. Site export probes were blocked by
+hosting edge403/code1010 before reaching the handler, so runtime export auth and
+actual sanitized source refresh remain unverified. Logs in `artifacts/`.
+
+**Connection is not activated:** no dedicated export/ingress secret, exact source
+person or existing UID binding was configured, and no Firestore rules were
+published. The platform exposes secure user credential connection requests but
+no direct secret setter for generated backend integration credentials; do not
+work around this by printing secrets or adding a public bootstrap/admin route.
+Next: securely provision the dedicated tokens using the documented existing-owner
+flow, verify the canonical paired UID, configure Site hash/person and backend
+secrets/binding, inspect current live rules before scoped deployment, then test
+an authenticated real export/private upsert. Never reuse helper/hospital tokens.
+The user has authorized this roster connection deployment; another conversational
+approval is not required for these remaining steps within the same scope.
+
+The Sites source helper was absent from the execution filesystem and its skill
+resource was unavailable. Fallback used fresh credential solely via hidden stdin
+and subprocess environment for Git fetch/push, then packaged the unchanged,
+already-passing build. Native save/deploy tools accepted the archive and reported
+success. No credential was written to source/config/logs. Archive checksum and
+exact local continuation state: `/workspace/USSPACE_DEPLOY_CHECKPOINT.json`.
+Original signing key/device remain unavailable; no new APK release or installation.

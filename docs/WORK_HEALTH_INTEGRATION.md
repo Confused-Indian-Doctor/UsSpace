@@ -23,7 +23,7 @@ laptop. No hospital cookies/passwords were read, copied or transferred.
 The existing helper, parser, installer, `/api/sync`, `/api/sessions` and updater
 are unchanged. Only additive local Site files are prepared under
 `integrations/jubilee/site/` and mirrored into the inspection checkout.
-**No Site source was pushed or deployed.**
+Initial audit state above is historical. On 2026-10-27, user-authorized deployment published the additive export as Jubilee v13, source `330123a61d4efd48de254ce3919f389fb8f12e52`. Existing audience and D1 binding were preserved.
 
 ## Sanitized integration
 
@@ -31,8 +31,7 @@ are unchanged. Only additive local Site files are prepared under
 helper credentials stored as hashes and bound to one Firebase UID/source ID.
 The primary Android route reuses the existing Floot/Firebase Admin backend at
 `/_api/usspace-roster/jubilee-refresh`; credentials/import routes live alongside
-it. Generated core modules match the tested Node source. These routes are not
-deployed. The optional Firebase Functions wrappers are also source-only:
+it. Generated core modules match the tested Node source. These routes were deployed on 2026-10-27; live refresh remains disabled pending secure configuration. The optional Firebase Functions wrappers are also source-only:
 
 - `rosterIntegration?action=issue|revoke`: existing Firebase ID token; owner only.
 - `rosterIntegration?action=refresh`: scoped credential; schema accepts only
