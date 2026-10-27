@@ -1,0 +1,42 @@
+name: UsSpace roster activation inspection
+on:
+  workflow_dispatch:
+  push:
+    branches: [roster-activation]
+permissions:
+  contents: read
+concurrency:
+  group: usspace-roster-activation
+  cancel-in-progress: false
+jobs:
+  inspect-existing-configuration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      # Verifier of the existing Jubilee Site owner's email, from Sites ownership metadata.
+      # The actual email is not published; Firebase canonical role/pair checks are mandatory.
+      USSPACE_JUBILEE_OWNER_EMAIL_SHA256: '6bacb4e2b28801e06af239cbec3184a65cf3c5d824407de7b702ea581a5e8e10'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing Firebase Admin SDK and verify configuration guards
+        run: |
+          npm --prefix functions install --ignore-scripts --no-audit --no-fund
+          node --test functions/test/roster-configuration.test.mjs
+          python3 scripts/prepare-private-roster-rules.py --check
+      - name: Inspect existing owner, current pair and live rules without writes
+        env:
+          USSPACE_FIREBASE_ADMIN_JSON: ${{ secrets.USSPACE_FIREBASE_ADMIN_JSON }}
+          USSPACE_ROSTER_OWNER_EMAIL: ${{ secrets.USSPACE_ROSTER_OWNER_EMAIL }}
+        run: |
+          mkdir -p artifacts
+          node scripts/configure-jubilee-roster.mjs > artifacts/roster-activation-inspection.json
+      - name: Retain non-secret configuration inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-roster-activation-inspection
+          path: artifacts/roster-activation-inspection.json
+          if-no-files-found: error
+          retention-days: 7
