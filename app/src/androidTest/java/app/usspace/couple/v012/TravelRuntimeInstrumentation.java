@@ -24,6 +24,9 @@ import java.util.concurrent.TimeUnit;
 /** Separately installed QA APK, signed with the same certificate, never embedded in release.
  * Uses actual Auth/Firestore emulators and actual release Activity. Physical UI assertions; read-only demo travel diagnostics never mutate JavaScript state. */
 public final class TravelRuntimeInstrumentation extends Instrumentation {
+    private volatile android.app.Activity activeActivity;
+    @Override public void callActivityOnResume(android.app.Activity activity){super.callActivityOnResume(activity);if(activity instanceof MainActivity)activeActivity=activity;}
+
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);start();}
     @Override public void onStart(){
       try{
@@ -40,9 +43,27 @@ public final class TravelRuntimeInstrumentation extends Instrumentation {
         if(waitForMonitorWithTimeout(qaMonitor,30000)==null)throw new IllegalStateException("QA Activity not observed");
         BroadcastReceiver controls=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent command){
           String action=command.getStringExtra("command");if(action==null)return;
+          if(!"demo-usspace".equals(db.getApp().getOptions().getProjectId()))throw new IllegalStateException("Demo-only controls");
+          if("pause-private-listeners".equals(action)||"resume-private-listeners".equals(action))try{
+            java.lang.reflect.Field field=MainActivity.class.getDeclaredField("travelBridge");field.setAccessible(true);
+            Object bridge=field.get(activeActivity);if(bridge==null)throw new IllegalStateException("Active bridge unavailable");
+            if("pause-private-listeners".equals(action)){
+              java.lang.reflect.Field listeners=TravelBridge.class.getDeclaredField("privateListeners");listeners.setAccessible(true);
+              java.util.List<?> registrations=(java.util.List<?>)listeners.get(bridge);
+              for(Object registration:registrations)((com.google.firebase.firestore.ListenerRegistration)registration).remove();registrations.clear();
+              java.lang.reflect.Field watches=TravelBridge.class.getDeclaredField("reactionWatches");watches.setAccessible(true);
+              ((java.util.Set<?>)watches.get(bridge)).removeIf(key->key.toString().startsWith("private:"));
+            }else{
+              java.lang.reflect.Field uid=TravelBridge.class.getDeclaredField("uid"),epoch=TravelBridge.class.getDeclaredField("epoch");uid.setAccessible(true);epoch.setAccessible(true);
+              java.lang.reflect.Method attach=TravelBridge.class.getDeclaredMethod("attach",boolean.class,String.class,String.class,long.class);attach.setAccessible(true);
+              attach.invoke(bridge,false,(String)uid.get(bridge),"",epoch.getLong(bridge));
+            }
+            Log.i("UsSpaceTravelQA","READY_"+action);
+          }catch(Exception error){Log.e("UsSpaceTravelQA","LISTENER_CONTROL_FAILED",error);}
+
           if("diagnostics".equals(action))try{
             if(!"demo-usspace".equals(db.getApp().getOptions().getProjectId()))throw new IllegalStateException("Demo-only diagnostics");
-            android.app.Activity active=qaMonitor.getLastActivity();
+            android.app.Activity active=activeActivity;
             java.lang.reflect.Field bridgeField=MainActivity.class.getDeclaredField("travelBridge");bridgeField.setAccessible(true);Object bridge=bridgeField.get(active);
             java.lang.reflect.Field uidField=TravelBridge.class.getDeclaredField("uid");uidField.setAccessible(true);
             Log.i("UsSpaceTravelQA","DEMO_NATIVE_UID "+uidField.get(bridge));

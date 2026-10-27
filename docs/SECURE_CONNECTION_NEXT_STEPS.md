@@ -159,3 +159,27 @@ IDs belonging to a manual/other-source/other-owner record before any write;
 all target reads settle before failure, no partial merge. Eleven roster service
 unit cases pass. Generated Floot core updated locally, not deployed. Source-error
 and ID-collision tests are unit evidence, not real source refresh proof.
+
+## Continuation: exact APK travel fault isolation
+
+Latest complete runtime attempt40598231847 signed/compiled/upgraded/launched the
+original-key APK SHA256208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece.
+Learning, Us features, v014, v015 and v016 real UI reports passed. Travel failed
+at preflight: review remained open, no import receipt reached demo server.
+Title detection alone was insufficient because the review itself contains it.
+Diagnostics also used an ActivityMonitor reference that became null.
+
+The harness now tracks the resumed Activity and pauses only private snapshot
+listeners (demo-project-only, separate instrumentation APK), leaving actual
+Firebase transactions online for the accepted-write/listener-gap assertion.
+The existing separate real transport-blocked offline durability scenario remains.
+No release app source changed. The exact-runtime workflow consumes the pinned
+signed artifact12777128835 and pinned prior evidence12779811228, verifying
+archive/binary/signature/source checks before reusing the five passed reports.
+Upgrade and all native travel checks remain required. Eight evidence guard
+unit tests and real pinned-evidence validation passed locally. Runtime pending.
+
+Roster inspection40604474417 now receives a nonempty Admin secret but rejects
+invalid-admin-configuration before connecting. User asked to validate the local
+JSON using the no-upload phone helper; never request or log credential contents.
+Connection/rule publication remain blocked. v0.17 release unchanged.
