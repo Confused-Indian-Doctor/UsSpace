@@ -3,6 +3,7 @@
 set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root_dir"
+python3 scripts/prepare-private-roster-rules.py --check
 test -d firebase-tests/node_modules || { echo 'Install firebase-tests dependencies first.' >&2; exit 1; }
 USSPACE_RULES_VERIFICATION_DIR=$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-private-roster.XXXXXX")
 export USSPACE_RULES_VERIFICATION_DIR

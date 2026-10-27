@@ -46,6 +46,7 @@ mkdir -p artifacts
   node functions/test/roster-configuration.test.mjs
   node functions/test/jubilee-provider.test.mjs
   python3 scripts/prepare-travel-server.py --check
+  python3 scripts/prepare-private-roster-rules.py --check
   bash scripts/test-rota-parser.sh
   bash scripts/test-work-schedule-native.sh
   native_test_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/usspace-sync-tests.XXXXXX")"
