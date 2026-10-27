@@ -51,3 +51,27 @@ launching it, checking a known own roster event and last-source-refresh status,
 failed refresh preservation and account switching. Never uninstall to bypass a
 signature mismatch. Keep v0.17 until required replacement gates pass. Samsung and
 cycle consent require each person's own phone/account and remain separate.
+
+## Phone-only signing setup follow-up
+
+User supplied the original-named PKCS12 attachment; a private copy is retained at
+`/workspace/private/usspace-approved-signing/UsSpace-v0.12-dev-signing-key.p12`.
+Certificate remains unverified without password access. User found their password
+and screenshot confirms they saved GitHub repository secret
+`USSPACE_KEYSTORE_PASSWORD`. It is not bound to this workspace. GitHub API public
+key request returns403, so this session cannot add `USSPACE_KEYSTORE_B64` itself.
+
+User uses only a phone and could not download the offline HTML converter. An
+additive GET-only HTML utility is prepared on the existing backend:
+`/_api/usspace-signing-key-helper`. It does not accept uploads or need a password.
+Browser File API converts the selected file locally; CSP meta blocks network
+connections; no analytics/storage/external scripts are included. The user can
+switch to airplane mode after loading and before selecting the key. Converted
+text must go only into GitHub secret `USSPACE_KEYSTORE_B64`, never chat/screenshots.
+Clipboard history must be cleared separately; clear-page button cannot erase it.
+
+Remote typecheck and synthetic-byte roundtrip/clipboard/clear/wrong-extension
+checks passed. Actual phone execution unverified. Source version1793105494723;
+publish job553f16a3-c50c-43dd-9be5-86696ec34dd2. Check terminal deployment and
+fetch live HTML before claiming the link is ready. No actual private key or
+password was embedded, logged or used in these tests. Existing app routes remain.
