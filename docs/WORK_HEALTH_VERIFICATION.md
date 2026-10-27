@@ -74,3 +74,24 @@ executed in the local contract tests.
 Current verified release remains:
 https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk
 SHA-256 `d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59`.
+
+
+## Rota follow-up: Jubilee source confirmed working
+
+The user confirmed the existing laptop helper updates Jubilee successfully.
+Read-only hosting checks still found Jubilee v12 and no `usspace-roster` routes
+in the published UsSpace backend's source tree. No production change was made.
+The additive export now passes the existing Jubilee production build; the output
+includes `/api/usspace-export`. The unchanged `scripts/test-sync.mjs` suite also
+passed using a local fixture assembled from the existing bundled source, covering
+owner/cross-site access, helper leases, replays, count validation, saved edits,
+rollback, expiry, pairing/revocation and evening scheduling. This is source test
+proof, not a new live hospital refresh. Logs: `artifacts/jubilee-export-build.log`
+and `artifacts/jubilee-existing-updater-tests.log`.
+
+The local dependency installer temporarily changed only pnpm store/cache paths;
+that generated manifest change was restored. Helper/updater source stayed
+unchanged. No secrets or owner binding were configured. Deployment authorization
+and the existing original-key APK delivery remain outstanding. Microsoft OAuth
+inside the old APK is a separate optional route; the prepared Jubilee bridge
+reuses the working laptop source instead.

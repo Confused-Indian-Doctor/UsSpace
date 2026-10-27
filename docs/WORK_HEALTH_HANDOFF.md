@@ -83,7 +83,7 @@ checkpoint. Fixture providers are not proof of live Jubilee/Samsung processing.
   backend source polling is not added. Laptop/helper and an app refresh are needed.
 - Legacy shared calendar entries remain shared. Only new separate roster records
   follow the new owner/category consent; there is no silent legacy migration.
-- Additive Site files still need its own type/build validation before deployment.
+- Additive Site files now pass the existing Jubilee production build and the unchanged updater regression suite; live authenticated export/deployment remains unverified.
   SDK/AGP lint has the Firebase Auth Kotlin metadata diagnostic described in the
   verification document; no check was disabled.
 
@@ -105,3 +105,12 @@ checkpoint. Fixture providers are not proof of live Jubilee/Samsung processing.
 Verified v0.17 release remains:
 https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk
 SHA-256 `d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59`.
+
+
+### Latest rota follow-up
+
+User confirmed the laptop helper works. Local Jubilee export build and unchanged
+updater tests now pass (source fixture, not a new live refresh). Production Site
+is still v12; UsSpace backend still lacks roster routes. No deployment, runtime
+secret configuration or production binding was performed. See the verification
+follow-up and `/workspace/USSPACE_ROTA_FOLLOWUP_CHECKPOINT.json` for exact state.
