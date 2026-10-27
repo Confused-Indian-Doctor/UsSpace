@@ -1,0 +1,516 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember(coupleId) {
+      return signedIn() && exists(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.auth.uid));
+    }
+    function safePayload() {
+      return request.resource.data.payload is map
+        && !request.resource.data.payload.keys().hasAny(['health', 'healthHistory', 'cycle']);
+    }
+
+    function safeProgress(p) {
+      return p is map
+        && p.keys().hasOnly(['v','known','xp','attempts','correct','streak','lastActive','cards','units','sessions','dailyGoal']);
+    }
+    function safeLearning(p) {
+      return !('learn' in p) || (p.learn is map && p.learn.keys().hasOnly(['progress'])
+        && (!('progress' in p.learn) || (p.learn.progress is map
+          && p.learn.progress.keys().hasOnly(['al','yashika'])
+          && (!('al' in p.learn.progress) || safeProgress(p.learn.progress.al))
+          && (!('yashika' in p.learn.progress) || safeProgress(p.learn.progress.yashika)))));
+    }
+    function safeCommon() {
+      return safePayload()
+        && request.resource.data.payload.keys().hasOnly(['visit','duties','goals','notes','memories','learn'])
+        && safeLearning(request.resource.data.payload);
+    }
+    function safeProfile() {
+      return safePayload()
+        && request.resource.data.payload.keys().hasOnly(['name','status','life','checkins','updated'])
+        && (!('life' in request.resource.data.payload) || (request.resource.data.payload.life is map
+          && request.resource.data.payload.life.keys().hasOnly(['watchTitle','watchType','watchDetail','exercise','exerciseDone','weekend','current','updated'])));
+    }
+
+
+    // New Us features use scalar-only schemas. Private feelings/contact details
+    // never belong in these shared collections, including nested payload maps.
+    function shortText(value, maximum) { return value is string && value.size() <= maximum; }
+    function itemId(value) { return value is string && value.matches('[A-Za-z0-9_-]{1,140}'); }
+    function isoTime(value) { return shortText(value, 64) && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z'); }
+    function optionalDate(value) { return value == '' || (shortText(value, 10) && value.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')); }
+    function letterCategory(value) { return value in ['miss','sad','anxious','sleep','reassurance','proud','laugh','argument']; }
+    function extrasRoles(coupleId) { return get(/databases/$(database)/documents/couples/$(coupleId)/usRoles/identity).data; }
+    function hasExtrasRoles(coupleId) { return exists(/databases/$(database)/documents/couples/$(coupleId)/usRoles/identity); }
+    function validBucket(d, id) {
+      return d.keys().hasOnly(['id','title','category','location','targetDate','suggestedBy','suggestedName','priority','notes','photoId','state','completedDate','completedPhotoId','createdAt','updatedAt','updatedBy'])
+        && d.id == id && itemId(id) && shortText(d.title, 160) && d.title.size() > 0
+        && d.category in ['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home']
+        && shortText(d.location, 240) && optionalDate(d.targetDate)
+        && shortText(d.suggestedBy, 160) && shortText(d.suggestedName, 160)
+        && d.priority in ['Low','Normal','High'] && shortText(d.notes, 4000)
+        && (d.photoId == '' || itemId(d.photoId)) && d.state in ['Dreaming','Planning','Booked','Done']
+        && optionalDate(d.completedDate) && (d.completedPhotoId == '' || itemId(d.completedPhotoId))
+        && isoTime(d.createdAt) && isoTime(d.updatedAt) && d.updatedBy == request.auth.uid;
+    }
+    function validJar(d, id) {
+      return d.keys().hasOnly(['id','text','authorUid','authorName','createdAt'])
+        && d.id == id && itemId(id) && shortText(d.text, 1500) && d.text.size() > 0
+        && d.authorUid == request.auth.uid && shortText(d.authorName, 160) && isoTime(d.createdAt);
+    }
+    function validPhoto(d, id) {
+      return d.keys().hasOnly(['id','ownerUid','data','createdAt'])
+        && d.id == id && itemId(id) && d.ownerUid == request.auth.uid && isoTime(d.createdAt)
+        && shortText(d.data, 140000) && d.data.matches('data:image/jpeg;base64,/9j/[A-Za-z0-9+/]*={0,2}');
+    }
+    function validDraft(d, id) {
+      return d.keys().hasOnly(['id','coupleId','category','title','body','updatedAt'])
+        && d.id == id && itemId(d.coupleId) && letterCategory(d.category)
+        && id == d.coupleId + '_' + d.category
+        && shortText(d.title, 200) && shortText(d.body, 12000) && isoTime(d.updatedAt);
+    }
+    function validLetter(d, category, coupleId) {
+      return d.keys().hasOnly(['id','category','title','body','authorUid','recipientUid','publishedAt'])
+        && letterCategory(category) && d.id == category && d.category == category
+        && shortText(d.title, 200) && shortText(d.body, 12000) && d.body.size() > 0
+        && isoTime(d.publishedAt) && hasExtrasRoles(coupleId)
+        && d.authorUid == request.auth.uid && d.authorUid == extrasRoles(coupleId).alUid
+        && d.recipientUid == extrasRoles(coupleId).yashikaUid;
+    }
+
+    // v0.14 settings/tokens are private to the signed-in account. Recipient
+    // identity, pairs and generic notification contents are derived by Functions.
+    function actorMatchesIfPresent() {
+      return !('updatedBy' in request.resource.data) || request.resource.data.updatedBy == request.auth.uid;
+    }
+    function validClock(value) { return value is string && value.matches('([01][0-9]|2[0-3]):[0-5][0-9]'); }
+    function validTimeZone(value) { return shortText(value, 80) && value.size() > 0 && value.matches('[A-Za-z0-9_+/-]+'); }
+    function currentPair(coupleId) {
+      return isMember(coupleId)
+        && get(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 2
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.coupleId == coupleId;
+    }
+    function validDevice(d, uid, id) {
+      return d.keys().hasOnly(['uid','installationId','token','platform','enabled','updatedAt'])
+        && d.uid == uid && d.installationId == id && id.matches('[A-Za-z0-9_-]{8,100}')
+        && d.platform == 'android' && d.enabled is bool
+        && shortText(d.token, 4096) && d.token.size() >= 20 && d.token.matches('[A-Za-z0-9_:.-]+')
+        && d.updatedAt == request.time;
+    }
+    function validPreferences(d) {
+      return d.keys().hasOnly(['theme','notifications','updatedAt'])
+        && d.theme in ['system','light','dark'] && d.updatedAt == request.time
+        && d.notifications is map && d.notifications.keys().hasOnly(['enabled','categories','quietHours'])
+        && d.notifications.enabled is bool && d.notifications.categories is map
+        && d.notifications.categories.keys().hasOnly(['pings','notes','status','goals','bucket','memories','calendar'])
+        && d.notifications.categories.pings is bool && d.notifications.categories.notes is bool
+        && d.notifications.categories.status is bool && d.notifications.categories.goals is bool
+        && d.notifications.categories.bucket is bool && d.notifications.categories.memories is bool
+        && d.notifications.categories.calendar is bool && d.notifications.quietHours is map
+        && d.notifications.quietHours.keys().hasOnly(['enabled','start','end','timeZone'])
+        && d.notifications.quietHours.enabled is bool && validClock(d.notifications.quietHours.start)
+        && validClock(d.notifications.quietHours.end) && validTimeZone(d.notifications.quietHours.timeZone);
+    }
+    function validWorkSummary(d, coupleId, uid) {
+      return d.keys().hasOnly(['uid','coupleId','date','start','end','timeZone','enabled','updatedAt'])
+        && d.uid == uid && d.uid == request.auth.uid && d.coupleId == coupleId
+        && optionalDate(d.date) && d.date != '' && validClock(d.start) && validClock(d.end)
+        && validTimeZone(d.timeZone) && d.enabled == true && d.updatedAt == request.time;
+    }
+
+    // v0.15 relationship metadata is separate from shared common/Health/Cycle.
+    // Validate real Gregorian dates (including century leap-year exceptions).
+    function validRelationshipDate(value) {
+      return value is string && value.size() == 10
+        && value.matches('(19[0-9]{2}|2[01][0-9]{2}|2200)-[0-9]{2}-[0-9]{2}')
+        && (value.matches('[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-8]))')
+          || value.matches('(([0-9]{2})(0[48]|[2468][048]|[13579][26])|([2468][048]|[13579][26])00)-02-29'));
+    }
+    function validRelationshipProfile(d) {
+      return d.keys().hasOnly(['startDate','updatedBy','updatedAt'])
+        && d.keys().hasAll(['startDate','updatedBy','updatedAt'])
+        && validRelationshipDate(d.startDate)
+        && d.updatedBy == request.auth.uid && d.updatedAt == request.time;
+    }
+
+    match /users/{uid} {
+      allow read, create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if signedIn() && request.auth.uid == uid;
+
+      match /devices/{installationId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && validDevice(request.resource.data, uid, installationId);
+      }
+      match /preferences/{preferenceId} {
+        allow read, delete: if signedIn() && request.auth.uid == uid && preferenceId == 'v014';
+        allow create, update: if signedIn() && request.auth.uid == uid && preferenceId == 'v014'
+          && validPreferences(request.resource.data);
+      }
+
+      // Drafts survive disconnect but remain strictly within their author's
+      // account; no partner query or accidental common-document projection.
+      match /usLetterDrafts/{id} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid && validDraft(request.resource.data, id);
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+      match /usReceipts/{id} {
+        // Missing-document reads are necessary for idempotent transactions.
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['operationId','coupleId','kind','itemId','at'])
+          && itemId(request.resource.data.operationId) && itemId(request.resource.data.coupleId)
+          && id == request.resource.data.coupleId + '_' + request.resource.data.operationId
+          && request.resource.data.kind in ['roles','bucket','jar','heart','photo','draft','letter']
+          && shortText(request.resource.data.itemId, 160) && request.resource.data.itemId.size() > 0
+          && request.resource.data.at == request.time && isMember(request.resource.data.coupleId);
+        allow update, delete: if false;
+      }
+    }
+
+    match /_pushDeliveries/{id} { allow read, write: if false; }
+    match /_pushWorkerCursors/{id} { allow read, write: if false; }
+    match /_pushWorkerLeases/{id} { allow read, write: if false; }
+
+    match /pairInvites/{code} {
+      allow create: if signedIn()
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.used == false
+        && request.resource.data.expiresAt > request.time
+        && getAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)).data.memberCount == 1
+        && existsAfter(/databases/$(database)/documents/couples/$(request.resource.data.coupleId)/members/$(request.auth.uid));
+      // A joining client may check a missing code and report "not found".
+      // Existing invitations are readable only during their valid lifetime.
+      allow get: if signedIn()
+        && (!exists(/databases/$(database)/documents/pairInvites/$(code))
+          || resource.data.expiresAt > request.time);
+      allow list: if false;
+      allow update: if signedIn()
+        && resource.data.used == false
+        && resource.data.creatorUid != request.auth.uid
+        && request.resource.data.used == true
+        && request.resource.data.usedByUid == request.auth.uid
+        && request.resource.data.coupleId == resource.data.coupleId
+        && request.resource.data.creatorUid == resource.data.creatorUid
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used','usedByUid','usedAt'])
+        && getAfter(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.lastJoinUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.memberCount == 2;
+      allow delete: if false;
+    }
+
+    match /couples/{coupleId} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberCount == 1;
+      // A joining user learns a random coupleId only from a valid invite. Lists are never allowed.
+      allow get: if isMember(coupleId) || (signedIn() && resource.data.memberCount == 1);
+      allow list: if false;
+      allow update: if (isMember(coupleId)
+          && request.resource.data.memberCount == resource.data.memberCount - 1
+          && request.resource.data.memberCount >= 0
+          && !existsAfter(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.auth.uid))
+          && request.resource.data.lastLeaveUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount','lastLeaveUid','lastLeaveAt']))
+        || (signedIn()
+          && resource.data.memberCount == 1
+          && request.resource.data.memberCount == 2
+          && request.resource.data.lastJoinUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount','lastJoinCode','lastJoinUid'])
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.used == true
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.usedByUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.coupleId == coupleId
+          && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.lastJoinCode)).data.expiresAt > request.time);
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(coupleId);
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && (!('joinedAt' in request.resource.data) || request.resource.data.joinedAt == request.time)
+          && (
+            (getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.ownerUid == uid
+             && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 1)
+            ||
+            (request.resource.data.inviteCode is string
+             && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 2
+             && getAfter(/databases/$(database)/documents/couples/$(coupleId)).data.lastJoinUid == uid
+             && getAfter(/databases/$(database)/documents/pairInvites/$(request.resource.data.inviteCode)).data.usedByUid == uid)
+          );
+        allow update: if isMember(coupleId) && request.auth.uid == uid && request.resource.data.uid == uid
+          && (('joinedAt' in resource.data && request.resource.data.joinedAt == resource.data.joinedAt) || (!('joinedAt' in resource.data) && !('joinedAt' in request.resource.data)));
+        allow delete: if signedIn() && request.auth.uid == uid && isMember(coupleId);
+      }
+
+
+      match /relationship/{profileId} {
+        allow get: if profileId == 'profile' && currentPair(coupleId);
+        allow create, update: if profileId == 'profile' && currentPair(coupleId)
+          && validRelationshipProfile(request.resource.data);
+        allow list, delete: if false;
+      }
+
+      match /usPings/{id} {
+        allow read: if currentPair(coupleId);
+        allow create: if currentPair(coupleId)
+          && request.resource.data.keys().hasOnly(['id','senderUid','createdAt'])
+          && request.resource.data.id == id && itemId(id)
+          && request.resource.data.senderUid == request.auth.uid && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+      // Optional partner summary contains only the owner's shift times. No
+      // workbook URL, Graph token, room, simulation, patient or rota-row data.
+      match /workSummaries/{uid} {
+        allow read: if currentPair(coupleId);
+        allow create, update: if currentPair(coupleId) && request.auth.uid == uid
+          && validWorkSummary(request.resource.data, coupleId, uid);
+        // An owner can revoke an old summary even after leaving that pair.
+        allow delete: if signedIn() && request.auth.uid == uid && resource.data.uid == uid;
+      }
+
+      match /usRoles/{roleId} {
+        allow read: if roleId == 'identity' && isMember(coupleId);
+        allow create: if roleId == 'identity' && isMember(coupleId)
+          && request.resource.data.keys().hasOnly(['alUid','yashikaUid'])
+          && shortText(request.resource.data.alUid, 160) && shortText(request.resource.data.yashikaUid, 160)
+          && request.resource.data.alUid != request.resource.data.yashikaUid
+          && request.auth.uid in [request.resource.data.alUid, request.resource.data.yashikaUid]
+          && get(/databases/$(database)/documents/couples/$(coupleId)).data.memberCount == 2
+          && exists(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.resource.data.alUid))
+          && exists(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.resource.data.yashikaUid));
+        allow update, delete: if false;
+      }
+      match /usBucket/{id} {
+        allow read: if isMember(coupleId);
+        allow create: if isMember(coupleId) && validBucket(request.resource.data, id)
+          && request.resource.data.suggestedBy == request.auth.uid;
+        allow update: if isMember(coupleId) && validBucket(request.resource.data, id)
+          && request.resource.data.suggestedBy == resource.data.suggestedBy
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if false;
+      }
+      match /usJar/{id} {
+        allow read: if isMember(coupleId);
+        allow create: if isMember(coupleId) && validJar(request.resource.data, id);
+        allow update: if isMember(coupleId) && validJar(request.resource.data, id)
+          && resource.data.authorUid == request.auth.uid && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isMember(coupleId) && resource.data.authorUid == request.auth.uid;
+        match /hearts/{uid} {
+          allow read: if isMember(coupleId);
+          allow create, update: if isMember(coupleId) && request.auth.uid == uid
+            && exists(/databases/$(database)/documents/couples/$(coupleId)/usJar/$(id))
+            && request.resource.data.keys().hasOnly(['uid','active','at'])
+            && request.resource.data.uid == uid && request.resource.data.active is bool && isoTime(request.resource.data.at);
+          allow delete: if false;
+        }
+      }
+      match /usPhotos/{id} {
+        allow read: if isMember(coupleId);
+        allow create: if isMember(coupleId) && validPhoto(request.resource.data, id);
+        allow update: if isMember(coupleId) && validPhoto(request.resource.data, id)
+          && resource.data.ownerUid == request.auth.uid && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if false;
+      }
+      match /usLetters/{category} {
+        // Al can read an absent target before an atomic publication transaction.
+        allow get: if isMember(coupleId) && hasExtrasRoles(coupleId)
+          && ((!exists(/databases/$(database)/documents/couples/$(coupleId)/usLetters/$(category))
+              && request.auth.uid == extrasRoles(coupleId).alUid)
+            || (resource.data.authorUid == extrasRoles(coupleId).alUid
+              && resource.data.recipientUid == extrasRoles(coupleId).yashikaUid
+              && request.auth.uid in [resource.data.authorUid, resource.data.recipientUid]));
+        // Rules are not filters: clients must scope their author/recipient query.
+        allow list: if isMember(coupleId) && hasExtrasRoles(coupleId)
+          && ((request.auth.uid == extrasRoles(coupleId).alUid && resource.data.authorUid == request.auth.uid)
+            || (request.auth.uid == extrasRoles(coupleId).yashikaUid && resource.data.recipientUid == request.auth.uid));
+        allow create, update: if isMember(coupleId) && validLetter(request.resource.data, category, coupleId)
+          && exists(/databases/$(database)/documents/couples/$(coupleId)/members/$(request.resource.data.recipientUid));
+        allow delete: if false;
+      }
+
+      match /shared/{docId} {
+        allow read: if isMember(coupleId);
+        allow write: if docId == 'common' && isMember(coupleId) && safeCommon() && actorMatchesIfPresent();
+      }
+
+      match /profiles/{uid} {
+        allow read: if isMember(coupleId);
+        allow write: if isMember(coupleId) && request.auth.uid == uid && safeProfile() && actorMatchesIfPresent();
+      }
+    }
+    // Versioned travel documents are separate from all Health/Cycle/profile data.
+    function travelBase(d, id, visibility, pairId) {
+      return d.keys().hasAll(['schemaVersion','id','ownerUid','visibility','pairId','revision','deleted','createdAt','updatedAt','updatedBy'])
+        && d.schemaVersion == 1 && d.id == id && itemId(id) && itemId(d.ownerUid)
+        && d.visibility == visibility && d.pairId == pairId
+        && d.revision is int && d.revision >= 1 && d.revision <= 1000000000
+        && d.deleted is bool && d.createdAt is timestamp && d.updatedAt == request.time
+        && d.updatedBy == request.auth.uid;
+    }
+    function travelRefs(v, maximum) {
+      let count = v.size();
+      return v is list && count <= maximum && v.toSet().size() == count
+        && (count < 1 || v[0] is string)
+        && (count < 2 || v[1] is string)
+        && (count < 3 || v[2] is string)
+        && (count < 4 || v[3] is string)
+        && (count < 5 || v[4] is string)
+        && (count < 6 || v[5] is string)
+        && (count < 7 || v[6] is string)
+        && (count < 8 || v[7] is string)
+        && (count < 9 || v[8] is string)
+        && (count < 10 || v[9] is string)
+        && (count < 11 || v[10] is string)
+        && (count < 12 || v[11] is string)
+        && (count < 13 || v[12] is string)
+        && (count < 14 || v[13] is string)
+        && (count < 15 || v[14] is string)
+        && (count < 16 || v[15] is string)
+        && (count < 17 || v[16] is string)
+        && (count < 18 || v[17] is string)
+        && (count < 19 || v[18] is string)
+        && (count < 20 || v[19] is string)
+        && (count == 0 || v.join('/').matches('[A-Za-z0-9_-]{1,140}(/[A-Za-z0-9_-]{1,140})*'));
+    }
+    function travelUrl(v) { return v == '' || (shortText(v, 2048) && v.matches('https://[A-Za-z0-9.-]+(:443)?([/?#][^\\s]*)?')); }
+    function travelPlace(p) {
+      return p == null || (p is map && p.keys().hasAll(['provider','placeId','name','latitude','longitude','sourceUrl','confirmedAt'])
+        && p.keys().hasOnly(['provider','placeId','name','latitude','longitude','sourceUrl','confirmedAt'])
+        && p.provider == 'user-confirmed' && shortText(p.placeId,240) && p.placeId.size()>0
+        && shortText(p.name,240) && p.name.size()>0 && p.latitude is number && p.latitude>=-90 && p.latitude<=90
+        && p.longitude is number && p.longitude>=-180 && p.longitude<=180
+        && travelUrl(p.sourceUrl) && isoTime(p.confirmedAt));
+    }
+    function travelFields(d, kind) {
+      let base = ['schemaVersion','id','ownerUid','visibility','pairId','revision','deleted','createdAt','updatedAt','updatedBy'];
+      return (kind == 'travelItems'
+        && d.keys().hasOnly(base.concat(['title','kind','category','location','targetDate','priority','description','sourceUrl','sourceKey','extractionStatus','confidence','verifiedPlace','collectionIds','status','photoIds','completedDate','legacyId']))
+        && shortText(d.title,160) && d.title.size()>0 && d.kind in ['place','experience','goal']
+        && d.category in ['Travel','Food','Adventure','Date','Life','Learning','Silly','Future home','Stays']
+        && shortText(d.location,240) && optionalDate(d.targetDate) && d.priority in ['Low','Normal','High']
+        && shortText(d.description,4000) && travelUrl(d.sourceUrl) && shortText(d.sourceKey,2048)
+        && d.extractionStatus in ['manual','review','unavailable','confirmed']
+        && d.confidence is number && d.confidence>=0 && d.confidence<=1 && travelPlace(d.verifiedPlace)
+        && travelRefs(d.collectionIds,20) && travelRefs(d.photoIds,12)
+        && d.status in ['dreaming','planning','booked','done'] && optionalDate(d.completedDate)
+        && (d.legacyId == '' || itemId(d.legacyId)))
+      || (kind == 'travelCollections'
+        && d.keys().hasOnly(base.concat(['title','description','color']))
+        && shortText(d.title,160) && d.title.size()>0 && shortText(d.description,4000)
+        && d.color in ['rose','peach','amber','navy','sage'])
+      || (kind == 'travelTrips'
+        && d.keys().hasOnly(base.concat(['title','destination','startDate','endDate','timezone','currency','budget','travelMode','pace','status']))
+        && shortText(d.title,160) && d.title.size()>0 && shortText(d.destination,240)
+        && optionalDate(d.startDate) && optionalDate(d.endDate)
+        && (d.startDate == '' || d.endDate == '' || d.endDate >= d.startDate)
+        && validTimeZone(d.timezone) && d.currency is string && d.currency.matches('[A-Z]{3}')
+        && (d.budget == null || (d.budget is number && d.budget>=0 && d.budget<=10000000))
+        && d.travelMode in ['walk','cycle','drive','transit'] && d.pace in ['relaxed','balanced','busy']
+        && d.status in ['draft','planning','booked','done'])
+      || (kind == 'travelStops'
+        && d.keys().hasOnly(base.concat(['tripId','bucketItemId','title','localDate','orderKey','startTime','durationMinutes','travelMode','estimatedCost','notes','kind','fixed','sourceUrl']))
+        && itemId(d.tripId) && (d.bucketItemId == '' || itemId(d.bucketItemId))
+        && shortText(d.title,160) && d.title.size()>0 && optionalDate(d.localDate) && d.localDate!=''
+        && d.orderKey is number && d.orderKey>=-1000000000000 && d.orderKey<=1000000000000
+        && (d.startTime=='' || validClock(d.startTime))
+        && d.durationMinutes is int && d.durationMinutes>=0 && d.durationMinutes<=1440
+        && d.travelMode in ['walk','cycle','drive','transit']
+        && (d.estimatedCost==null || (d.estimatedCost is number && d.estimatedCost>=0 && d.estimatedCost<=10000000))
+        && shortText(d.notes,4000) && d.kind in ['place','accommodation','meal','rest','reservation','free']
+        && d.fixed is bool && travelUrl(d.sourceUrl))
+      || (kind == 'travelImports' && d.visibility=='private'
+        && d.keys().hasOnly(base.concat(['sourceUrl','sourceKey','text','imageId','extractionStatus','confidence','candidateIds']))
+        && travelUrl(d.sourceUrl) && shortText(d.sourceKey,2048) && shortText(d.text,12000)
+        && (d.imageId=='' || itemId(d.imageId)) && d.extractionStatus in ['review','unavailable','confirmed','saved','discarded']
+        && d.confidence is number && d.confidence>=0 && d.confidence<=1 && travelRefs(d.candidateIds,20))
+      || (kind == 'travelPhotos' && d.keys().hasOnly(base.concat(['data']))
+        && shortText(d.data,140000) && d.data.matches('data:image/jpeg;base64,/9j/[A-Za-z0-9+/]*={0,2}'))
+      || (kind == 'travelMemories'
+        && d.keys().hasOnly(base.concat(['bucketItemId','tripId','title','localDate','location','photoIds','reflection']))
+        && (d.bucketItemId=='' || itemId(d.bucketItemId)) && (d.tripId=='' || itemId(d.tripId))
+        && shortText(d.title,160) && d.title.size()>0 && optionalDate(d.localDate) && d.localDate!=''
+        && shortText(d.location,240) && travelRefs(d.photoIds,12) && shortText(d.reflection,4000));
+    }
+    function travelCreate(d) { return d.ownerUid==request.auth.uid && d.revision==1 && d.deleted==false && d.createdAt==request.time; }
+    function travelUpdate(d) {
+      return resource.data.deleted==false && d.ownerUid==resource.data.ownerUid
+        && d.visibility==resource.data.visibility && d.pairId==resource.data.pairId
+        && d.createdAt==resource.data.createdAt && d.revision==resource.data.revision+1;
+    }
+    function travelParent(d, scope, scopeId) {
+      return d.tripId is string
+        && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.deleted==false
+        && getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.updatedAt==request.time
+        && (exists(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId))
+          ? getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision
+            == get(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision+1
+          : getAfter(/databases/$(database)/documents/$(scope)/$(scopeId)/travelTrips/$(d.tripId)).data.revision==1);
+    }
+    match /users/{uid}/{travelKind}/{id} {
+      allow read: if travelKind in ['travelItems','travelCollections','travelTrips','travelStops','travelImports','travelMemories','travelPhotos'] && signedIn() && request.auth.uid==uid;
+      allow create: if signedIn() && request.auth.uid==uid && travelBase(request.resource.data,id,'private','')
+        && travelFields(request.resource.data,travelKind) && travelCreate(request.resource.data)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'users',uid));
+      allow update: if signedIn() && request.auth.uid==uid && travelBase(request.resource.data,id,'private','')
+        && travelFields(request.resource.data,travelKind) && travelUpdate(request.resource.data)
+        && (travelKind!='travelStops' || request.resource.data.tripId==resource.data.tripId)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'users',uid));
+      allow delete: if false;
+    }
+    match /couples/{pairId}/{travelKind}/{id} {
+      allow read: if travelKind in ['travelItems','travelCollections','travelTrips','travelStops','travelMemories','travelPhotos'] && currentPair(pairId);
+      allow create: if currentPair(pairId) && travelBase(request.resource.data,id,'shared',pairId)
+        && travelFields(request.resource.data,travelKind) && travelCreate(request.resource.data)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'couples',pairId));
+      allow update: if currentPair(pairId) && travelBase(request.resource.data,id,'shared',pairId)
+        && travelFields(request.resource.data,travelKind) && travelUpdate(request.resource.data)
+        && (travelKind!='travelStops' || request.resource.data.tripId==resource.data.tripId)
+        && (travelKind!='travelStops' || travelParent(request.resource.data,'couples',pairId));
+      allow delete: if false;
+    }
+    match /users/{uid}/travelReceipts/{id} {
+      allow read: if signedIn() && request.auth.uid==uid;
+      allow create: if signedIn() && request.auth.uid==uid && itemId(id)
+        && request.resource.data.keys().hasOnly(['uid','at'])
+        && request.resource.data.uid==uid && request.resource.data.at==request.time;
+      allow update,delete: if false;
+    }
+    function travelReaction(d, uid) {
+      return d.keys().hasOnly(['schemaVersion','uid','interest','rating','updatedAt']) && d.schemaVersion==1
+        && d.uid==uid && d.interest in ['interested','maybe','not-for-me']
+        && d.rating is int && d.rating>=0 && d.rating<=5 && d.updatedAt==request.time;
+    }
+    match /users/{owner}/travelItems/{id}/reactions/{uid} {
+      allow read: if signedIn() && request.auth.uid==owner;
+      allow create,update: if signedIn() && request.auth.uid==owner && uid==owner
+        && travelReaction(request.resource.data,uid)
+        && get(/databases/$(database)/documents/users/$(owner)/travelItems/$(id)).data.deleted==false;
+      allow delete: if false;
+    }
+    match /couples/{pairId}/travelItems/{id}/reactions/{uid} {
+      allow read: if currentPair(pairId);
+      allow create,update: if currentPair(pairId) && request.auth.uid==uid && travelReaction(request.resource.data,uid)
+        && get(/databases/$(database)/documents/couples/$(pairId)/travelItems/$(id)).data.deleted==false;
+      allow delete: if false;
+    }
+    // Private roster stage: sharing and health/cycle grants remain unavailable.
+    function rosterEvent(d,uid,id) {
+      return d.keys().hasOnly(['id','ownerUid','origin','sourceId','sourceEventId','sourceTimestamp','kind','title','start','end','timeZone','cancelled','updatedAt'])
+        && d.id==id && itemId(id) && d.ownerUid==uid && d.origin=='manual' && d.sourceId=='manual'
+        && d.sourceEventId==id && isoTime(d.sourceTimestamp) && d.kind in ['shift','teaching','on-call','leave','personal']
+        && shortText(d.title,160) && d.title.size()>0 && d.start is number && d.end is number
+        && d.end>d.start && d.end-d.start<=1209600000 && d.timeZone=='Europe/London' && d.cancelled is bool && d.updatedAt==request.time;
+    }
+    match /users/{uid}/rosterEvents/{id} {
+      allow read: if signedIn() && request.auth.uid==uid;
+      allow create: if signedIn() && request.auth.uid==uid && rosterEvent(request.resource.data,uid,id);
+      allow update: if signedIn() && request.auth.uid==uid && resource.data.origin=='manual' && rosterEvent(request.resource.data,uid,id);
+      allow delete: if false;
+    }
+    match /users/{uid}/rosterSources/{id} { allow read: if signedIn() && request.auth.uid==uid; allow write: if false; }
+  }
+}

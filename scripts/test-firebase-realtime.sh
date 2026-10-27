@@ -43,6 +43,7 @@ mkdir -p artifacts
   node functions/test/travel-providers.test.mjs
   node functions/test/travel-transcription.test.mjs
   node functions/test/roster-service.test.mjs
+  node functions/test/roster-configuration.test.mjs
   node functions/test/jubilee-provider.test.mjs
   python3 scripts/prepare-travel-server.py --check
   bash scripts/test-rota-parser.sh

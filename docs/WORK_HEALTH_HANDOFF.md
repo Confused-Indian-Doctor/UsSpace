@@ -193,3 +193,48 @@ runtime success has yet been claimed. CI watch log:
 Backend Firebase credential binding and live roster activation remain pending.
 
 Initial candidate run40591869021 passed all102 Firebase emulator cases and source/native checks, then failed at the added functions dependency-install step because no functions lockfile is committed. Corrected to the existing project's `npm install --ignore-scripts` workflow and retained its `npm run check`; no assertions were weakened. The initial run never reached signing or emulator installation. Log `artifacts/v018-ci-failure.log`.
+
+Corrected candidate run40592219427 at source
+`6d2d529a2a708f174a8eecbd2020d0603ea60fd5` has passed source/native/Firebase,
+signed release and separate instrumentation compilation, mandatory original
+certificate/Firebase OAuth/version20/0.18.0 verification and 16KB alignment.
+Pinned v0.17 baseline fetch and KVM checks passed. At this checkpoint the upgrade
+and runtime step remains in progress; artifact hashes and same-APK runtime success
+are not yet known. No replacement release published. GitHub can use the supplied
+key/password; neither secret was retrieved into this workspace.
+
+### Prepared secure roster activation automation (no app input changes)
+
+During the long Android run, prepared `scripts/configure-jubilee-roster.mjs` and
+`functions/src/roster-configuration.mjs`. This is an admin CLI, not a new public
+maintenance endpoint. Uses a securely bound existing Firebase Admin credential;
+resolves existing verified owner by email then checks canonical alUid, both
+memberships/pair pointers and memberCount2. Never creates accounts, changes pair
+identities, enables consent, overwrites an existing binding or re-enables it.
+
+The CLI inspects live rules/source first. Apply requires the exact inspected
+current hash, rechecks the live release immediately before updating and confirms
+published private-only rules before writing server-only credentials. Credentials
+are generated in process, stored in default-denied `jubileeBindings/current`;
+scoped credential hashes stay in `rosterCredentials`. Only the export token's
+one-way verifier and expiry metadata are output, for Sites configuration.
+Prepared wrapper fallback reads those server-only fields, retaining env support.
+Wrapper change is LOCAL ONLY; no new backend/rules/binding deployment happened.
+
+`firestore.roster-private.rules` is the staged private/manual/imported roster
+ruleset. Preserves tested existing non-travel/travel rules; health, cycle, consent
+and partner roster sharing remain default-denied in this stage. Six pure config
+tests passed. Isolated rules stage runs90 original baseline +4 new cases =94;
+initial direct run and clean reusable-script run passed94/94. This overlaps90
+of the prior102 full-care-suite cases; do not sum these as distinct tests.
+One runner retry collided with a previous emulator shutting down; that failed
+infrastructure attempt and the clean pass are retained separately in artifacts.
+Reusable script prefers explicit/already-installed Firebase CLI, avoiding an
+unnecessary duplicate npx installation. Logs: roster-private-stage-emulator.log,
+roster-private-stage-clean-runner.log, roster-configuration-source-tests.log.
+
+User has been asked whether the existing Firebase Admin JSON is available; no
+reply/binding yet. Original signed candidate at6d2d529 remains in GitHub runtime
+checks and none of these backend-only tools change that APK's inputs or source
+identity. See SECURE_CONNECTION_NEXT_STEPS.md for inspect/apply commands and
+follow-up Site secret-hash/person configuration and actual live export tests.

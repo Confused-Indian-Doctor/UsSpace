@@ -1,0 +1,43 @@
+#!/usr/bin/env node
+/* Explicit admin CLI, never a public endpoint. Credential values never leave the process. */
+import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
+import {readFile,writeFile} from 'node:fs/promises';
+import {makeRosterService} from '../functions/src/roster-service.mjs';
+import {resolveRosterOwner,installRosterBinding} from '../functions/src/roster-configuration.mjs';
+const hash=s=>createHash('sha256').update(s.replace(/\r\n/g,'\n').trim()).digest('hex');
+async function main(){
+ const args=process.argv.slice(2),value=k=>{const i=args.indexOf(k);return i<0?'':args[i+1]||'';};
+ const apply=args.includes('--apply'),expected=value('--expected-current-rules-sha256');
+ if(!process.env.USSPACE_FIREBASE_ADMIN_JSON)throw Error('firebase-admin-secret-required');
+ let raw;try{raw=JSON.parse(process.env.USSPACE_FIREBASE_ADMIN_JSON);}catch{throw Error('invalid-admin-configuration');}
+ if(raw.type!=='service_account'||raw.project_id!=='usspace-c859e')throw Error('wrong-firebase-project');
+ const require=createRequire(new URL('../functions/package.json',import.meta.url));
+ const {initializeApp,cert,deleteApp}=require('firebase-admin/app'),{getAuth}=require('firebase-admin/auth'),{getFirestore,FieldValue}=require('firebase-admin/firestore');
+ const app=initializeApp({projectId:'usspace-c859e',credential:cert(raw)}),db=getFirestore(app),auth=getAuth(app);
+ async function google(path,method='GET',body){const t=await app.options.credential.getAccessToken();const r=await fetch('https://firebaserules.googleapis.com/v1/projects/usspace-c859e/'+path,{method,signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+t.access_token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});if(!r.ok)throw Error('firebase-rules-permission-or-service-unavailable');return r.json();}
+ try{
+  const owner=await resolveRosterOwner({db,auth,ownerEmail:value('--owner-email')});
+  const release=await google('releases/cloud.firestore');if(!/^projects\/usspace-c859e\/rulesets\/[^/]+$/.test(release.rulesetName||''))throw Error('invalid-live-rules-reference');
+  const live=await google(release.rulesetName.replace('projects/usspace-c859e/','')),files=live.source?.files;
+  if(!Array.isArray(files)||files.length!==1||typeof files[0].content!=='string'||files[0].content.length>200000)throw Error('unsupported-live-rules');
+  const currentHash=hash(files[0].content),desired=await readFile(new URL('../firestore.roster-private.rules',import.meta.url),'utf8'),desiredHash=hash(desired);
+  const binding=await db.doc('jubileeBindings/current').get();
+  if(value('--save-live-rules'))await writeFile(value('--save-live-rules'),files[0].content,{flag:'wx',mode:0o600});
+  if(!apply){console.log(JSON.stringify({mode:'inspect',canonicalOwnerVerified:true,currentPairVerified:true,bindingExists:binding.exists,currentRulesSha256:currentHash,desiredPrivateRosterRulesSha256:desiredHash,alreadyPrivateRosterRules:currentHash===desiredHash}));return;}
+  if(!/^[a-f0-9]{64}$/.test(expected)||currentHash!==expected)throw Error('live-rules-changed-or-unreviewed');
+  if(binding.exists)throw Error('binding-already-exists-review-required');
+  if(currentHash!==desiredHash){
+   const created=await google('rulesets','POST',{source:{files:[{name:'firestore.rules',content:desired}]}});
+   if(!/^projects\/usspace-c859e\/rulesets\/[^/]+$/.test(created.name||''))throw Error('invalid-created-rules-reference');
+   // Optimistic recheck immediately before publishing: never overwrite a newer live ruleset.
+   const again=await google('releases/cloud.firestore');if(again.rulesetName!==release.rulesetName)throw Error('live-rules-changed');
+   await google('releases/cloud.firestore','PATCH',{name:'projects/usspace-c859e/releases/cloud.firestore',rulesetName:created.name});
+  }
+  const confirmed=await google('releases/cloud.firestore'),rules=await google(confirmed.rulesetName.replace('projects/usspace-c859e/',''));
+  if(hash(rules.source.files[0].content)!==desiredHash)throw Error('private-roster-rules-not-confirmed');
+  const roster=makeRosterService({db,serverTimestamp:()=>FieldValue.serverTimestamp()});
+  console.log(JSON.stringify({...await installRosterBinding({db,roster,...owner}),privateRosterRulesSha256:desiredHash,healthAndPartnerSharingEnabled:false}));
+ }finally{await db.terminate();await deleteApp(app);}
+}
+main().catch(error=>{const allowed=/^(firebase-admin-secret-required|invalid-admin-configuration|wrong-firebase-project|invalid-owner-email|existing-verified-owner-required|existing-pair-required|canonical-owner-role-required|current-paired-members-required|firebase-rules-permission-or-service-unavailable|invalid-live-rules-reference|unsupported-live-rules|live-rules-changed-or-unreviewed|binding-already-exists-review-required|invalid-created-rules-reference|live-rules-changed|private-roster-rules-not-confirmed)$/;console.error(allowed.test(error.message)?error.message:'configuration-failed-see-secure-provider-console');process.exitCode=1;});

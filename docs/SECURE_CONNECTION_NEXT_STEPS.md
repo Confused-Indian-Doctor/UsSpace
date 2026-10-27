@@ -80,3 +80,33 @@ Deployment succeeded; live helper GET returned200 with text/html, no-store,
 expected title/file input and network-blocking CSP meta. Evidence:
 `artifacts/signing-helper-live-check.json`. No phone browser or real key operation
 is claimed. Await user adding the key secret; Firebase binding remains pending.
+
+## Prepared admin-only configuration automation
+
+`node scripts/configure-jubilee-roster.mjs --owner-email <existing-owner-email>`
+inspects the existing canonical owner/pair and live rule hash using the securely
+bound `USSPACE_FIREBASE_ADMIN_JSON`. Optional `--save-live-rules <new-file>` writes
+reviewable source only, refusing to overwrite a file. Never select a user by a
+client-provided display name; the exact existing Site owner's email is just the
+lookup input, verified against Firebase and canonical paired role/pointers.
+
+Only after inspecting/diffing the actual live source and verifying the staged
+rules, use `--apply --expected-current-rules-sha256 <inspected-hash>`. This refuses
+changed live rules or any existing binding, preserves all existing records, and
+never rotates/re-enables a connection silently. Dedicated raw credentials are
+created inside the admin process and stored only in the default-denied
+`jubileeBindings/current`, with scoped hashes in `rosterCredentials`. Output is
+only a token SHA256 verifier and expiry metadata, for Sites configuration. No
+bearer secret, Firebase private key or account data is printed.
+
+`firestore.roster-private.rules` preserves the existing tested non-travel/travel
+rules and adds private manual/helper roster access. It grants no health/cycle,
+consent or partner roster sharing. `bash scripts/test-private-roster-rules.sh`
+runs90 baseline +4 stage-specific emulator cases in an isolated temporary tree.
+First run passed94/94. Six pure configuration tests also passed. No production
+rule/binding write occurred; admin access remains unavailable here.
+
+Prepared Floot wrapper fallback reads dedicated configuration from the server-only
+binding, retaining existing env-secret support. Deploy that small wrapper update
+only as part of activation after actual live-rule inspection. Existing v0.18
+Android candidate source is unchanged by these backend setup tools.

@@ -16,8 +16,8 @@ async function handle(request:Request,kind:string){
   if(kind==='credential'){if(ingress.body.action==='issue')return {status:200,body:await roster.issue(actor.uid,ingress.body.sourceId)};if(ingress.body.action==='revoke'){await roster.revoke(actor.uid,ingress.body.id);return {status:200,body:{revoked:true}};}return fail(400,'invalid-action');}
   if(kind==='jubilee-refresh'){
    const binding=await c.db.doc('jubileeBindings/current').get();if(!binding.exists||binding.data().ownerUid!==actor.uid||binding.data().enabled!==true)return fail(403,'source-not-bound');
-   const source=await usspaceJubileeProvider.pullJubilee({exportToken:process.env.JUBILEE_USSPACE_EXPORT_TOKEN});
-   const result=await roster.refresh(process.env.JUBILEE_USSPACE_INGRESS_CREDENTIAL,source.refresh,{upstreamRefreshedAt:source.upstreamRefreshedAt,expectedUid:actor.uid});return {status:200,body:{...result,upstreamRefreshedAt:source.upstreamRefreshedAt,unresolved:source.unresolved}};
+   const source=await usspaceJubileeProvider.pullJubilee({exportToken:process.env.JUBILEE_USSPACE_EXPORT_TOKEN||binding.data().exportToken});
+   const result=await roster.refresh(process.env.JUBILEE_USSPACE_INGRESS_CREDENTIAL||binding.data().ingressCredential,source.refresh,{upstreamRefreshedAt:source.upstreamRefreshedAt,expectedUid:actor.uid});return {status:200,body:{...result,upstreamRefreshedAt:source.upstreamRefreshedAt,unresolved:source.unresolved}};
   }
   return fail(400,'invalid-action');
  }catch(_){return fail(400,'invalid-or-unavailable-roster-request');}
