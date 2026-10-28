@@ -1,0 +1,86 @@
+{
+  "status": "verified-candidate",
+  "apk_sha256": "208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece",
+  "package": "app.usspace.couple.v012",
+  "version_name": "0.18.0",
+  "version_code": 20,
+  "apk_build_source_commit": "bc79f95951393b4ba2fd6a765d414b8086aaf06c",
+  "runtime_source_commit": "027efb09dd19f4b4d0a9429b3e908faf3619a858",
+  "runtime_run": 40609166501,
+  "reports": {
+    "upgrade-before.json": {
+      "status": "passed",
+      "recorded_steps": 11
+    },
+    "upgrade-after.json": {
+      "status": "passed",
+      "recorded_steps": 13
+    },
+    "travel-cold-import-result.json": {
+      "status": "passed",
+      "recorded_steps": 6
+    },
+    "travel-ui-result.json": {
+      "status": "passed",
+      "recorded_steps": 415
+    },
+    "travel-unpair-result.json": {
+      "status": "passed",
+      "recorded_steps": 5
+    },
+    "smoke-result.json": {
+      "status": "passed",
+      "recorded_steps": 0
+    }
+  },
+  "prior_exact_apk_runtime": {
+    "status": "verified-exact-apk-prior-evidence",
+    "apk_sha256": "208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece",
+    "source_run_id": 40598231847,
+    "source_commit": "bc79f95951393b4ba2fd6a765d414b8086aaf06c",
+    "archive_sha256": "23388438ec945f6171c59e7a2468f7bf62e0bc5b48ee73a8f64c8c73e40456d7",
+    "reused_suites": [
+      {
+        "report": "learning-ui-result.json",
+        "recorded_steps": 12,
+        "status": "passed"
+      },
+      {
+        "report": "us-features-ui-result.json",
+        "recorded_steps": 80,
+        "status": "passed"
+      },
+      {
+        "report": "v014-ui-result.json",
+        "recorded_steps": 57,
+        "status": "passed"
+      },
+      {
+        "report": "v015-ui-result.json",
+        "recorded_steps": 474,
+        "status": "passed"
+      },
+      {
+        "report": "v016-ui-result.json",
+        "recorded_steps": 57,
+        "status": "passed"
+      }
+    ],
+    "remaining_required": [
+      "upgrade-install",
+      "launch",
+      "native-travel-runtime"
+    ]
+  },
+  "device_only_unverified": [
+    "Samsung Health source records and permissions",
+    "each partner enabling own consent",
+    "production Google sign-in success",
+    "authenticated FCM delivery"
+  ],
+  "provider_limitations": [
+    "live place/transcription credentials unavailable",
+    "restricted Instagram content not bypassed",
+    "Jubilee source hours incomplete; partial coverage"
+  ]
+}

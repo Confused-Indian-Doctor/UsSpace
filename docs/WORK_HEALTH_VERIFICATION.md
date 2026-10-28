@@ -1,3 +1,54 @@
+## Current delivery checkpoint — 2026-10-28
+
+**Verified candidate is downloadable:**
+https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.18.0-rc1/UsSpace-v0.18.0-candidate.apk
+Release: https://github.com/Confused-Indian-Doctor/UsSpace/releases/tag/v0.18.0-rc1
+Version0.18.0/code20, packageapp.usspace.couple.v012, original signing certificate.
+APK SHA256208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece.
+Public download fetched successfully (HTTP200),52328816 bytes, matching checksum.
+
+Android run40609166501 **passed**: original-key upgrade/launch, cold/warm imports,
+review selection guard, accepted-write/listener gap, actual offline/reconnect,
+map/dark panels, trip preview/apply/discard/undo, account switch and unpair.
+Fresh native travel UI report415 recorded steps/43 assertions; cold import and
+unpair reports passed. Learning/Us/v014/v015/v016 suites reused only after
+exact signed-APK/source/archive validation (not rerun under a different APK).
+102 Firebase emulator cases and source/native checks passed in the same run.
+Full evidence artifact12783383792 ZIP SHA256
+057a85ef211d60d8d6798813c88f8f03404aab0bdb237370bcfab988ea6a53e7.
+APK build sourcebc79f95951393b4ba2fd6a765d414b8086aaf06c; successful test source
+027efb09dd19f4b4d0a9429b3e908faf3619a858 (runtime-continuation). Release source
+main app unchanged between those commits. Work/source branchwork-health-sharing
+throughdfacb4d plus final delivery documentation. Working tree should be clean.
+
+Terminal GitHub upload credentials were rejected by uploads.github.com401;
+repository CI40659251747 successfully published the exact pinned artifact.
+No new signing key or secret was needed. Release is prerelease; **v0.17.0 remains
+GitHub Latest** with its verified original download link and checksum intact.
+No main merge or automatic stable-updater replacement.
+
+Live backend: dedicated existing-owner Jubilee connection/private import and
+replay verified (116 events,116 unknown timing, partial, no inferred free time).
+Source success2026-10-27T18:00:19.834Z; laptop/helper must run for new updates.
+Current consent-capable Firestore rules SHA256
+c0668a82422574ab8a64910414813e764d24a966fec71736636dbb48dde94a5b;
+activation40609550795 passed102 emulator cases and preserved owner binding.
+No user consent created or enabled. Storage tests are emulator evidence, not
+a claim of newly deployed live Storage rules.
+
+Next actions require phones: install as Update (never uninstall to bypass
+signature checks), verify actual Google sign-in, each person's Health Connect
+availability/permissions/real Samsung records and independent sharing/revocation.
+Production Google sign-in UI, actual Samsung/background reads and authenticated
+FCM delivery remain unverified. FCM backend setup remains pending. Live place/
+transcription providers remain blocked by credentials/access; fallbacks remain.
+Do not claim every Instagram link is readable. Do not enable anyone's health/
+cycle consent on their behalf. Keep v017 stable until phone pilot is accepted.
+
+Detailed public delivery evidence: docs/verification/v018-candidate-verification.json.
+
+---
+
 # Work / health verification — 27 October 2026
 
 This is source/build evidence, not a production sharing or Samsung/watch claim.

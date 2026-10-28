@@ -3,6 +3,8 @@
 ## v0.17.0 — Dreams, Map, Trips and Memories
 
 [**Download the verified UsSpace v0.17.0 APK**](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk).
+
+[**Download the original-key v0.18.0 candidate**](https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.18.0-rc1/UsSpace-v0.18.0-candidate.apk) · [verification and limitations](https://github.com/Confused-Indian-Doctor/UsSpace/releases/tag/v0.18.0-rc1). Android emulator upgrade/runtime checks passed. Install over the existing app; actual Samsung Health and both partners' permission/sharing checks still require phones. v0.17.0 remains the stable release.
 Install it as an update over the existing app to keep its data and pairing.
 Open **Us → Bucket List** for the upgraded travel space; original non-travel goals
 and all other sections remain available.
