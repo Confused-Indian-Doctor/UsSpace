@@ -38,7 +38,7 @@ jobs:
           USSPACE_FIREBASE_ADMIN_JSON: ${{ secrets.USSPACE_FIREBASE_ADMIN_JSON }}
           USSPACE_ROSTER_OWNER_EMAIL: ${{ secrets.USSPACE_ROSTER_OWNER_EMAIL }}
         run: |
-          node scripts/configure-jubilee-roster.mjs --verify-source > artifacts/roster-activation-result.json
+          node scripts/configure-jubilee-roster.mjs --verify-source --verify-backend > artifacts/roster-activation-result.json
       - name: Retain non-secret configuration inspection
         uses: actions/upload-artifact@v4
         with:

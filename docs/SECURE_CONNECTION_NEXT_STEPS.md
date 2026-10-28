@@ -183,3 +183,33 @@ Roster inspection40604474417 now receives a nonempty Admin secret but rejects
 invalid-admin-configuration before connecting. User asked to validate the local
 JSON using the no-upload phone helper; never request or log credential contents.
 Connection/rule publication remain blocked. v0.17 release unchanged.
+
+## 2026-10-28 live setup milestone
+
+User corrected GitHub Admin JSON. Inspection40604474417 rerun succeeded:
+canonical existing owner/current pair verified, no binding existed; live rules
+matched repository commit e7f29047a671c44c5d6e129a6b86d0f339c95247
+(normalized SHA256 b5d20d2d6eaca416ace1d07cc4d62868b852c65b69e1fc7da970687da0aac24d).
+Reviewed differences: immutable membership generations, Stays travel category,
+owner-only manual/helper roster reads. Shared health/cycle paths stay denied.
+Initial application attempts failed with API400 on PATCH (no release changed);
+corrected UpdateReleaseRequest envelope. Activation40607522798 succeeded.
+Current private rules SHA256 a6d36e5868f2c6d993fd868946882c71a664961af5dcd4dd06da59403569a5e7.
+Dedicated90-day credential/binding created server-side; bearer values never
+returned, logged, published or transferred to Sites. Only the one-way export
+verifier was supplied to Sites, alongside exact configured source-person filter.
+Both runtime entries marked secret. Existing v13 source redeployed with envrev1:
+appgdep_6ae13eb7c16c8191b9eaa0e6ee552025 succeeded.
+
+Floot wrapper now uses server-only binding fallback; collision preflight core
+deployed after20 service/config tests and clean remote typecheck. Publish
+6c8c73b7-f701-4cf2-a509-af1da3578487 succeeded at existing backend URL.
+All three roster routes rejected unauthenticated POSTs with401 after deploy.
+
+Real-source import/replay verification run40607707510 is active. It uses existing
+owner binding plus tested fixed-host provider adapter, logs counts/status only,
+then replays the exact same refresh to require idempotence. No source events or
+workplace text go into logs. Provider failure must leave existing events intact.
+APK exact-byte run40605394313 rerun passed102 Firebase emulator checks and
+reached upgrade/travel runtime; terminal result still pending at this checkpoint.
+No APK release publication. Original v0.17 download remains current.
