@@ -325,3 +325,12 @@ endpoint using an ephemeral Admin-issued ID token for the existing owner. This
 is explicitly not proof of Google sign-in UI. Never log token/session contents.
 Monitor exact signed APK runtime40605394313, currently in upgrade/travel step.
 Release v0.17 remains current. Next phone actions only after required APK gates.
+
+App-facing backend verification40607852634 succeeded: backendOwnerEndpointVerified
+true, real fixed-source import116 events, replay idempotent. Used ephemeral
+Admin-issued token for existing owner; does not prove Google sign-in UI.
+Evidence artifacts/jubilee-live-backend-result.json; artifact12782166681 archive
+SHA256 c27fa791915e06e0822eafdcdbbf1bdd1905bc81e2622240736db1d646713ece.
+No further credential action pending. APK40605394313 still running at checkpoint.
+Next action: inspect its terminal result/evidence, fix observed failures, retain
+v0.17 until all required gates pass; then guide both phones' independent consent.
