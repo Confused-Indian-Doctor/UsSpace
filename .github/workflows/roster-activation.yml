@@ -33,10 +33,18 @@ jobs:
         run: |
           mkdir -p artifacts
           node scripts/configure-jubilee-roster.mjs > artifacts/roster-activation-inspection.json
+      - name: Apply reviewed private-roster rules and existing-owner connection
+        env:
+          USSPACE_FIREBASE_ADMIN_JSON: ${{ secrets.USSPACE_FIREBASE_ADMIN_JSON }}
+          USSPACE_ROSTER_OWNER_EMAIL: ${{ secrets.USSPACE_ROSTER_OWNER_EMAIL }}
+        run: |
+          node scripts/configure-jubilee-roster.mjs --apply --expected-current-rules-sha256 b5d20d2d6eaca416ace1d07cc4d62868b852c65b69e1fc7da970687da0aac24d > artifacts/roster-activation-result.json
       - name: Retain non-secret configuration inspection
         uses: actions/upload-artifact@v4
         with:
           name: UsSpace-roster-activation-inspection
-          path: artifacts/roster-activation-inspection.json
+          path: |
+            artifacts/roster-activation-inspection.json
+            artifacts/roster-activation-result.json
           if-no-files-found: error
           retention-days: 7
