@@ -25,6 +25,16 @@ async function main(){
   const currentHash=hash(files[0].content),desired=await readFile(new URL('../firestore.roster-private.rules',import.meta.url),'utf8'),desiredHash=hash(desired);
   const binding=await db.doc('jubileeBindings/current').get();
   if(value('--save-live-rules'))await writeFile(value('--save-live-rules'),files[0].content,{flag:'wx',mode:0o600});
+  if(args.includes('--verify-source')){
+   const b=binding.data();if(!binding.exists||b.enabled!==true||b.ownerUid!==owner.ownerUid||b.pairId!==owner.pairId)throw Error('current-paired-members-required');
+   const {pullJubilee}=await import('../functions/src/jubilee-provider.mjs');
+   const source=await pullJubilee({exportToken:b.exportToken,fetcher:async (...input)=>{const response=await fetch(...input);if(!response.ok)console.error(JSON.stringify({operation:'fixed-jubilee-export',httpStatus:response.status}));return response;}});
+   const roster=makeRosterService({db,serverTimestamp:()=>FieldValue.serverTimestamp()});
+   const result=await roster.refresh(b.ingressCredential,source.refresh,{upstreamRefreshedAt:source.upstreamRefreshedAt,expectedUid:owner.ownerUid});
+   const replay=await roster.refresh(b.ingressCredential,source.refresh,{upstreamRefreshedAt:source.upstreamRefreshedAt,expectedUid:owner.ownerUid});
+   if(replay.replayed!==true)throw Error('source-replay-not-idempotent');
+   console.log(JSON.stringify({mode:'verified-real-source',...result,idempotentReplay:true,sourceEventCount:source.refresh.events.length,unresolved:source.unresolved,authoritative:source.refresh.authoritative,upstreamRefreshedAt:source.upstreamRefreshedAt}));return;
+  }
   if(!apply){console.log(JSON.stringify({mode:'inspect',canonicalOwnerVerified:true,currentPairVerified:true,bindingExists:binding.exists,currentRulesSha256:currentHash,desiredPrivateRosterRulesSha256:desiredHash,alreadyPrivateRosterRules:currentHash===desiredHash}));return;}
   if(!/^[a-f0-9]{64}$/.test(expected)||currentHash!==expected)throw Error('live-rules-changed-or-unreviewed');
   if(binding.exists)throw Error('binding-already-exists-review-required');
@@ -41,4 +51,4 @@ async function main(){
   console.log(JSON.stringify({...await installRosterBinding({db,roster,...owner}),privateRosterRulesSha256:desiredHash,healthAndPartnerSharingEnabled:false}));
  }finally{await db.terminate();await deleteApp(app);}
 }
-main().catch(error=>{const allowed=/^(verified-owner-selection-required|owner-selection-needs-review|firebase-admin-secret-required|invalid-admin-configuration|wrong-firebase-project|invalid-owner-email|existing-verified-owner-required|existing-pair-required|canonical-owner-role-required|current-paired-members-required|firebase-rules-permission-or-service-unavailable|invalid-live-rules-reference|unsupported-live-rules|live-rules-changed-or-unreviewed|binding-already-exists-review-required|invalid-created-rules-reference|live-rules-changed|private-roster-rules-not-confirmed)$/;console.error(allowed.test(error.message)?error.message:'configuration-failed-see-secure-provider-console');process.exitCode=1;});
+main().catch(error=>{const allowed=/^(jubilee-source-unavailable|source-replay-not-idempotent|verified-owner-selection-required|owner-selection-needs-review|firebase-admin-secret-required|invalid-admin-configuration|wrong-firebase-project|invalid-owner-email|existing-verified-owner-required|existing-pair-required|canonical-owner-role-required|current-paired-members-required|firebase-rules-permission-or-service-unavailable|invalid-live-rules-reference|unsupported-live-rules|live-rules-changed-or-unreviewed|binding-already-exists-review-required|invalid-created-rules-reference|live-rules-changed|private-roster-rules-not-confirmed)$/;console.error(allowed.test(error.message)?error.message:'configuration-failed-see-secure-provider-console');process.exitCode=1;});
