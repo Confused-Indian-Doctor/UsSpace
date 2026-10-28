@@ -279,3 +279,58 @@ as in the original source. Readiness guard remains completely unchanged. An
 attempted compatibility shortcut was rejected by its tests and reverted locally
 before any publication. Do not claim actual FCM delivery or enable it based only
 on private-roster rules. New roster activation remains independent/blocked.
+
+## Active continuation checkpoint
+
+Branch work-health-sharing at cc38d3e; clean app source. Runtime-only branch
+runtime-continuation at beef96a30ca6b3ada06eb9c047984065358bb8dc; active Actions
+run40605394313 (exact APK remaining runtime). See SECURE_CONNECTION_NEXT_STEPS
+for fault diagnosis and pinned artifacts. No app release or Firebase rules changed.
+Local verification:8 evidence guard tests, actual pinned archive verification,
+Python/shell syntax, workflow YAML,20 roster service/configuration tests passed.
+CI is rerunning source/rules, separate test APK compilation, exact signed APK
+upgrade/launch and full native travel journey. Five prior passing suites are
+reused only after exact byte/source/archive/signature validation.
+
+User has been asked to validate existing Firebase service-account JSON locally
+using the browser-only helper. Latest inspect40604474417 receives a nonempty
+secret but rejects invalid-admin-configuration before SDK connection. Await
+helper validation outcome; do not request any secret contents or blindly apply.
+Current approved release remains v0.17.0 with existing verified download link.
+
+## 2026-10-28 authenticated source milestone
+
+Firebase Admin secret corrected by user; inspection rerun40604474417 succeeded.
+Reviewed live rules exactly matched e7f2904. Private-roster stage applied and
+confirmed in40607522798 (SHA256 a6d36e5868f2c6d993fd868946882c71a664961af5dcd4dd06da59403569a5e7).
+Existing canonical owner/current pair verified; no new account or pair created.
+Server-only90-day dedicated credential/binding created. No health/cycle or
+partner roster consent granted. Hospital credentials remain with the helper.
+
+Floot source1793146440495 published by6c8c73b7-f701-4cf2-a509-af1da3578487.
+Sites v13 redeployed at envrevision1, deploymentappgdep_6ae13eb7c16c8191b9eaa0e6ee552025.
+Remote typecheck clean;20 pure service/config tests passed; three live routes
+returned401 for unauthenticated requests.
+
+Real source/import verification40607707510 passed:116 own-source events upserted,
+0 cancellations,116 unknown timings, partial/non-authoritative. Same exact
+refresh replay returned replayed:true, proving duplicate refresh idempotence.
+Upstream successful refresh2026-10-27T18:00:19.834Z. Unknown times remain date-only;
+no free-time coverage or omission-based cancellation inferred. Evidence
+artifacts/jubilee-live-source-result.json; artifact12782245980 ZIP checksum
+078fa13cdfbcb55b388fa7cf6a4a94d628174e71d0d2ca6987256517c7d5d1d2.
+
+Next: monitor40607852634, which additionally verifies the real deployed refresh
+endpoint using an ephemeral Admin-issued ID token for the existing owner. This
+is explicitly not proof of Google sign-in UI. Never log token/session contents.
+Monitor exact signed APK runtime40605394313, currently in upgrade/travel step.
+Release v0.17 remains current. Next phone actions only after required APK gates.
+
+App-facing backend verification40607852634 succeeded: backendOwnerEndpointVerified
+true, real fixed-source import116 events, replay idempotent. Used ephemeral
+Admin-issued token for existing owner; does not prove Google sign-in UI.
+Evidence artifacts/jubilee-live-backend-result.json; artifact12782166681 archive
+SHA256 c27fa791915e06e0822eafdcdbbf1bdd1905bc81e2622240736db1d646713ece.
+No further credential action pending. APK40605394313 still running at checkpoint.
+Next action: inspect its terminal result/evidence, fix observed failures, retain
+v0.17 until all required gates pass; then guide both phones' independent consent.
