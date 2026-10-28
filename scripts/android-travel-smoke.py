@@ -95,6 +95,12 @@ def command(name,block_transport=False):
         ui.steps.append({'action':'block-real-firestore-transport','port':8080,'sdk_pause_also_requested':True})
     ui.adb('shell','am','broadcast','-a','app.usspace.TRAVEL_QA','--es','command',name)
     time.sleep(1)
+    if name in ('pause-private-listeners','resume-private-listeners'):
+        deadline=time.monotonic()+15
+        while time.monotonic()<deadline:
+            if 'READY_'+name in ui.adb('logcat','-d','-s','UsSpaceTravelQA:I'):break
+            time.sleep(.5)
+        else:raise RuntimeError('Demo-only listener control did not complete: '+name)
 def bucket():
     ui.click('travel-us',r'(?:^| )Us$',allow_nav=True)
     tap('bucket',r'Bucket List')
@@ -111,7 +117,9 @@ def run():
     bucket()
     # Exercise native durable saves before the longer map/trip journey so a
     # queue regression produces focused evidence promptly, without skipping it.
-    command('offline')
+    # Pause private snapshot delivery only: transactions must remain online.
+    # The separate transport-blocked scenario below still requires offline durability.
+    command('pause-private-listeners')
     ui.adb('shell','am','start','-W','-n',ui.PACKAGE+'/.MainActivity','-a','android.intent.action.SEND','-t','text/plain','--es','android.intent.extra.TEXT','QA-preflight-save')
     verify('preflight-import',r'Is this the dream you meant')
     tap('preflight-save',r'^Save selected ideas$');command('diagnostics')
@@ -119,7 +127,7 @@ def run():
     tap('preflight-dreams',r'^Dreams$')
     verify('preflight-private-retained',r'QA-preflight-save')
     verify('preflight-server-accepted-visible',r'You · dreaming · Synced')
-    command('online');verify('preflight-online-item',r'QA-preflight-save')
+    command('resume-private-listeners');verify('preflight-online-item',r'QA-preflight-save')
     verify('dreams',r'QA · Garden walk');screenshot('Dreams')
     h.choose_theme('travel-dark','Dark')
     tap('map-tab',r'^Map$');verify('map-heading',r'A map of our someday')

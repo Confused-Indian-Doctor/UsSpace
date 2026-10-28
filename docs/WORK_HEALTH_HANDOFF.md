@@ -279,3 +279,21 @@ as in the original source. Readiness guard remains completely unchanged. An
 attempted compatibility shortcut was rejected by its tests and reverted locally
 before any publication. Do not claim actual FCM delivery or enable it based only
 on private-roster rules. New roster activation remains independent/blocked.
+
+## Active continuation checkpoint
+
+Branch work-health-sharing at cc38d3e; clean app source. Runtime-only branch
+runtime-continuation at beef96a30ca6b3ada06eb9c047984065358bb8dc; active Actions
+run40605394313 (exact APK remaining runtime). See SECURE_CONNECTION_NEXT_STEPS
+for fault diagnosis and pinned artifacts. No app release or Firebase rules changed.
+Local verification:8 evidence guard tests, actual pinned archive verification,
+Python/shell syntax, workflow YAML,20 roster service/configuration tests passed.
+CI is rerunning source/rules, separate test APK compilation, exact signed APK
+upgrade/launch and full native travel journey. Five prior passing suites are
+reused only after exact byte/source/archive/signature validation.
+
+User has been asked to validate existing Firebase service-account JSON locally
+using the browser-only helper. Latest inspect40604474417 receives a nonempty
+secret but rejects invalid-admin-configuration before SDK connection. Await
+helper validation outcome; do not request any secret contents or blindly apply.
+Current approved release remains v0.17.0 with existing verified download link.

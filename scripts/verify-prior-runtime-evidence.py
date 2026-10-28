@@ -7,14 +7,14 @@ from pathlib import Path
 import subprocess
 import zipfile
 
-PRIOR_RUN = 40592219427
-PRIOR_SOURCE = '6d2d529a2a708f174a8eecbd2020d0603ea60fd5'
-PRIOR_ZIP_SHA256 = '607173411ffacf46eada631944a944efe04ca2efbf3c8ec7a5847f6e0466408c'
-PRIOR_APK_SHA256 = 'd88a8ae5cb40a4fa35e1702f7422d4d55b8139b49836ebdc4317f3980271a264'
-SUITES = ['learning-ui-result.json', 'us-features-ui-result.json', 'v014-ui-result.json', 'v015-ui-result.json']
-SOURCE_PATHS = ['app/', 'build.gradle.kts', 'settings.gradle.kts', 'gradle.properties', 'gradle/',
+PRIOR_RUN = 40598231847
+PRIOR_SOURCE = 'bc79f95951393b4ba2fd6a765d414b8086aaf06c'
+PRIOR_ZIP_SHA256 = '23388438ec945f6171c59e7a2468f7bf62e0bc5b48ee73a8f64c8c73e40456d7'
+PRIOR_APK_SHA256 = '208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece'
+SUITES = ['learning-ui-result.json', 'us-features-ui-result.json', 'v014-ui-result.json', 'v015-ui-result.json', 'v016-ui-result.json']
+SOURCE_PATHS = ['app/', ':(exclude)app/src/androidTest/', 'build.gradle.kts', 'settings.gradle.kts', 'gradle.properties', 'gradle/',
     'scripts/android-learning-smoke.py', 'scripts/android-us-features-smoke.py',
-    'scripts/android-v014-smoke.py', 'scripts/android-v015-smoke.py', 'scripts/android-upgrade-probe.py']
+    'scripts/android-v014-smoke.py', 'scripts/android-v015-smoke.py', 'scripts/android-v016-smoke.py', 'scripts/android-upgrade-probe.py']
 
 def verify(apk, archive, repository):
     if hashlib.sha256(apk.read_bytes()).hexdigest() != PRIOR_APK_SHA256:
@@ -47,7 +47,7 @@ def verify(apk, archive, repository):
             summaries.append({'report':name,'recorded_steps':len(report['steps']),'status':'passed'})
     return {'status':'verified-exact-apk-prior-evidence','apk_sha256':PRIOR_APK_SHA256,
         'source_run_id':PRIOR_RUN,'source_commit':PRIOR_SOURCE,'archive_sha256':PRIOR_ZIP_SHA256,
-        'reused_suites':summaries,'remaining_required':['upgrade-install','launch','v016-health-notification-recovery','native-travel-runtime']}
+        'reused_suites':summaries,'remaining_required':['upgrade-install','launch','native-travel-runtime']}
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)

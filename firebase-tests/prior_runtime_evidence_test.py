@@ -14,7 +14,7 @@ class GuardTests(unittest.TestCase):
    for k,v in self.data.items():z.writestr(k,v)
   with patch.object(m,'PRIOR_APK_SHA256',self.digest),patch.object(m,'PRIOR_ZIP_SHA256',hashlib.sha256(self.archive.read_bytes()).hexdigest()),patch.object(m.subprocess,'run',side_effect=git_error) as git:
    result=m.verify(self.apk,self.archive,self.root);self.assertIn('app/',git.call_args.args[0]);return result
- def test_identical_binary_and_passed_unmodified_suites_can_be_reused(self):self.assertEqual(len(self.check()['reused_suites']),4)
+ def test_identical_binary_and_passed_unmodified_suites_can_be_reused(self):self.assertEqual(len(self.check()['reused_suites']),5)
  def test_changed_apk_cannot_reuse(self):
   self.apk.write_bytes(b'different APK')
   with self.assertRaisesRegex(ValueError,'bytes changed'):self.check()

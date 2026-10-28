@@ -152,14 +152,14 @@ adb_device shell getprop ro.build.version.sdk > "$output/android-api.txt"
 if [ -n "${USSPACE_PRIOR_RUNTIME_ZIP:-}" ]; then
   python3 scripts/verify-prior-runtime-evidence.py --apk "$apk" --archive "$USSPACE_PRIOR_RUNTIME_ZIP" --report "$output/prior-runtime-proof.json"
   cp "$USSPACE_PRIOR_RUNTIME_ZIP" "$output/prior-runtime-evidence.zip"
-  echo 'Reusing four previously passed suites for the exact same signed APK. Upgrade, v016 and travel checks still run.'
+  echo 'Reusing five previously passed suites for the exact same signed APK. Upgrade and travel checks still run.'
 else
   python3 scripts/android-learning-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
   python3 scripts/android-us-features-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
   python3 scripts/android-v014-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
   python3 scripts/android-v015-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
+  python3 scripts/android-v016-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 fi
-python3 scripts/android-v016-smoke.py --adb "$adb_bin" --serial "$serial" --output "$output"
 if [ -s "$output/travel-runtime-test.apk" ]; then
   npx --yes firebase-tools@14.12.1 emulators:exec --config firebase.json --only auth,firestore --project demo-usspace "bash scripts/run-travel-runtime.sh"
 fi

@@ -1,0 +1,160 @@
+name: UsSpace exact APK remaining runtime
+on:
+  workflow_dispatch:
+  push:
+    branches: [runtime-continuation]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: usspace-v018-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify-build-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANDROID_API: '35'
+      ANDROID_BUILD_TOOLS: '35.0.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify source, native policies and Firebase access rules
+        run: |
+          python3 scripts/validate-firebase-config.py
+          python3 firebase-tests/prior_runtime_evidence_test.py
+          bash scripts/test-firebase-realtime.sh
+          npm --prefix functions install --ignore-scripts --no-audit --no-fund
+          npm --prefix functions run check
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android build and emulator tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Restore existing signing identity without displaying credentials
+        env:
+          USSPACE_KEYSTORE_B64: ${{ secrets.USSPACE_KEYSTORE_B64 }}
+          USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$USSPACE_KEYSTORE_B64" || { echo 'Missing original signing key secret'; exit 1; }
+          test -n "$USSPACE_KEYSTORE_PASSWORD" || { echo 'Missing original signing password secret'; exit 1; }
+          umask 077
+          printf '%s' "$USSPACE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/usspace-original.p12"
+          test -s "$RUNNER_TEMP/usspace-original.p12"
+          printf 'USSPACE_KEYSTORE_PATH=%s\n' "$RUNNER_TEMP/usspace-original.p12" >> "$GITHUB_ENV"
+      - name: Compile signed candidate and separate instrumentation APK
+        env:
+          USSPACE_KEYSTORE_PASSWORD: ${{ secrets.USSPACE_KEYSTORE_PASSWORD }}
+          USSPACE_KEY_PASSWORD: ${{ secrets.USSPACE_KEY_PASSWORD || secrets.USSPACE_KEYSTORE_PASSWORD }}
+          USSPACE_KEY_ALIAS: ${{ secrets.USSPACE_KEY_ALIAS || 'usspace' }}
+        run: gradle --no-daemon :app:assembleReleaseAndroidTest
+      - name: Verify original certificate, Firebase OAuth, version and alignment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts
+          gh api repos/Confused-Indian-Doctor/UsSpace/actions/artifacts/12777128835/zip > "$RUNNER_TEMP/exact-candidate.zip" 2> "$RUNNER_TEMP/exact-candidate-download-error"
+          python3 - <<'PYVERIFY'
+          import hashlib, pathlib, os, zipfile
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'exact-candidate.zip'
+          if hashlib.sha256(path.read_bytes()).hexdigest()!='c05d0277c727196a8c97ea66af056b60f5ee1effadbf5682e22898b54f156ec7':raise SystemExit('Candidate archive checksum mismatch')
+          with zipfile.ZipFile(path) as archive:
+              data=archive.read('UsSpace-v0.18.0-candidate.apk')
+          if hashlib.sha256(data).hexdigest()!='208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece':raise SystemExit('Exact APK mismatch')
+          pathlib.Path('artifacts/UsSpace-v0.18.0-candidate.apk').write_bytes(data)
+          PYVERIFY
+          cp app/build/outputs/apk/androidTest/release/app-release-androidTest.apk artifacts/travel-runtime-test.apk
+          python3 scripts/verify-release-apk.py artifacts/UsSpace-v0.18.0-candidate.apk --version-code 20 --version-name 0.18.0 --report artifacts/apk-verification.json
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 artifacts/UsSpace-v0.18.0-candidate.apk
+          git rev-parse HEAD > artifacts/SOURCE_COMMIT.txt
+          sha256sum artifacts/UsSpace-v0.18.0-candidate.apk > artifacts/candidate.sha256
+      - name: Retain exact signed candidate for diagnostics (runtime verification pending)
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.18.0-signed-runtime-pending
+          path: |
+            artifacts/UsSpace-v0.18.0-candidate.apk
+            artifacts/apk-verification.json
+            artifacts/candidate.sha256
+            artifacts/SOURCE_COMMIT.txt
+          retention-days: 7
+      - name: Check pinned prior runtime evidence for an identical APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git fetch --no-tags --depth=1 origin bc79f95951393b4ba2fd6a765d414b8086aaf06c && gh api repos/Confused-Indian-Doctor/UsSpace/actions/artifacts/12779811228/zip > "$RUNNER_TEMP/prior-runtime.zip" 2> "$RUNNER_TEMP/prior-runtime-download-error"; then
+            if python3 scripts/verify-prior-runtime-evidence.py --apk artifacts/UsSpace-v0.18.0-candidate.apk --archive "$RUNNER_TEMP/prior-runtime.zip" --report "$RUNNER_TEMP/prior-runtime-proof.json"; then
+              printf 'USSPACE_PRIOR_RUNTIME_ZIP=%s\n' "$RUNNER_TEMP/prior-runtime.zip" >> "$GITHUB_ENV"
+            else
+              exit 1
+            fi
+          else
+            exit 1
+          fi
+      - name: Fetch exact approved v0.17 upgrade baseline
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, urllib.request
+          url='https://github.com/Confused-Indian-Doctor/UsSpace/releases/download/v0.17.0/UsSpace-v0.17.0.apk'
+          with urllib.request.urlopen(url,timeout=60) as response:
+              data=response.read(80*1024*1024+1)
+          if len(data)>80*1024*1024 or hashlib.sha256(data).hexdigest()!='d30475c2891236ff6073f3b668fc26acf7d1052735afb4f6bf47aa2078e07a59':
+              raise SystemExit('Approved upgrade baseline checksum mismatch')
+          pathlib.Path('artifacts/UsSpace-v0.17-baseline.apk').write_bytes(data)
+          PY
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo modprobe kvm
+          sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          sudo chmod a+rw /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Upgrade-install exact candidate, launch and run existing runtime regressions
+        timeout-minutes: 90
+        env:
+          USSPACE_UPGRADE_BASELINE_APK: artifacts/UsSpace-v0.17-baseline.apk
+          ANDROID_EMULATOR_ACCEL: 'on'
+          BOOT_TIMEOUT_SECONDS: '300'
+          CRASH_OBSERVE_SECONDS: '20'
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/usspace-v018-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          bash scripts/android-smoke-test.sh artifacts/UsSpace-v0.18.0-candidate.apk artifacts
+      - name: Save verified candidate and runtime evidence without publishing a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.18.0-verified-candidate
+          path: |
+            artifacts/
+            !artifacts/UsSpace-v0.17-baseline.apk
+            !artifacts/travel-runtime-test.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsSpace-v0.18.0-failure-evidence
+          path: |
+            artifacts/
+            !artifacts/*.apk
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove private signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/usspace-original.p12"
