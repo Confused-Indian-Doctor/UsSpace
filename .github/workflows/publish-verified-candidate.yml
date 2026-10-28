@@ -1,0 +1,60 @@
+name: Publish exact verified UsSpace candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: [verified-candidate-delivery]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: usspace-verified-candidate-delivery
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require successful pinned Android runtime
+        run: |
+          gh api repos/Confused-Indian-Doctor/UsSpace/actions/runs/40609166501 > "$RUNNER_TEMP/runtime.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          d=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'runtime.json').read_text())
+          assert d['status']=='completed' and d['conclusion']=='success'
+          assert d['head_sha']=='027efb09dd19f4b4d0a9429b3e908faf3619a858'
+          PY
+      - name: Download and verify exact runtime artifact
+        run: |
+          gh api repos/Confused-Indian-Doctor/UsSpace/actions/artifacts/12783383792/zip > "$RUNNER_TEMP/candidate.zip"
+          python3 - <<'PY'
+          import hashlib,os,pathlib,zipfile,json
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'candidate.zip'
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='057a85ef211d60d8d6798813c88f8f03404aab0bdb237370bcfab988ea6a53e7'
+          root=pathlib.Path('artifacts/verified');root.mkdir(parents=True)
+          with zipfile.ZipFile(p) as z:
+              assert sum(i.file_size for i in z.infolist())<256*1024*1024
+              for i in z.infolist():
+                  assert not i.filename.startswith('/') and '..' not in pathlib.Path(i.filename).parts
+              z.extractall(root)
+          assert (root/'SOURCE_COMMIT.txt').read_text().strip()=='027efb09dd19f4b4d0a9429b3e908faf3619a858'
+          apk=root/'UsSpace-v0.18.0-candidate.apk';digest=hashlib.sha256(apk.read_bytes()).hexdigest()
+          assert digest=='208fef19cd36fe7085ece234df139267c533c64d4570c78511fcf08472613ece'
+          signature=json.loads((root/'apk-verification.json').read_text())
+          assert signature['status']=='verified' and signature['signing_sha256']=='b5edfcc256feb46edc9fa4f2c4e95aeae3a8572b248ef234ba2a61b4eaefc308'
+          for name in ['upgrade-before.json','upgrade-after.json','travel-ui-result.json','travel-cold-import-result.json','travel-unpair-result.json','smoke-result.json']:
+              assert json.loads((root/name).read_text())['status']=='passed',name
+          (root/'UsSpace-v0.18.0-candidate.apk.sha256').write_text(digest+'  '+apk.name+'\n')
+          PY
+          python3 scripts/verify-prior-runtime-evidence.py --apk artifacts/verified/UsSpace-v0.18.0-candidate.apk --archive artifacts/verified/prior-runtime-evidence.zip --report artifacts/verified/prior-exact-apk-verification.json
+      - name: Publish candidate without changing stable release
+        run: |
+          if gh release view v0.18.0-rc1 --json isDraft > "$RUNNER_TEMP/existing-release.json" 2> "$RUNNER_TEMP/existing-release-error"; then
+            echo 'Candidate tag already exists; require manual evidence review before replacing assets.'
+            exit 1
+          fi
+          gh release create v0.18.0-rc1 artifacts/verified/UsSpace-v0.18.0-candidate.apk artifacts/verified/UsSpace-v0.18.0-candidate.apk.sha256 artifacts/verified/apk-verification.json artifacts/verified/prior-exact-apk-verification.json --target 027efb09dd19f4b4d0a9429b3e908faf3619a858 --title 'UsSpace v0.18.0 — verified Android candidate' --notes-file docs/V018_CANDIDATE_RELEASE.md --prerelease --latest=false
