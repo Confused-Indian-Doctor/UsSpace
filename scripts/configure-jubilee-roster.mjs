@@ -33,7 +33,7 @@ async function main(){
    if(!/^projects\/usspace-c859e\/rulesets\/[^/]+$/.test(created.name||''))throw Error('invalid-created-rules-reference');
    // Optimistic recheck immediately before publishing: never overwrite a newer live ruleset.
    const again=await google('releases/cloud.firestore');if(again.rulesetName!==release.rulesetName)throw Error('live-rules-changed');
-   await google('releases/cloud.firestore','PATCH',{name:'projects/usspace-c859e/releases/cloud.firestore',rulesetName:created.name});
+   await google('releases/cloud.firestore','PATCH',{release:{name:'projects/usspace-c859e/releases/cloud.firestore',rulesetName:created.name},updateMask:'rulesetName'});
   }
   const confirmed=await google('releases/cloud.firestore'),rules=await google(confirmed.rulesetName.replace('projects/usspace-c859e/',''));
   if(hash(rules.source.files[0].content)!==desiredHash)throw Error('private-roster-rules-not-confirmed');
