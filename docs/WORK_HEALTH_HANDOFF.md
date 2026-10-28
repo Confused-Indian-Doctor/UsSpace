@@ -334,3 +334,32 @@ SHA256 c27fa791915e06e0822eafdcdbbf1bdd1905bc81e2622240736db1d646713ece.
 No further credential action pending. APK40605394313 still running at checkpoint.
 Next action: inspect its terminal result/evidence, fix observed failures, retain
 v0.17 until all required gates pass; then guide both phones' independent consent.
+
+## 2026-10-28 continued until installable APK
+
+User explicitly asked to continue fixing/rerunning until passes and deliver
+downloadable APK. Latest failure40605394313 was diagnosed from checksum-pinned
+artifact12780973998 (b5f3eb7af1f91c173acd168f12050cb03d2fd5edb1f292295862c6d07df34260):
+review showed "Choose at least one idea." because mention-only candidates are
+unselected by design. No queue entry or server receipt existed. Corrected
+harness verifies that refusal, explicitly selects Keep this idea, then requires
+save-completed UI and server acknowledgement. Same selection added to offline
+scenario. No release app source changed;8 evidence guard tests passed again.
+Runtime run40609166501 at027efb0 (runtime-continuation) remains active.
+
+Consent-rule activation40609550795 passed full102 Firestore/Storage emulator
+cases and published normalized full rules SHA256
+c0668a82422574ab8a64910414813e764d24a966fec71736636dbb48dde94a5b.
+This supersedes the private-only stage: controls may now create independently
+chosen consents; no consent records were created, enabled or modified during
+deployment. Existing owner binding/credential preserved. Publication required
+exact previous stage hash and current canonical owner/pair. Artifact12781719576
+archive SHA256ca766167af2c54c3d19ffaf0fa462dca5f36af3536d43b2ea9d79633943eef7a;
+local result artifacts/consent-rules-activation-result.json. Original v017 stays
+current; no new release published while Android runtime is pending.
+
+If runtime passes: inspect every required report and original-key APK signature,
+upgrade/launch proof, exact reused evidence and travel server assertions. Provide
+a directly downloadable candidate without changing v017 latest, clearly label
+actual Samsung/phone/production Google sign-in/live-provider limitations. If
+it fails, inspect new failure evidence and continue fixing, never drop assertions.
