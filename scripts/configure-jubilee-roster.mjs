@@ -8,7 +8,7 @@ import {resolveRosterOwner,installRosterBinding} from '../functions/src/roster-c
 const hash=s=>createHash('sha256').update(s.replace(/\r\n/g,'\n').trim()).digest('hex');
 async function main(){
  const args=process.argv.slice(2),value=k=>{const i=args.indexOf(k);return i<0?'':args[i+1]||'';};
- const apply=args.includes('--apply'),expected=value('--expected-current-rules-sha256');
+ const consentRules=args.includes('--enable-consent-rules'),apply=args.includes('--apply')||consentRules,expected=value('--expected-current-rules-sha256');
  if(!process.env.USSPACE_FIREBASE_ADMIN_JSON)throw Error('firebase-admin-secret-required');
  let raw;try{raw=JSON.parse(process.env.USSPACE_FIREBASE_ADMIN_JSON);}catch{throw Error('invalid-admin-configuration');}
  if(raw.type!=='service_account'||raw.project_id!=='usspace-c859e')throw Error('wrong-firebase-project');
@@ -22,7 +22,7 @@ async function main(){
   const release=await google('releases/cloud.firestore');if(!/^projects\/usspace-c859e\/rulesets\/[^/]+$/.test(release.rulesetName||''))throw Error('invalid-live-rules-reference');
   const live=await google(release.rulesetName.replace('projects/usspace-c859e/','')),files=live.source?.files;
   if(!Array.isArray(files)||files.length!==1||typeof files[0].content!=='string'||files[0].content.length>200000)throw Error('unsupported-live-rules');
-  const currentHash=hash(files[0].content),desired=await readFile(new URL('../firestore.roster-private.rules',import.meta.url),'utf8'),desiredHash=hash(desired);
+  const currentHash=hash(files[0].content),desired=await readFile(new URL(consentRules?'../firestore.rules':'../firestore.roster-private.rules',import.meta.url),'utf8'),desiredHash=hash(desired);
   const binding=await db.doc('jubileeBindings/current').get();
   if(value('--save-live-rules'))await writeFile(value('--save-live-rules'),files[0].content,{flag:'wx',mode:0o600});
   if(args.includes('--verify-source')){
@@ -49,7 +49,8 @@ async function main(){
   }
   if(!apply){console.log(JSON.stringify({mode:'inspect',canonicalOwnerVerified:true,currentPairVerified:true,bindingExists:binding.exists,currentRulesSha256:currentHash,desiredPrivateRosterRulesSha256:desiredHash,alreadyPrivateRosterRules:currentHash===desiredHash}));return;}
   if(!/^[a-f0-9]{64}$/.test(expected)||currentHash!==expected)throw Error('live-rules-changed-or-unreviewed');
-  if(binding.exists)throw Error('binding-already-exists-review-required');
+  if(binding.exists&&!consentRules)throw Error('binding-already-exists-review-required');
+  if(consentRules&&(!binding.exists||binding.data().enabled!==true||binding.data().ownerUid!==owner.ownerUid||binding.data().pairId!==owner.pairId))throw Error('current-paired-members-required');
   if(currentHash!==desiredHash){
    const created=await google('rulesets','POST',{source:{files:[{name:'firestore.rules',content:desired}]}});
    if(!/^projects\/usspace-c859e\/rulesets\/[^/]+$/.test(created.name||''))throw Error('invalid-created-rules-reference');
@@ -59,6 +60,7 @@ async function main(){
   }
   const confirmed=await google('releases/cloud.firestore'),rules=await google(confirmed.rulesetName.replace('projects/usspace-c859e/',''));
   if(hash(rules.source.files[0].content)!==desiredHash)throw Error('private-roster-rules-not-confirmed');
+  if(consentRules){console.log(JSON.stringify({mode:'consent-rules-published',rulesSha256:desiredHash,consentRecordsWritten:false,ownerBindingPreserved:true}));return;}
   const roster=makeRosterService({db,serverTimestamp:()=>FieldValue.serverTimestamp()});
   console.log(JSON.stringify({...await installRosterBinding({db,roster,...owner}),privateRosterRulesSha256:desiredHash,healthAndPartnerSharingEnabled:false}));
  }finally{await db.terminate();await deleteApp(app);}
